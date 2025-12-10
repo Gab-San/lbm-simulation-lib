@@ -34,6 +34,22 @@ class LBM {
 public:
     LBM(int nx, int ny, double Re, double u_lid);   // costruttore
 
+    int Nx, Ny;
+    double Re, uLid;
+    double omega;
+
+    const double w0 = 4.0/9.0;  // zero weight
+    const double ws = 1.0/9.0;  // adjacent weight
+    const double wd = 1.0/36.0; // diagonal weight
+    // Arrays of the lattice weights and direction components
+    const double wi[] = {w0,ws,ws,ws,ws,wd,wd,wd,wd};
+    const int dirx[] = {0,1,0,-1, 0,1,-1,-1, 1};
+    const int diry[] = {0,0,1, 0,-1,1, 1,-1,-1};
+    // The kinematic viscosity and the corresponding relaxation parameter
+    const double nu = 1.0/6.0;
+    const double tau = 3.0*nu+0.5;
+
+
     //qui sotto ora ci sono i cosiddetti "metodi di uso alto livello":
 
     // One full time step: collision + streaming + boundaries + macros
@@ -55,10 +71,6 @@ public:
 
 // privata: ciò che il codice esterno non può vedere
 private:
-    int Nx, Ny;
-    double Re, uLid;
-    double nu, tau, omega;
-
     // Distribution functions: f[q][i] with flattened 2D index
     std::vector<double> f;      // size: Nx * Ny * 9
     std::vector<double> fTemp;  // buffer for streaming

@@ -47,14 +47,14 @@ void stream(double *f_src, double* f_dst)
                 // trova i vicini del vettore velocità u(x,y)
                 unsigned int xmd = (Nx+x-dirx[i]) % Nx;
                 unsigned int ymd = (Ny+y-diry[i]) % Ny;
+                //per ogni peso del punto x,y assegno il peso associato del vicino xmd,ymd
                 f_dst[field_index(x,y,i)] = f_src[field_index(xmd,ymd,i)];
             }
         }
     }
 }
 
-void compute_rho_u(double *f, double *r,
-double *u, double *v)
+void compute_rho_u(double *f, double *r, double *u, double *v)
 {
     for(unsigned int y = 0; y< Ny;++y)
     {
@@ -91,7 +91,7 @@ void collide(double *f, double *r, double *u, double *v)
             // 1- 1/tau
             for(unsigned int i = 0; i < ndir; ++i)
             {
-                // calculate dot product
+                // calculate dot product beetwen the velocity u(x,y) and the direction vector to its neighbour
                 double cidotu = dirx[i]*ux + diry[i]*uy;
                 // calculate equilibrium
                 double feq = wi[i]*rho*(1.0 + 3.0*cidotu+4.5*cidotu*cidotu-1.5*(ux*ux+uy*uy));
