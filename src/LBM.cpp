@@ -1,21 +1,11 @@
 #include "LBM.hpp"
+#include <cmath>
 
 //to do: implementation of functions for lattice boltzmann method
 
-inline size_t scalar_index(unsigned int x, unsigned int y)
-{
-    return Nx*y+x;
-}
-
-inline size_t field_index(unsigned int x, unsigned int y, unsigned int d)
-{
-    return Nx*(Ny*d+y)+x;
-}
-
 //compute equilibrium
 //evolution of the steps (for cycle) -> UPDATE collision, macros and apply boundary conditions
-void init_equilibrium(double *f, double *r,
-double *u, double *v)
+void LBM::init_equilibrium(double *f, double *r, double *u, double *v)
 {
     for(unsigned int y = 0; y< Ny;++y)
     {
@@ -35,7 +25,7 @@ double *u, double *v)
     }
 }
 
-void stream(double *f_src, double* f_dst)
+void LBM::stream(double *f_src, double* f_dst)
 {
     for(unsigned int y = 0; y< Ny;++y)
     {
@@ -54,7 +44,7 @@ void stream(double *f_src, double* f_dst)
     }
 }
 
-void compute_rho_u(double *f, double *r, double *u, double *v)
+void LBM::compute_rho_u(double *f, double *r, double *u, double *v)
 {
     for(unsigned int y = 0; y< Ny;++y)
     {
@@ -76,7 +66,7 @@ void compute_rho_u(double *f, double *r, double *u, double *v)
     }
 }
 
-void collide(double *f, double *r, double *u, double *v)
+void LBM::collide(double *f, double *r, double *u, double *v)
 {
     // useful constants
     const double tauinv = 2.0/(6.0*nu+1.0); // 1/tau
@@ -102,7 +92,7 @@ void collide(double *f, double *r, double *u, double *v)
     }
 }
 
-void taylor_green(unsigned int t, unsigned int x, unsigned int y, double *r, double *u, double *v)
+void LBM::taylor_green(unsigned int t, unsigned int x, unsigned int y, double *r, double *u, double *v)
 {
     double kx = 2.0*M_PI/Nx;
     double ky = 2.0*M_PI/Ny;
@@ -121,13 +111,13 @@ void taylor_green(unsigned int t, unsigned int x, unsigned int y, double *r, dou
 }
 
 
-void taylor_green(unsigned int t, double *r,  double *u, double *v)
+void LBM::taylor_green(unsigned int t, double *r,  double *u, double *v)
 {
     for(unsigned int y = 0; y < Ny; ++y)
         for(unsigned int x = 0; x < Nx; ++x)
         {
             size_t sidx = scalar_index(x,y);
-            taylor_green(t,x,y,&r[sidx],&u[sidx],&v[sidx]);
+            LBM::taylor_green(t,x,y,&r[sidx],&u[sidx],&v[sidx]);
         }
 }
 
@@ -140,12 +130,40 @@ void taylor_green(unsigned int t, double *r,  double *u, double *v)
 
 
 //write functions for: collision, macros quantity calculations, boundary conditions (bottom, top, right left)
+void LBM::apply_boundary_conditions(double *u, double *v, double *r, double *f_src, double *f_dst) {
 
+    // Left e Right boundaries
+    for (int j = 1; j < Ny - 1; j++) {
+        // Left boundary (x = 0)
+        u[scalar_index(0, j)] = 0.0;
+        v[scalar_index(0, j)] = 0.0;
+        u[scalar_index(Nx-1, j)] = 0.0;
+        v[scalar_index(Nx-1, j)] = 0.0;
 
+        r[scalar_index(0,j)] = r[scalar_index(1,j)];
+        r[scalar_index(Nx-1,j)] = r[scalar_index(Nx-2,j)];
+        for (int k = 0; k < ndir; k++) {
+            f_dst[field_index(0, j, k)] = f_src[field_index(0, j, k)] + f_dst[field_index(1, j, k)] - f_src[field_index(1, j, k)];
+            f_dst[field_index(Nx - 1, j, k)] = f_src[field_index(Nx - 1, j, k)] + f_dst[field_index(Nx - 2, j, k)] - f_src[field_index(Nx - 2, j, k)];
+        }
+    }
 
+    // Top e Bottom boundaries
+    for (int i = 0; i < Nx; i++) {
+        // Top boundary (y = NY-1)
+        u[scalar_index(i, Ny - 1)] = u_lid;
+        v[scalar_index(i, Ny - 1)] = 0.0;
+        u[scalar_index(i, 0)] = 0.0;
+        v[scalar_index(i, 0)] = 0.0;
 
-
-
+        r[scalar_index(i,Ny-1)] = r[scalar_index(i,Ny - 2)];
+        r[scalar_index(i,0)] = r[scalar_index(i,1)];
+        for (int k = 0; k < ndir; k++) {
+            f_dst[field_index(i, Ny - 1, k)] = f_src[field_index(i, Ny - 1, k)] + f_dst[field_index(i, Ny - 2, k)] - f_src[field_index(i, Ny - 2, k)];
+            f_dst[field_index(i, 0, k)] = f_src[field_index(i, 0, k)] + f_dst[field_index(i, 1, k)] - f_src[field_index(i, 1, k)];
+        }
+    }
+}
 
 /*
 void initializeGrid(){}

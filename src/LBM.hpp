@@ -1,8 +1,7 @@
 
-// Versione precedente
-//all headers go here
-//#ifndef LBM_HPP
-//#define LBM_HPP
+#ifndef LBM_HPP
+#define LBM_HPP
+
 //
 //class LBM{
 //    private:
@@ -23,7 +22,6 @@
 //};
 //#endif
 
-#pragma once
 #include <vector>
 #include <string>
 
@@ -32,22 +30,43 @@ class LBM {
 
 // pubblica: ciò che il codice esterno può usare
 public:
-    LBM(int nx, int ny, double Re, double u_lid);   // costruttore
 
+    /**
+     *  Constructor
+     *  @param grid_x_ number of cells along the X axis
+     *  @param grid_y_ number of cells along the Y axis
+     *  @param rey_num_ : Reynold number (viscosity related)
+     *  @param u_lid : Initial velocity of the lid cavity
+     */
+    LBM(int grid_x_, int grid_y_, double rey_num_, double u_lid_):
+	Nx(grid_x_), Ny(grid_y_), Re(rey_num_), u_lid(u_lid_){}; 
+
+    /// Nx : Number of cells along the X axis
+    /// Ny : Number of cells along the Y axis
     int Nx, Ny;
-    double Re, uLid;
+
+    /// Re : Reynold number (viscosity related)
+    /// u_lid : Initial velocity of the lid cavity
+    double Re, u_lid;
     double omega;
 
     const double w0 = 4.0/9.0;  // zero weight
     const double ws = 1.0/9.0;  // adjacent weight
     const double wd = 1.0/36.0; // diagonal weight
     // Arrays of the lattice weights and direction components
-    const double wi[] = {w0,ws,ws,ws,ws,wd,wd,wd,wd};
-    const int dirx[] = {0,1,0,-1, 0,1,-1,-1, 1};
-    const int diry[] = {0,0,1, 0,-1,1, 1,-1,-1};
+    const double wi[9] = {w0,ws,ws,ws,ws,wd,wd,wd,wd};
+    const int dirx[9] = {0,1,0,-1, 0,1,-1,-1, 1};
+    const int diry[9] = {0,0,1, 0,-1,1, 1,-1,-1};
     // The kinematic viscosity and the corresponding relaxation parameter
     const double nu = 1.0/6.0;
     const double tau = 3.0*nu+0.5;
+
+    const int ndir = 9; // number of directions (considerando anche il centro)
+
+    // The maximum flow speed
+    const double u_max = 0.04;
+    // The fluid density
+    const double rho0 = 1.0;
 
 
     //qui sotto ora ci sono i cosiddetti "metodi di uso alto livello":
@@ -63,10 +82,15 @@ public:
 
     // Extract centerline profiles for validation
     //void writeCenterlineProfiles(const std::string &filename) const;
-
-    // Getters for debug or postprocessing
-    int getNx() const { return Nx; }
-    int getNy() const { return Ny; }
+    
+    //void initializeLattice(); ==> uguale al taylor green
+    void init_equilibrium(double *f, double *r, double *u, double *v);
+    void stream(double *f_src, double* f_dst);
+    void compute_rho_u(double *f, double *r, double *u, double *v);
+    void collide(double *f, double *r, double *u, double *v);
+    void apply_boundary_conditions(double *u, double *v, double *r, double *f_src, double *f_dst);
+    void taylor_green(unsigned int t, unsigned int x, unsigned int y, double *r, double *u, double *v);
+    void taylor_green(unsigned int t, double *r,  double *u, double *v);
 
 
 // privata: ciò che il codice esterno non può vedere
@@ -80,21 +104,14 @@ private:
     std::vector<double> ux;     // size: Nx * Ny
     std::vector<double> uy;     // size: Nx * Ny
 
-    // Lattice weights and velocities
-    double w[9];
-    int ex[9];
-    int ey[9];
-
     // Internal helpers
-    int idx(int x, int y) const { return y * Nx + x; }
-    int qIndex(int x, int y, int q) const { return (y * Nx + x) * 9 + q; }
+    inline size_t scalar_index(unsigned int x, unsigned int y) const {
+        return Nx * y + x;
+    }
 
-    //void initializeLattice(); ==> uguale al taylor green
-    void taylor_green();
-    void collide();
-    void stream();          
-    void compute_rho_u();
-    void applyBoundaries();
-    void computeMacros();
-    double equilibrium(int q, int i) const;
+    inline size_t field_index(unsigned int x, unsigned int y, unsigned int d) const {
+        return Nx * (Ny * d + y) + x;
+    }
 };
+
+#endif
