@@ -1,57 +1,42 @@
-
 #ifndef LBM_HPP
 #define LBM_HPP
 
-//
-//class LBM{
-//    private:
-//        //D2Q9 model
-//        //velocity configuration
-//        //equilibrium weights (vector for each direction)
-//        //velocity imposed on the upper lid (U?)
-//        //main domain variables (rho, f, u, F)
-//        double *rho, *f, *u, *F;
-//        //f = population, rho = scalar density, u = velocity,  F ? (credo forze esterne)
-//        
-//        //functions to calc: density, direction, velocity, field, f_equilibrium
-//    public:
-//        //dimension in x, y directions
-//        //? boh?
-//        LBM(unsigned int nx, unsigned int ny, double u_lid, double Re);
-//
-//};
-//#endif
+#include <cstddef> // for size_t
 
-#include <vector>
-#include <string>
-
-// qui abbiamo la classe LBM con parti private e parti pubbliche
+/**
+ * LBM
+ *
+ * This class handles the functions through which the lattice Boltzmann
+ * method can be executed.
+ *
+ * It contains the general parameters needed to implement the algorithm
+ * and it is initialized with the parameters of the problem.
+ */
 class LBM {
 
-// pubblica: ciò che il codice esterno può usare
 public:
 
     /**
-     *  Constructor
-     *  @param grid_x_ number of cells along the X axis
-     *  @param grid_y_ number of cells along the Y axis
-     *  @param rey_num_ : Reynold number (viscosity related)
-     *  @param u_lid : Initial velocity of the lid cavity
+     * Default Construct
+     *
+     * @param grid_x_ number of cells along the X axis
+     * @param grid_y_ number of cells along the Y axis
+     * @param rey_num_ : Reynold number (viscosity related)
+     * @param u_lid : Initial velocity of the lid cavity
      */
-    LBM(int grid_x_, int grid_y_, double rey_num_, double u_lid_):
-	Nx(grid_x_), Ny(grid_y_), Re(rey_num_), u_lid(u_lid_){}; 
+    LBM(int num_cells_x_, int num_cells_y_, double rey_num_, double u_lid_):
+	Nx(num_cells_x_), Ny(num_cells_y_), Re(rey_num_), u_lid(u_lid_){}; 
 
     /// Nx : Number of cells along the X axis
     /// Ny : Number of cells along the Y axis
-    int Nx, Ny;
+    const int Nx, Ny;
 
     /// Re : Reynold number (viscosity related)
-    /// u_lid : Initial velocity of the lid cavity
-    double Re, u_lid;
-    double omega;
+    /// u_lid : Velocity of the lid cavity
+    const double Re, u_lid;
 
-    const double w0 = 4.0/9.0;  // zero weight
-    const double ws = 1.0/9.0;  // adjacent weight
+    const double w0 = 4.0/9.0;  // weight in (dx,dy)=(0,0)
+    const double ws = 1.0/9.0;  // weight for adjacent points
     const double wd = 1.0/36.0; // diagonal weight
 
     // Arrays of the lattice weights and direction components
@@ -64,59 +49,101 @@ public:
     const int dirx[9] = {0,1,0,-1, 0,1,-1,-1, 1};
     const int diry[9] = {0,0,1, 0,-1,1, 1,-1,-1};
     // The kinematic viscosity and the corresponding relaxation parameter
-    const double nu = 1.0/6.0; //u_lid * (Ny - 1) / Re
-    const double tau = 3.0*nu+0.5;
+    double nu = 1.0/6.0; //u_lid * (Ny - 1) / Re
+    const double tau = 3.0 * nu + 0.5;
 
-    const int ndir = 9; // number of directions (considerando anche il centro)
+    const int ndir = 9; // number of directions (considering the center point)
 
     // The maximum flow speed
     const double u_max = 0.04;
     // The fluid density
     const double rho0 = 1.0;
 
-
-    //qui sotto ora ci sono i cosiddetti "metodi di uso alto livello":
-
-    // One full time step: collision + streaming + boundaries + macros
-    //void step();
-
-    // Run many steps
-    //void run(int nSteps, int outputEvery, const std::string &outputFolder);
+    // FIXME: Are these methods needed?
 
     // Write macroscopic fields at a given time
-    void writeFields(const std::string &filename) const;
+    // void writeFields(const std::string &filename) const;
 
     // Extract centerline profiles for validation
-    //void writeCenterlineProfiles(const std::string &filename) const;
-    
-    //void initializeLattice(); ==> uguale al taylor green
+    // void writeCenterlineProfiles(const std::string &filename) const;
+
+    /**
+    * Compute the equilibrium of the system.
+    *
+    * @param f particle population
+    * @param r density vector
+    * @param u x-axis velocity vector
+    * @param v y-axis velocity vector
+    */
     void init_equilibrium(double *f, double *r, double *u, double *v);
+
+    /**
+    * Compute the particle populations movement from
+    * one cell to another distributing the velocities.
+    *
+    * It basically copies the distribution function in 
+    * f_src to f_dst.
+    *
+    * @param f_src source particle population
+    * @param f_dst destination particle population
+    */
     void stream(double *f_src, double* f_dst);
+
+    /**
+    * Compute the density and the velocities for each cell.
+    *
+    * @param f particle population
+    * @param r density vector
+    * @param u x-axis velocity vector
+    * @param v y-axis velocity vector
+     */
     void compute_rho_u(double *f, double *r, double *u, double *v);
+
+    /**
+    * Evaluate the collision operator (in this case BGK)
+    * on the particle populations using the density and velocity values
+    * computed at the current step.
+    *
+    * @param f particle population
+    * @param r density vector
+    * @param u x-axis velocity vector
+    * @param v y-axis velocity vector
+    */
     void collide(double *f, double *r, double *u, double *v);
+
+    // FIXME: Are these methods needed?
     void taylor_green(unsigned int t, unsigned int x, unsigned int y, double *r, double *u, double *v);
     void taylor_green(unsigned int t, double *r,  double *u, double *v);
-    void init_lid_driven_cavity(double *u, double *v, double *r);
-    void apply_boundary_conditions(double *f);
     //void apply_boundary_conditions(double *u, double *v, double *r, double *f_src, double *f_dst);
 
+    /**
+    * Initialize the velocities and the density 
+    * of the particle populations
+    *
+    * @param r density vector
+    * @param u x-axis velocity vector
+    * @param v y-axis velocity vector
+    */
+    void init_lid_driven_cavity(double *u, double *v, double *r);
 
-// privata: ciò che il codice esterno non può vedere
+    /**
+    * Apply the boundary conditions for
+    * the lid cavity problem.
+    *
+    * @param f particle population
+    */
+    void apply_boundary_conditions(double *f);
+
 private:
-    // Distribution functions: f[q][i] with flattened 2D index
-    std::vector<double> f;      // size: Nx * Ny * 9
-    std::vector<double> fTemp;  // buffer for streaming
 
-    // Macroscopic fields
-    std::vector<double> rho;    // size: Nx * Ny
-    std::vector<double> ux;     // size: Nx * Ny
-    std::vector<double> uy;     // size: Nx * Ny
-
-    // Internal helpers
+    // Index position of a cell for a scalar defined vector
     inline size_t scalar_index(unsigned int x, unsigned int y) const {
         return Nx * y + x;
     }
 
+    // Index position of a cell for a direction defined vector
+    // This function is equal to: (Nx*Ny*d) + (Nx*y)+x
+    // making d work as an offset.
     inline size_t field_index(unsigned int x, unsigned int y, unsigned int d) const {
         return Nx * (Ny * d + y) + x;
     }

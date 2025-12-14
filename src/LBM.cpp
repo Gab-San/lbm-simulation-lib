@@ -1,7 +1,6 @@
 #include "LBM.hpp"
 #include <cmath>
 
-//to do: implementation of functions for lattice boltzmann method
 
 //initialize velocities and pressure fields for the lid driven cavity flow
 void LBM::init_lid_driven_cavity(double *u, double *v, double *r)
@@ -11,8 +10,8 @@ void LBM::init_lid_driven_cavity(double *u, double *v, double *r)
         for(unsigned int x = 0; x < Nx; ++x)
         {
             size_t sidx = scalar_index(x,y);
-            u[sidx] = 0.0;
-            v[sidx] = 0.0;
+	    u[sidx] = 0.0;
+	    v[sidx] = 0.0;
             r[sidx] = rho0;
         }
     }
@@ -114,6 +113,8 @@ void LBM::collide(double *f, double *r, double *u, double *v)
     }
 }
 
+// FIXME: Are these functions needed?
+
 void LBM::taylor_green(unsigned int t, unsigned int x, unsigned int y, double *r, double *u, double *v)
 {
     double kx = 2.0*M_PI/Nx;
@@ -145,13 +146,6 @@ void LBM::taylor_green(unsigned int t, double *r,  double *u, double *v)
 
 
 
-//to do: include necessary things
-
-//initialize variables of the domain with class LBM
-
-
-
-//write functions for: collision, macros quantity calculations, boundary conditions (bottom, top, right left)
 void LBM::apply_boundary_conditions(double* f)
 {
     // LEFT wall (x = 0)
@@ -198,11 +192,3 @@ void LBM::apply_boundary_conditions(double* f)
     }
 }
 
-/*
-void initializeGrid(){}
-void generateVelocityField(){}
-void simulateStep(){} //new f_temp during collision
-double equilibriumDistribution(){}
-double dotProduct(){}
-void setBoundaryVelocities(){}
-*/

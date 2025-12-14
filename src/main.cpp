@@ -8,31 +8,31 @@
 // Max number of steps
 #define NSTEPS 5000
 
-// TODO: lid velocity, stream, collide, apply no slip, compute Rho and Velocity, equilibrium,
-// TODO: save result + plotting + video/imaging
-
 int main(int argc, char* argv[])
 {
     // Command argument count
     if(argc < 5)
     {
-        printf("Usage: %s grid_dim_X grid_dim_Y Reyn_Num U_lid\n", argv[0]);
+        printf("Usage: %s grid_cells_num_x grid_cells_num_y reyn_num lid_velocity\n", argv[0]);
         return -1;
     }
 
     /// Defining Nx (grid_cells_x) Ny (grid_cells_y)
-    /// Re (Reynold number) u_lid (Lid initial velocity)
     int Nx, Ny;
+    /// Re (Reynold number) u_lid (Lid initial velocity)
     double Re, u_lid;
+
     try {
         Nx = std::stoi(argv[1]);    //StringToInteger
         Ny = std::stoi(argv[2]);
         Re = std::stod(argv[3]); //StringToDouble
         u_lid = std::stod(argv[4]);
     } catch (const std::invalid_argument& ia) {
-        std::cout << "[ERROR WHILE PARSING ARGUMENTS FROM COMMAND LINE] Invalid Argument: " << ia.what() << '\n' << std::endl;
+        std::cout << "[ERROR WHILE PARSING ARGUMENTS FROM COMMAND LINE] Invalid Argument: " 
+	    << ia.what() << '\n' << std::endl;
     } catch (const std::out_of_range& oor) {
-        std::cout << "[ERROR WHILE PARSING ARGUMENTS FROM COMMAND LINE] Argument Out of Range: " << oor.what() << "\nThis value cannot be represented" << std::endl;
+        std::cout << "[ERROR WHILE PARSING ARGUMENTS FROM COMMAND LINE] Argument Out of Range: " 
+	    << oor.what() << "\nThis value cannot be represented" << std::endl;
     }
 
     // Print parameters to stdout
@@ -44,8 +44,10 @@ int main(int argc, char* argv[])
     // Instantiate LBM data structure
     LBM lbm(Nx, Ny, Re, u_lid);
 
-    // definisco le dimensioni da allocare
+    // Allocation sizes
+    // for scalar valued vectors
     size_t mem_size_scalar = Nx * Ny * sizeof(double);        // for rho, ux, uy
+    // for vectors that take into account the neighbouring cells
     size_t mem_size_ndir   = Nx * Ny * lbm.ndir * sizeof(double);    // for f1, f2
 
     // allocate memory
@@ -56,6 +58,9 @@ int main(int argc, char* argv[])
     double *rho = (double*) malloc(mem_size_scalar); 
 
     // allocate memory for the velocity fields
+    // considering that the problem is the lid cavity problem
+    // an initial optimization can be done by setting both 
+    // velocity vectors to 0
     double *ux = (double*) malloc(mem_size_scalar);
     double *uy = (double*) malloc(mem_size_scalar);
 
@@ -71,6 +76,7 @@ int main(int argc, char* argv[])
 
     // Apertura file output
     std::ofstream file("../vel_norms.txt");
+
     if (!file.is_open()) {
         std::cerr << "Error with opening the file 'vel_norms.txt'.\n";
         return -1;
@@ -86,7 +92,6 @@ int main(int argc, char* argv[])
         lbm.stream(f1,f2);
 
         // apply boundary conditions
-        //lbm.apply_boundary_conditions(ux,uy,rho,f1,f2);
         lbm.apply_boundary_conditions(f2);
         
         // calculate post-streaming density and velocity
@@ -100,7 +105,7 @@ int main(int argc, char* argv[])
         
         if(n % 50 != 0) { continue; } // write every 50 time steps
 
-        // calcolo le norme delle velocità e le salvo nel file
+        // saving euclidian norms of the vectors at each step 
         for (int j = 0; j < Ny; ++j) {
             for (int i = 0; i < Nx; ++i) {
                 double vx = ux[Nx * j + i];
