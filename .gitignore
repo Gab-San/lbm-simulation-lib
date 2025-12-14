@@ -36,4 +36,8 @@ build/
 *.txt
 .vscode/
 visualizer.pyZone.Identifier
-
+<<<<<<< HEAD
+*.gif
+=======
+src/LBM_test.cpp
+>>>>>>> 6cde068 (Refactoring of the script of the Benchmark and fixed incorrect velocity in the bench_data.txt file)

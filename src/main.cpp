@@ -6,7 +6,10 @@
 #include <stdexcept>
 
 // Max number of steps
-#define NSTEPS 5000
+#define NSTEPS 10000
+
+// Skip step
+# define SKIP_STEP 50
 
 int main(int argc, char* argv[])
 {
@@ -46,9 +49,9 @@ int main(int argc, char* argv[])
 
     // Allocation sizes
     // for scalar valued vectors
-    size_t mem_size_scalar = Nx * Ny * sizeof(double);        // for rho, ux, uy
+    size_t mem_size_scalar = Nx * Ny * sizeof(double);            // for rho, ux, uy
     // for vectors that take into account the neighbouring cells
-    size_t mem_size_ndir   = Nx * Ny * lbm.ndir * sizeof(double);    // for f1, f2
+    size_t mem_size_ndir   = Nx * Ny * lbm.ndir * sizeof(double); // for f1, f2
 
     // allocate memory
     double *f1 = (double*) malloc(mem_size_ndir);
@@ -82,6 +85,13 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    // Apertura file per il testing
+    std::ofstream fileTest("../vel_y_testing.txt");
+    if (!fileTest.is_open()) {
+        std::cerr << "Error with opening the file 'vel_y_testing.txt'.\n";
+        return -1;
+    }
+
     // Write grid dimensions to file
     file << Nx << "\n" << Ny << "\n";
     
@@ -103,7 +113,7 @@ int main(int argc, char* argv[])
         // swap pointers
         std::swap(f1,f2);
         
-        if(n % 50 != 0) { continue; } // write every 50 time steps
+        if(n % SKIP_STEP != 0) { continue; } // write every 50 time steps
 
         // saving euclidian norms of the vectors at each step 
         for (int j = 0; j < Ny; ++j) {
@@ -114,9 +124,21 @@ int main(int argc, char* argv[])
                 file << v << "\n";
             }
         }
+
+        // at the last step 
+        if (n +  SKIP_STEP >= NSTEPS ) {       
+            // Results for v-Velocity along Horizontal Line through Geometric Center of Cavity
+            int j_center = Ny / 2;
+            for (int i = 0; i < Nx; ++i) {
+                double v_center = uy[Nx * j_center + i];
+                fileTest << v_center << "\n";
+            }
+            
+        }
     }
 
     file.close();
+    fileTest.close();
     printf("\nFinished writing to file.\n");
 
     // deallocate memory

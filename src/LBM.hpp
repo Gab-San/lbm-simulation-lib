@@ -1,7 +1,8 @@
 #ifndef LBM_HPP
 #define LBM_HPP
 
-#include <cstddef> // for size_t
+#include <stdexcept> // for runtime_error
+#include <cstddef>   // for size_t
 
 /**
  * LBM
@@ -23,9 +24,26 @@ public:
      * @param grid_y_ number of cells along the Y axis
      * @param rey_num_ : Reynold number (viscosity related)
      * @param u_lid : Initial velocity of the lid cavity
+     * @param nu: kinematic viscosity
+     * @param tau: relaxation parameter
      */
     LBM(int num_cells_x_, int num_cells_y_, double rey_num_, double u_lid_):
-	Nx(num_cells_x_), Ny(num_cells_y_), Re(rey_num_), u_lid(u_lid_){}; 
+        nu(u_lid_ * (num_cells_y_ - 1) / rey_num_), 
+        tau(0.5 + 3.0 * nu),
+        Nx(num_cells_x_), 
+        Ny(num_cells_y_), 
+        u_lid(u_lid_),
+        Re(rey_num_)
+    {
+        if (tau <= 0.5) {
+            throw std::runtime_error("LBM error: tau must be > 0.5");
+        }
+        if (tau < 0.55 || tau > 1.2) {
+            std::printf("LBM warning: tau out of stability range, simulation may be unstable.\n");
+        }
+
+        // TODO: Trovare la stabilità per il Mach number
+    }; 
 
     /// Nx : Number of cells along the X axis
     /// Ny : Number of cells along the Y axis
@@ -48,9 +66,12 @@ public:
     // 7 4 8
     const int dirx[9] = {0,1,0,-1, 0,1,-1,-1, 1};
     const int diry[9] = {0,0,1, 0,-1,1, 1,-1,-1};
+    
     // The kinematic viscosity and the corresponding relaxation parameter
-    double nu = 1.0/6.0; //u_lid * (Ny - 1) / Re
+    const double nu = u_lid * (Ny - 1) / Re;
     const double tau = 3.0 * nu + 0.5;
+    
+
 
     const int ndir = 9; // number of directions (considering the center point)
 

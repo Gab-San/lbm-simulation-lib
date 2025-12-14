@@ -10,8 +10,8 @@ void LBM::init_lid_driven_cavity(double *u, double *v, double *r)
         for(unsigned int x = 0; x < Nx; ++x)
         {
             size_t sidx = scalar_index(x,y);
-	    u[sidx] = 0.0;
-	    v[sidx] = 0.0;
+	        u[sidx] = 0.0;
+	        v[sidx] = 0.0;
             r[sidx] = rho0;
         }
     }
@@ -46,20 +46,24 @@ void LBM::init_equilibrium(double *f, double *r, double *u, double *v)
     }
 }
 
-void LBM::stream(double *f_src, double* f_dst)
+// Streaming step is not periodic, so we need to be careful at the boundaries
+void LBM::stream(double *f_src, double *f_dst)
 {
-    for(unsigned int y = 0; y< Ny;++y)
-    {
-        for(unsigned int x = 0; x < Nx; ++x)
-        {
-            for(unsigned int i = 0; i < ndir; ++i)
-            {
-                // enforce periodicity: add Nx to ensure that value is positive
-                // trova i vicini del vettore velocità u(x,y)
-                unsigned int xmd = (Nx+x-dirx[i]) % Nx;
-                unsigned int ymd = (Ny+y-diry[i]) % Ny;
-                //per ogni peso del punto x,y assegno il peso associato del vicino xmd,ymd
-                f_dst[field_index(x,y,i)] = f_src[field_index(xmd,ymd,i)];
+    // streaming vero e proprio
+    for (unsigned int y = 0; y < Ny; ++y) {
+        for (unsigned int x = 0; x < Nx; ++x) {
+            for (unsigned int i = 0; i < ndir; ++i) {
+
+                unsigned int xs = x - dirx[i];
+                unsigned int ys = y - diry[i];
+
+                // stream SOLO se il nodo sorgente è interno
+                if (xs >= 0 && xs < Nx && ys >= 0 && ys < Ny) {
+                    f_dst[field_index(x,y,i)] = f_src[field_index(xs,ys,i)];
+                } else {
+                    // altrimenti, imposto il valore a 0
+                    f_dst[field_index(x,y,i)] = 0.0;
+                }
             }
         }
     }
@@ -80,6 +84,7 @@ void LBM::compute_rho_u(double *f, double *r, double *u, double *v)
                 ux += dirx[i]*f[field_index(x,y,i)];
                 uy += diry[i]*f[field_index(x,y,i)];
             }
+
             r[scalar_index(x,y)] = rho;
             u[scalar_index(x,y)] = ux/rho;
             v[scalar_index(x,y)] = uy/rho;
@@ -87,6 +92,8 @@ void LBM::compute_rho_u(double *f, double *r, double *u, double *v)
     }
 }
 
+
+// implementation of the BGK collision operator
 void LBM::collide(double *f, double *r, double *u, double *v)
 {
     // useful constants
@@ -110,6 +117,54 @@ void LBM::collide(double *f, double *r, double *u, double *v)
                 f[field_index(x,y,i)] = omtauinv*f[field_index(x,y,i)]+tauinv*feq;
             }
         }
+    }
+}
+
+void LBM::apply_boundary_conditions(double* f)
+{
+    // LEFT wall (x = 0)
+    for (int y = 0; y < Ny; y++) {
+        int x = 0;
+        f[field_index(x,y,1)] = f[field_index(x,y,3)];
+        f[field_index(x,y,5)] = f[field_index(x,y,7)];
+        f[field_index(x,y,8)] = f[field_index(x,y,6)];
+    }
+
+    // RIGHT wall (x = Nx-1)
+    for (int y = 0; y < Ny; y++) {
+        int x = Nx - 1;
+        f[field_index(x,y,3)] = f[field_index(x,y,1)];
+        f[field_index(x,y,6)] = f[field_index(x,y,8)];
+        f[field_index(x,y,7)] = f[field_index(x,y,5)];
+    }
+
+    // BOTTOM wall (y = 0) 
+    for (int x = 0; x < Nx; x++) {
+        int y = 0;
+        f[field_index(x,y,2)] = f[field_index(x,y,4)];
+        f[field_index(x,y,5)] = f[field_index(x,y,7)];
+        f[field_index(x,y,6)] = f[field_index(x,y,8)];
+    }
+
+    // TOP wall (y = Ny-1)
+    for (int x = 0; x < Nx; x++) {
+        int y = Ny - 1;
+        
+        double rho =
+            (
+                f[field_index(x,y,0)] +
+                f[field_index(x,y,1)] +
+                f[field_index(x,y,3)] +
+                2.0 * (
+                    f[field_index(x,y,2)] +
+                    f[field_index(x,y,5)] +
+                    f[field_index(x,y,6)]
+                )
+            ) / (1.0 + u_lid);
+
+        f[field_index(x,y,4)] = f[field_index(x,y,2)];
+        f[field_index(x,y,7)] = f[field_index(x,y,5)] - 0.5 * rho * u_lid;
+        f[field_index(x,y,8)] = f[field_index(x,y,6)] + 0.5 * rho * u_lid;
     }
 }
 
@@ -143,52 +198,3 @@ void LBM::taylor_green(unsigned int t, double *r,  double *u, double *v)
             LBM::taylor_green(t,x,y,&r[sidx],&u[sidx],&v[sidx]);
         }
 }
-
-
-
-void LBM::apply_boundary_conditions(double* f)
-{
-    // LEFT wall (x = 0)
-    for (int y = 0; y < Ny; y++) {
-        int x = 0;
-        f[field_index(x,y,1)] = f[field_index(x,y,3)];
-        f[field_index(x,y,5)] = f[field_index(x,y,7)];
-        f[field_index(x,y,8)] = f[field_index(x,y,6)];
-    }
-
-    // RIGHT wall (x = Nx-1)
-    for (int y = 0; y < Ny; y++) {
-        int x = Nx - 1;
-        f[field_index(x,y,3)] = f[field_index(x,y,1)];
-        f[field_index(x,y,6)] = f[field_index(x,y,8)];
-        f[field_index(x,y,7)] = f[field_index(x,y,5)];
-    }
-
-    // BOTTOM wall (y = 0) 
-    for (int x = 0; x < Nx; x++) {
-        int y = 0;
-        f[field_index(x,y,2)] = f[field_index(x,y,4)];
-        f[field_index(x,y,5)] = f[field_index(x,y,7)];
-        f[field_index(x,y,6)] = f[field_index(x,y,8)];
-    }
-
-    // TOP wall (y = Ny-1)
-    for (int x = 0; x < Nx; x++) {
-        int y = Ny - 1;
-
-        double rho =
-            f[field_index(x,y,0)] +
-            f[field_index(x,y,1)] +
-            f[field_index(x,y,3)] +
-            2.0 * (
-                f[field_index(x,y,2)] +
-                f[field_index(x,y,5)] +
-                f[field_index(x,y,6)]
-            );
-
-        f[field_index(x,y,4)] = f[field_index(x,y,2)];
-        f[field_index(x,y,7)] = f[field_index(x,y,5)] - 0.5 * rho * u_lid;
-        f[field_index(x,y,8)] = f[field_index(x,y,6)] + 0.5 * rho * u_lid;
-    }
-}
-
