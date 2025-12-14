@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 # input file name
 input_file = 'vel_norms.txt'
-
 
 def read_data(file_name):
     with open(file_name, 'r') as f:
@@ -18,32 +18,37 @@ def read_data(file_name):
 
     return nx, ny, data
 
-def create_frames(nx, ny, data, num_iterations, vmax):
-    frames = []
-    #for iter in range(num_iterations):
-    iter = 10 # Da 0 a 99
+def create_frames(nx, ny, data, num_iterations, vmax, save=False):
+    # create a figure and axis for the animation
+    fig, ax = plt.subplots()
+    ims = []
 
-    # legge dati per ogni iterazione e salva in una matrice (ny, nx)
-    frame_data = np.array(data[iter * nx * ny:(iter + 1) * nx * ny]).reshape(ny, nx) #.transpose()
-    frame_data = frame_data.T   
-    
-    
-    plt.imshow(frame_data, cmap='RdBu_r', origin='lower', vmin=0, vmax = vmax)  # 'origin' è impostato su 'lower' per far partire y da 0 in basso
-    plt.colorbar(label='Velocity Magnitude')
-    plt.title(f'Iteration {(iter)}')
+    for iter in range(num_iterations):
+        # legge dati per ogni iterazione e salva in una matrice (ny, nx)
+        frame_data = np.array(data[iter * nx * ny:(iter + 1) * nx * ny]).reshape(ny, nx)
+        
+        im = ax.imshow(frame_data, cmap='jet', origin='lower', vmin=0, vmax=vmax)
+        title = ax.text(1, 1.015, f'Iteration n°{iter}', ha='right', va='bottom', transform=ax.transAxes)
+        title.set_fontsize(12)
+
+        ims.append([im, title])
+
+    ax.set_title('Sim: 2D Lid-Driven Cavity', loc='left')
+
+    # Add colorbar to show velocity norms with the label distanciated from the axis
+    plt.colorbar(ims[0][0], ax=ax, label='Velocity norms')
+    anim = animation.ArtistAnimation(fig, ims, interval=100, blit=False, repeat=True)
     plt.show()
 
-    # salva il frame come file immagine
-    frame_filename = f'frame_{iter:04d}.png'
-    plt.imsave(frame_filename, frame_data, cmap='RdBu_r', vmin=0, vmax=vmax)
-
-
-    print()  # Per assicurarsi che il prompt successivo inizi su una nuova linea
-    return frames
+    if save:
+        # writer = animation.FFMpegWriter(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+        # anim.save('lid_driven_cavity_simulation.mp4', writer=writer)
+        anim.save('lid_driven_cavity_simulation.gif', writer='pillow')
 
 if __name__ == '__main__':
     nx, ny, data = read_data(input_file)
     #print("Stampo la norma delle velocità:\n", data)
     vmax = max(data)
-    num_iterations = 100
-    frames = create_frames(nx, ny, data, num_iterations, vmax)
+    # il numero di iterazioni è guale alla lunghezza dei dati diviso nx*ny
+    num_iterations = len(data) // (nx * ny)
+    create_frames(nx, ny, data, num_iterations, vmax, save=True)

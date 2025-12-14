@@ -64,7 +64,7 @@ public:
     const int dirx[9] = {0,1,0,-1, 0,1,-1,-1, 1};
     const int diry[9] = {0,0,1, 0,-1,1, 1,-1,-1};
     // The kinematic viscosity and the corresponding relaxation parameter
-    const double nu = 1.0/6.0;
+    const double nu = 1.0/6.0; //u_lid * (Ny - 1) / Re
     const double tau = 3.0*nu+0.5;
 
     const int ndir = 9; // number of directions (considerando anche il centro)
@@ -94,10 +94,11 @@ public:
     void stream(double *f_src, double* f_dst);
     void compute_rho_u(double *f, double *r, double *u, double *v);
     void collide(double *f, double *r, double *u, double *v);
-    void apply_boundary_conditions(double *u, double *v, double *r, double *f_src, double *f_dst);
     void taylor_green(unsigned int t, unsigned int x, unsigned int y, double *r, double *u, double *v);
     void taylor_green(unsigned int t, double *r,  double *u, double *v);
     void init_lid_driven_cavity(double *u, double *v, double *r);
+    void apply_boundary_conditions(double *f);
+    //void apply_boundary_conditions(double *u, double *v, double *r, double *f_src, double *f_dst);
 
 
 // privata: ciò che il codice esterno non può vedere

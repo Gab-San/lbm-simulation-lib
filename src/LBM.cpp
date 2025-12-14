@@ -108,7 +108,7 @@ void LBM::collide(double *f, double *r, double *u, double *v)
                 // calculate equilibrium
                 double feq = wi[i]*rho*(1.0 + 3.0*cidotu+4.5*cidotu*cidotu-1.5*(ux*ux+uy*uy));
                 // relax to equilibrium
-                f[field_index(x,y,i)] =omtauinv*f[field_index(x,y,i)]+tauinv*feq;
+                f[field_index(x,y,i)] = omtauinv*f[field_index(x,y,i)]+tauinv*feq;
             }
         }
     }
@@ -152,42 +152,49 @@ void LBM::taylor_green(unsigned int t, double *r,  double *u, double *v)
 
 
 //write functions for: collision, macros quantity calculations, boundary conditions (bottom, top, right left)
-void LBM::apply_boundary_conditions(double *u, double *v, double *r, double *f_src, double *f_dst) {
-
-    // Left e Right boundaries
-    for (int j = 1; j < Ny - 1; j++) {
-        // Left boundary (x = 0)
-        u[scalar_index(0, j)] = 0.0;
-        v[scalar_index(0, j)] = 0.0;
-        u[scalar_index(Nx-1, j)] = 0.0;
-        v[scalar_index(Nx-1, j)] = 0.0;
-
-        r[scalar_index(0,j)] = r[scalar_index(1,j)];
-        r[scalar_index(Nx-1,j)] = r[scalar_index(Nx-2,j)];
-
-        //DA RIVEDERE!!!
-        for (int k = 0; k < ndir; k++) {
-            f_dst[field_index(0, j, k)] = f_src[field_index(0, j, k)] + f_dst[field_index(1, j, k)] - f_src[field_index(1, j, k)];
-            f_dst[field_index(Nx - 1, j, k)] = f_src[field_index(Nx - 1, j, k)] + f_dst[field_index(Nx - 2, j, k)] - f_src[field_index(Nx - 2, j, k)];
-        }
+void LBM::apply_boundary_conditions(double* f)
+{
+    // LEFT wall (x = 0)
+    for (int y = 0; y < Ny; y++) {
+        int x = 0;
+        f[field_index(x,y,1)] = f[field_index(x,y,3)];
+        f[field_index(x,y,5)] = f[field_index(x,y,7)];
+        f[field_index(x,y,8)] = f[field_index(x,y,6)];
     }
 
-    // Top e Bottom boundaries
-    for (int i = 0; i < Nx; i++) {
-        // Top boundary (y = NY-1)
-        u[scalar_index(i, Ny - 1)] = u_lid;
-        v[scalar_index(i, Ny - 1)] = 0.0;
-        u[scalar_index(i, 0)] = 0.0;
-        v[scalar_index(i, 0)] = 0.0;
+    // RIGHT wall (x = Nx-1)
+    for (int y = 0; y < Ny; y++) {
+        int x = Nx - 1;
+        f[field_index(x,y,3)] = f[field_index(x,y,1)];
+        f[field_index(x,y,6)] = f[field_index(x,y,8)];
+        f[field_index(x,y,7)] = f[field_index(x,y,5)];
+    }
 
-        r[scalar_index(i,Ny-1)] = r[scalar_index(i,Ny - 2)];
-        r[scalar_index(i,0)] = r[scalar_index(i,1)];
+    // BOTTOM wall (y = 0) 
+    for (int x = 0; x < Nx; x++) {
+        int y = 0;
+        f[field_index(x,y,2)] = f[field_index(x,y,4)];
+        f[field_index(x,y,5)] = f[field_index(x,y,7)];
+        f[field_index(x,y,6)] = f[field_index(x,y,8)];
+    }
 
-        //DA RIVEDERE!!!
-        for (int k = 0; k < ndir; k++) {
-            f_dst[field_index(i, Ny - 1, k)] = f_src[field_index(i, Ny - 1, k)] + f_dst[field_index(i, Ny - 2, k)] - f_src[field_index(i, Ny - 2, k)];
-            f_dst[field_index(i, 0, k)] = f_src[field_index(i, 0, k)] + f_dst[field_index(i, 1, k)] - f_src[field_index(i, 1, k)];
-        }
+    // TOP wall (y = Ny-1)
+    for (int x = 0; x < Nx; x++) {
+        int y = Ny - 1;
+
+        double rho =
+            f[field_index(x,y,0)] +
+            f[field_index(x,y,1)] +
+            f[field_index(x,y,3)] +
+            2.0 * (
+                f[field_index(x,y,2)] +
+                f[field_index(x,y,5)] +
+                f[field_index(x,y,6)]
+            );
+
+        f[field_index(x,y,4)] = f[field_index(x,y,2)];
+        f[field_index(x,y,7)] = f[field_index(x,y,5)] - 0.5 * rho * u_lid;
+        f[field_index(x,y,8)] = f[field_index(x,y,6)] + 0.5 * rho * u_lid;
     }
 }
 

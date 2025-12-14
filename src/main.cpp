@@ -84,6 +84,10 @@ int main(int argc, char* argv[])
     {
         // stream from f1 storing to f2
         lbm.stream(f1,f2);
+
+        // apply boundary conditions
+        //lbm.apply_boundary_conditions(ux,uy,rho,f1,f2);
+        lbm.apply_boundary_conditions(f2);
         
         // calculate post-streaming density and velocity
         lbm.compute_rho_u(f2,rho,ux,uy);
@@ -91,13 +95,8 @@ int main(int argc, char* argv[])
         // perform collision on f2
         lbm.collide(f2,rho,ux,uy);
 
-        // apply boundary conditions
-        lbm.apply_boundary_conditions(ux,uy,rho,f1,f2);
-
         // swap pointers
-        double *temp = f1;
-        f1 = f2;
-        f2 = temp;
+        std::swap(f1,f2);
         
         if(n % 50 != 0) { continue; } // write every 50 time steps
 
