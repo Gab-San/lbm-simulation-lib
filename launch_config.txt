@@ -1,0 +1,29 @@
+# Test
+# GridX
+Nx 129
+# GridY
+Ny 129
+# Reynold number
+Re 100
+# Starting lid velocity
+U_lid 0.1
+# Number of Steps
+Nsteps 1000
+# Number of frames
+# frames to get the gif at the end
+Nframes 100
+# Output of norms
+out_norm ../vel_norms.txt
+# Output for benchmark
+out_bench ../vel_y_testing.txt
+
+
+# Test 2
+Nx 200
+Ny 200
+Re 1000
+U_lid 0.6
+Nsteps 1000
+Nframes 100
+out_norm ../vel_norms_1.txt
+out_bench ../vel_y_testing_1.txt
