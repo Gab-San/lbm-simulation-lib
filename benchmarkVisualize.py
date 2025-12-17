@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 
 # input file name
 input_file_1 = 'vel_y_testing.txt'  # Dati presi dalla simulazione
-input_file_2 = 'bench_data.txt' # Dati presi da Ghia et al. 1982
+input_file_2 = 'bench_data_1000.txt' # Dati presi da Ghia et al. 1982
 
 def read_data(file_name):
 
@@ -15,17 +15,23 @@ def read_data(file_name):
             x, y = line.strip().split()
             # converto in float e salvo in una tupla
             x = float(x)
-            y = 0.45 * float(y)
+            y = float(y)
             ghia_data.append((x, y))
 
-            #ghia_data.append(float(line.strip()))
+        # normalizzo i dati rispetto al massimo valore in modulo
+        max_value_ghia = max([abs(y) for x, y in ghia_data])
+        ghia_data = [(x, y / max_value_ghia) for x, y in ghia_data]
 
     # leggo i dati della simulazione dal file
     with open(file_name, 'r') as f:
-      # reading velocities
+        # reading velocities
         data = []
         for line in f:
             data.append(float(line.strip()))
+
+        # normalizzo i dati rispetto al massimo valore in modulo
+        max_value = max([abs(v) for v in data])
+        data = [v / max_value for v in data]    
 
     return data, ghia_data
 

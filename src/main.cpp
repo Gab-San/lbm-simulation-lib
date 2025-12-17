@@ -8,10 +8,10 @@
 #include <omp.h>
 
 // Max number of steps
-#define NSTEPS 10000
+#define NSTEPS 20000
 
 // Skip step
-# define SKIP_STEP 50
+# define SKIP_STEP 100
 
 int main(int argc, char* argv[])
 {

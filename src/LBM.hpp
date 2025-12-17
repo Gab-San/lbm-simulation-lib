@@ -28,7 +28,7 @@ public:
      * @param tau: relaxation parameter
      */
     LBM(int num_cells_x_, int num_cells_y_, double rey_num_, double u_lid_):
-        nu(u_lid_ * (num_cells_y_ - 1) / rey_num_), 
+        nu(u_lid_ * (num_cells_y_) / rey_num_), 
         tau(0.5 + 3.0 * nu),
         Nx(num_cells_x_), 
         Ny(num_cells_y_), 
