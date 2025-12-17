@@ -1,8 +1,10 @@
+#endif
 #ifndef LBM_HPP
 #define LBM_HPP
 
 #include <stdexcept> // for runtime_error
 #include <cstddef>   // for size_t
+#include <vector>
 
 /**
  * LBM
@@ -33,16 +35,19 @@ public:
         Nx(num_cells_x_), 
         Ny(num_cells_y_), 
         u_lid(u_lid_),
-        Re(rey_num_)
-    {
+        Re(rey_num_),
+        taup_inv(2.0/(6.0*nu+1.0)),
+        taum_inv(2.0/(6.0*nu+1.0))
+    /*
+    two tau relaxation for TRT
+    */
+        {
         if (tau <= 0.5) {
             throw std::runtime_error("LBM error: tau must be > 0.5");
         }
         if (tau < 0.55 || tau > 1.2) {
             std::printf("LBM warning: tau out of stability range, simulation may be unstable.\n");
         }
-
-        // TODO: Trovare la stabilità per il Mach number
     }; 
 
     /// Nx : Number of cells along the X axis
@@ -70,6 +75,9 @@ public:
     // The kinematic viscosity and the corresponding relaxation parameter
     const double nu;
     const double tau;
+    //relaxaztion parameters
+    const double taup_inv;
+    const double taum_inv;
 
     // number of directions (considering the center point)
     const int ndir = 9; 
@@ -82,68 +90,29 @@ public:
 
     /**
     * Compute the equilibrium of the system.
-    *
-    * @param f particle population
-    * @param r density vector
-    * @param u x-axis velocity vector
-    * @param v y-axis velocity vector
     */
-    void init_equilibrium(double *f, double *r, double *u, double *v);
-
-    /**
-    * Compute the particle populations movement from
-    * one cell to another distributing the velocities.
-    *
-    * It basically copies the distribution function in 
-    * f_src to f_dst.
-    *
-    * @param f_src source particle population
-    * @param f_dst destination particle population
-    */
-    void stream(double *f_src, double* f_dst);
-
-    /**
-    * Compute the density and the velocities for each cell.
-    *
-    * @param f particle population
-    * @param r density vector
-    * @param u x-axis velocity vector
-    * @param v y-axis velocity vector
-     */
-    void compute_rho_u(double *f, double *r, double *u, double *v);
-
-    /**
-    * Evaluate the collision operator (in this case BGK)
-    * on the particle populations using the density and velocity values
-    * computed at the current step.
-    *
-    * @param f particle population
-    * @param r density vector
-    * @param u x-axis velocity vector
-    * @param v y-axis velocity vector
-    */
-    void collide(double *f, double *r, double *u, double *v);
+    void init_equilibrium();
 
     /**
     * Initialize the velocities and the density 
-    * of the particle populations
-    *
-    * @param r density vector
-    * @param u x-axis velocity vector
-    * @param v y-axis velocity vector
+    * of the particle populations.
     */
-    void init_lid_driven_cavity(double *u, double *v, double *r);
+    void init_lid_driven_cavity();
 
     /**
     * Apply the boundary conditions for
     * the lid cavity problem.
-    *
-    * @param f particle population
     */
-    void apply_boundary_conditions(double *f);
+    void apply_boundary_conditions();
 
-    /** Still to be commented */
-    void update_stream_collide(double *f_src, double *f_dst, double *r, double *u, double *v);
+    // TODO: ADD COMMENTS
+    void update_stream_collide();
+
+    // TODO: ADD COMMENTS
+    void write_norms(std::ofstream& output_file);
+    
+    // TODO: ADD COMMENTS
+    void write_bench_values(std::ofstream& output_file);
 
 private:
 
@@ -158,6 +127,31 @@ private:
     inline size_t field_index(unsigned int x, unsigned int y, unsigned int d) const {
         return Nx * (Ny * d + y) + x;
     }
+
+    /**
+     * Particle Populations
+     */
+    std::vector<double> f;
+    /**
+     * Temporary Particle Populations
+     *
+     * Used to store intermediate solutions
+     */
+    std::vector<double> f_tmp;
+    /**
+     * Velocitiy vector on the x axis
+     */
+    std::vector<double> ux;
+    /**
+     * Velocitiy vector on the x axis
+     */
+    std::vector<double> uy;
+    /**
+     * Vector of densities
+     *
+     * Used to store densities for benchmarking
+     */
+    std::vector<double> rho;
 };
 
 #endif

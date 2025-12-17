@@ -4,6 +4,7 @@
 // enable OpenMP for parallelization
 #include <omp.h>
 
+const int LBM::opp[9] = {0, 3, 4, 1, 2, 6, 5, 7, 8};
 
 //initialize velocities and pressure fields for the lid driven cavity flow
 void LBM::init_lid_driven_cavity(double *u, double *v, double *r)
@@ -110,16 +111,50 @@ void LBM::update_stream_collide(double * f_src, double * f_dst, double * r, doub
             // Collisione con SIMD
             const double u_sq = ux*ux + uy*uy;
             const double c1 = -1.5 * u_sq;
-            
+            //TRT Collision
             #pragma omp simd
-            for (unsigned int i = 0; i < ndir; ++i) {
+            for (unsigned int i = 0; i < ndir; ++i)
+            {
+                int io = opp[i];
+            
+
+                double fi  = f_dst[field_index(x,y,i)];
+                double fio = f_dst[field_index(x,y,io)];
+
+                // symmetric part and antusymmetric
+                double f_plus  = 0.5 * (fi + fio);
+                double f_minus = 0.5 * (fi - fio);
+
+                                double cidotu  = dirx[i]*ux  + diry[i]*uy;
+                double cidotuo = dirx[io]*ux + diry[io]*uy;
+
+          
+                double feq_i = wi[i] * rho *
+                    (1.0 + 3.0*cidotu + 4.5*cidotu*cidotu + c1);
+
+                double feq_io = wi[io] * rho *
+                    (1.0 + 3.0*cidotuo + 4.5*cidotuo*cidotuo + c1);
+
+                double feq_plus  = 0.5 * (feq_i + feq_io);
+                double feq_minus = 0.5 * (feq_i - feq_io);
+
+                // two relaxation parameters for stability and viscosità
+                double f_plus_new  = f_plus  - taup_inv * (f_plus  - feq_plus);
+                double f_minus_new = f_minus - taum_inv * (f_minus - feq_minus);
+
+                
+                f_dst[field_index(x,y,i )] = f_plus_new + f_minus_new;
+                f_dst[field_index(x,y,io)] = f_plus_new - f_minus_new;
+            }
+
+            /*for (unsigned int i = 0; i < ndir; ++i) {
                 // calculate dot product beetwen the velocity u(x,y) and the direction vector to its neighbour
                 double cidotu = dirx[i]*ux + diry[i]*uy;
                 // calculate equilibrium
                 double feq = wi[i] * rho * (1.0 + 3.0*cidotu + 4.5*cidotu*cidotu + c1);           
                 // relax to equilibrium
                 f_dst[field_index(x,y,i)] = omtauinv * f_dst[field_index(x,y,i)] + tauinv * feq;
-            }
+            }*/
         }
     }
 
