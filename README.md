@@ -106,6 +106,31 @@ To run, enter in directory `build/` and run:
 
 ### Visualize the results
 
+<!--<p align="center">
+  <em>Left: Simulation parameters:
+ Grid dimensions: 129 x 129
+ Reynolds number: 100.000000
+ Lid velocity: 0.100000
+ Running with 4 threads
+Simulation completed in 17.711456 seconds.
+Right: Simulation parameters:
+ Grid dimensions: 200 x 200
+ Reynolds number: 1000.000000
+ Lid velocity: 0.100000
+ Running with 4 threads
+Simulation completed in 156.338555 seconds.</em>
+</p> -->
+
+<p align="center">
+  <img src="include/lid_driven_cavity_simulation1.gif" width="45%" />
+  <img src="include/lid_driven_cavity_simulation2.gif" width="45%" />
+</p>
+
+<p align="center">
+  <img src="include/bench1.png" width="45%" />
+  <img src="include/bench2.png" width="45%" />
+</p>
+
 
 
 ## Report
