@@ -68,25 +68,17 @@ public:
     const int diry[9] = {0,0,1, 0,-1,1, 1,-1,-1};
     
     // The kinematic viscosity and the corresponding relaxation parameter
-    const double nu = u_lid * (Ny - 1) / Re;
-    const double tau = 3.0 * nu + 0.5;
-    
+    const double nu;
+    const double tau;
 
-
-    const int ndir = 9; // number of directions (considering the center point)
-
-    // The maximum flow speed
-    const double u_max = 0.04;
+    // number of directions (considering the center point)
+    const int ndir = 9; 
     // The fluid density
     const double rho0 = 1.0;
 
-    // FIXME: Are these methods needed?
-
-    // Write macroscopic fields at a given time
-    // void writeFields(const std::string &filename) const;
-
-    // Extract centerline profiles for validation
-    // void writeCenterlineProfiles(const std::string &filename) const;
+    // useful constants
+    const double tauinv = 2.0/(6.0*nu+1.0);
+    const double omtauinv = 1.0-tauinv;
 
     /**
     * Compute the equilibrium of the system.
@@ -132,11 +124,6 @@ public:
     */
     void collide(double *f, double *r, double *u, double *v);
 
-    // FIXME: Are these methods needed?
-    void taylor_green(unsigned int t, unsigned int x, unsigned int y, double *r, double *u, double *v);
-    void taylor_green(unsigned int t, double *r,  double *u, double *v);
-    //void apply_boundary_conditions(double *u, double *v, double *r, double *f_src, double *f_dst);
-
     /**
     * Initialize the velocities and the density 
     * of the particle populations
@@ -154,6 +141,9 @@ public:
     * @param f particle population
     */
     void apply_boundary_conditions(double *f);
+
+    /** Still to be commented */
+    void update_stream_collide(double *f_src, double *f_dst, double *r, double *u, double *v);
 
 private:
 

@@ -39,4 +39,5 @@ visualizer.pyZone.Identifier
 *.gif
 src/LBM_test.cpp
 .DS_Store
+src/LBM_test_TRT.cpp
 

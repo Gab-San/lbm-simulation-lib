@@ -4,6 +4,8 @@
 #include <string>
 #include <cmath>
 #include <stdexcept>
+#include <chrono>
+#include <omp.h>
 
 // Max number of steps
 #define NSTEPS 10000
@@ -26,7 +28,7 @@ int main(int argc, char* argv[])
     double Re, u_lid;
 
     try {
-        Nx = std::stoi(argv[1]);    //StringToInteger
+        Nx = std::stoi(argv[1]); //StringToInteger
         Ny = std::stoi(argv[2]);
         Re = std::stod(argv[3]); //StringToDouble
         u_lid = std::stod(argv[4]);
@@ -43,6 +45,15 @@ int main(int argc, char* argv[])
     printf(" Grid dimensions: %d x %d\n", Nx, Ny);
     printf(" Reynolds number: %f\n", Re);
     printf(" Lid velocity: %f\n", u_lid);
+
+    #pragma omp parallel
+    {
+        int n_threads = omp_get_num_threads();
+        #pragma omp single
+        {
+            printf(" Running with %d threads\n", n_threads);
+        }
+    } 
 
     // Instantiate LBM data structure
     LBM lbm(Nx, Ny, Re, u_lid);
@@ -96,19 +107,25 @@ int main(int argc, char* argv[])
     file << Nx << "\n" << Ny << "\n";
     
     // main simulation loop; take NSTEPS time steps
+    // also compute the time taken for the simulation
+
+    auto startTime = std::chrono::high_resolution_clock::now();
+
     for(unsigned int n = 0; n < NSTEPS; ++n)
     {
         // stream from f1 storing to f2
-        lbm.stream(f1,f2);
+        //lbm.stream(f1,f2);
 
         // apply boundary conditions
-        lbm.apply_boundary_conditions(f2);
+        //lbm.apply_boundary_conditions(f2);
         
         // calculate post-streaming density and velocity
-        lbm.compute_rho_u(f2,rho,ux,uy);
+        //lbm.compute_rho_u(f2,rho,ux,uy);
 
         // perform collision on f2
-        lbm.collide(f2,rho,ux,uy);
+        //lbm.collide(f2,rho,ux,uy);
+
+        lbm.update_stream_collide(f1, f2, rho, ux, uy);
 
         // swap pointers
         std::swap(f1,f2);
@@ -136,6 +153,10 @@ int main(int argc, char* argv[])
             
         }
     }
+    auto endTime = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsedSeconds = endTime - startTime;
+
+    printf("Simulation completed in %f seconds.\n", elapsedSeconds.count());
 
     file.close();
     fileTest.close();

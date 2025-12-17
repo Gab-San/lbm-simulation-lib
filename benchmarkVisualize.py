@@ -15,7 +15,7 @@ def read_data(file_name):
             x, y = line.strip().split()
             # converto in float e salvo in una tupla
             x = float(x)
-            y = 0.435 *float(y)
+            y = 0.45 * float(y)
             ghia_data.append((x, y))
 
             #ghia_data.append(float(line.strip()))
