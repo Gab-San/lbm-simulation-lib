@@ -51,4 +51,4 @@ if __name__ == '__main__':
     vmax = max(data)
     # il numero di iterazioni è guale alla lunghezza dei dati diviso nx*ny
     num_iterations = len(data) // (nx * ny)
-    create_frames(nx, ny, data, num_iterations, vmax, save=False)
+    create_frames(nx, ny, data, num_iterations, vmax, save=True)

@@ -222,7 +222,6 @@ Lastly, the following animation shows the time evolution of the velocity magnitu
 
 ## Conclusions
 
-!!!!!!!!!!!! ADD THIS SECTION !!!!!!!!!!!!!!
 
 ## References
 
