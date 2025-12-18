@@ -43,4 +43,4 @@ src/LBM_test_TRT.cpp
 out/
 docs/
 *_scaling_*.txt
-
+*.xlsx

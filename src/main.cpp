@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
     std::cout << "Number of simulations: " << jobs.size() << std::endl;
 
     #if WEAK_SCALING
-    std::ofstream weak_scaling_data("../weak_scaling_data.txt", std::ios::binary);
+    std::ofstream weak_scaling_data("weak_scaling_data.txt", std::ios::app);
     #endif
 
     unsigned int Nx, Ny;
@@ -85,7 +85,8 @@ int main(int argc, char* argv[])
 	}
 
 	// Apertura file per il testing
-	std::cout << "Opening " << j.vel_bench_out << std::endl;
+	
+	std::cout << "Opening " << filename_bench << std::endl;
 	std::ofstream bench_file(j.vel_bench_out, std::ios::binary);
 
 	if (!bench_file.is_open()) {
@@ -116,7 +117,7 @@ int main(int argc, char* argv[])
 	    if(save)  lbm.write_norms(norms_file);
 
 	    // at the last step 
-	    if (n + 1 >= nsteps) lbm.write_bench_data(bench_file);
+	    if (n + 1 >= nsteps) lbm.write_bench_data_y(bench_file);
 	}
 
 	#if WEAK_SCALING
@@ -124,19 +125,21 @@ int main(int argc, char* argv[])
 	std::chrono::duration<double> elapsedSeconds = endTime - startTime;
 
 	printf("Simulation completed in %f seconds.\n", elapsedSeconds.count());
-	#endif	
+	#endif
 
 	norms_file.close();
 	bench_file.close();
 	printf("\nFinished writing to file.\n");    
-
+	
 	#if WEAK_SCALING
-	std::string output = std::to_string(Nx) + " " + std::to_string(elapsedSeconds.count());
-	weak_scaling_data.write(output.c_str(), sizeof(output.c_str()));
-	weak_scaling_data.close();
+	weak_scaling_data << elapsedSeconds.count() << std::endl;
 	#endif
-
     }
+
+    #if WEAK_SCALING
+    weak_scaling_data.close();
+    #endif
+
 
     return 0;
 }

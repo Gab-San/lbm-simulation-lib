@@ -32,8 +32,6 @@ def run(max_cores : int) -> ():
     my_env = os.environ.copy()
     one_core_time = 0
 
-    # TODO: calc speedup
-
     # run strong scaling
     for i in range(1,max_cores + 1):
         print(f"Running with {i} cores")
@@ -45,12 +43,12 @@ def run(max_cores : int) -> ():
         val = end - start
         runtimes.append( val )
 
-        if(i == 1) {
+        if(i == 1):
             speedup.append(1.0);
             one_core_time = val 
-        } else {
+        else:
             speedup.append(one_core_time/val)
-        }
+        
 
         # Access the output
         print("Output:", result.stdout)
@@ -101,3 +99,9 @@ if __name__ == '__main__':
     write_config_file()
     run(max_cores)
     create_graph(max_cores)
+    if os.path.exists(config_file):
+        os.remove(config_file)
+        print("File removed")
+    else:
+        print("File not found")
+

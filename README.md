@@ -1,24 +1,27 @@
 # Lattice Boltzmann Method
+
 <!--toc:start-->
 - [Lattice Boltzmann Method](#lattice-boltzmann-method)
   - [Introduction](#introduction)
     - [Physical and Mathematical Model](#physical-and-mathematical-model)
-    - [Stability Considerations](#stability-considerations)
-  - [Further Model Description](#further-model-description)
-  - [D2Q9 velocity set](#D2Q9-velocity-set)
-  - [Boundary Conditions](#boundary-condiitons)
-    - [Stationary Walls](#stationary-walls)
-    - [Moving Lid](#moving-lid)
+    - [Stability considerations](#stability-considerations)
+- [Further Model Description](#further-model-description)
+  - [D2Q9 velocity set](#d2q9-velocity-set)
+  - [Boundary Conditions](#boundary-conditions)
+    - [Stationary walls](#stationary-walls)
+    - [Moving lid](#moving-lid)
   - [The Time Step Algorithm](#the-time-step-algorithm)
     - [Key Parameters](#key-parameters)
-  - [Output Files](#output-files)
-    - [vel_norms.txt](#vel_norms.txt)
-    - [vel_y_testing.txt](#vel_y_testing.txt)
+  - [Output files](#output-files)
+  - [Parallelization](#parallelization)
+    - [Parallelization strategy](#parallelization-strategy)
+      - [Parallelization Effect](#parallelization-effect)
   - [Run the Simulation](#run-the-simulation)
     - [Build](#build)
     - [Running the Simulation](#running-the-simulation)
+      - [Configuration File](#configuration-file)
     - [Visualize the results](#visualize-the-results)
-  - [Conclusions](#conclusions)
+  - [References](#references)
 <!--toc:end-->
 
 This hands on objective is to implement the Lattice Boltzmann Method and applying it to solve the 2D lid-driven cavity problem.
@@ -189,6 +192,30 @@ for (y = 0; y < Ny; ++y)
   for (x = 0; x < Nx; ++x)
 are best suitable for parallelization, because we need independence among different iterations. Particularly speaking, the functions _compute_rho_u_ and _collide_ are embarassingly parallel.
 
+#### Parallelization Effect
+
+The results of the parallelized section can be seen in the following graphs:
+
+Here the line in red represents the speedup achieved; the line in blue is the
+time calculated in seconds.
+
+The size of the problem is a 129x129 grid with Reynolds number 100 at 10000 steps
+
+![strong_scaling](./include/strong_scaling.png)
+
+Here the line in blue represents the time in seconds.
+
+The sizes of the problems are:
+
+- 50x50 grid Re = 100
+- 100x100 grid Re = 100 
+- 150x150 grid Re = 500
+- 200x200 grid Re = 500
+- 250x250 grid Re = 1000
+- 300x300 grid Re = 1000
+
+![weak_scaling](./include/weak_scaling.png)
+
 ## Run the Simulation
 
 ### Build
@@ -265,10 +292,6 @@ Lastly, the following animation shows the time evolution of the velocity magnitu
   <img src="include/lid_driven_cavity_simulation_7500.gif" width="45%" />
   <img src="include/bench_data_1k.png" width="45%" />
 </p>
-
-## Conclusions
-
-!!!!!!!!!!!! ADD THIS SECTION !!!!!!!!!!!!!!
 
 ## References
 

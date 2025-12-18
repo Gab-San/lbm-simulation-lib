@@ -201,7 +201,7 @@ public:
      *
      * @param output_file file stream on which to write
      */
-    void write_bench_data(std::ofstream& output_file);
+    void write_bench_data_y(std::ofstream& output_file);
 
     std::vector<double> f1;
     std::vector<double> f2;

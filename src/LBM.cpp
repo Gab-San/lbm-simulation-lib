@@ -229,7 +229,7 @@ void LBM::write_norms(std::ofstream& output_file) {
 	output_file.write(reinterpret_cast<const char*>(vsq.data()), vsq.size() * sizeof(float));
 }
 
-void LBM::write_bench_data(std::ofstream& output_file) {
+void LBM::write_bench_data_y(std::ofstream& output_file) {
 	// Results for v-Velocity along Horizontal Line through Geometric Center of Cavity
 	std::vector<double> v_center(Nx);
 	int j_center = Ny / 2;
