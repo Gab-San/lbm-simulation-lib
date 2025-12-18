@@ -16,7 +16,7 @@ def read_data(file_name):
 
     return nx, ny, data
 
-def create_frames(nx, ny, data, num_iterations, vmax, save=False):
+def create_frames(nx, ny, data, num_iterations, vmax, output_file, save=False):
     # create a figure and axis for the animation
     fig, ax = plt.subplots()
     ims = []
@@ -41,17 +41,21 @@ def create_frames(nx, ny, data, num_iterations, vmax, save=False):
     if save:
         # writer = animation.FFMpegWriter(fps=15, metadata=dict(artist='Me'), bitrate=1800)
         # anim.save('lid_driven_cavity_simulation.mp4', writer=writer)
-        anim.save('lid_driven_cavity_simulation.gif', writer='pillow')
+        anim.save(output_file, writer='pillow')
 
 if __name__ == '__main__':
     if(len(sys.argv) < 2):
-        print(f"Usage {sys.argv[0]} <input_norms>")
+        print(f"Usage {sys.argv[0]} <input_norms> [<output_file_path>.gif]")
         sys.exit()
 
-    input_file = sys.argv[1];
+    input_file = sys.argv[1]
+    if(len(sys.argv) > 2):
+        output_file = sys.argv[2]
+    else:
+        output_file ='lid_driven_cavity_simulation.gif'
     nx, ny, data = read_data(input_file)
     #print("Stampo la norma delle velocità:\n", data)
     vmax = max(data)
     # il numero di iterazioni è guale alla lunghezza dei dati diviso nx*ny
     num_iterations = len(data) // (nx * ny)
-    create_frames(nx, ny, data, num_iterations, vmax, save=True)
+    create_frames(nx, ny, data, num_iterations, vmax, output_file, save=True)

@@ -160,10 +160,10 @@ corresponds to one time step. The substeps are:
 
 The numerical results are validated against the benchmark solutions of Ghia et al. (1982) for the lid-driven cavity problem. The simulation produces two output files:
 
-vel_norms.txt
+frames/norms_*.txt
 In the file there are the velocity magnitudes, as well as the grid dimensions `Nx` and `Ny`; notice that data is written every `SKIP_STEP` time steps.
 
-vel_y_testing.txt
+data/data_*.txt
 This file is written for benchmark validation against the reference solutions that we have in Ghia et al., 1982.
 
 
@@ -195,13 +195,47 @@ are best suitable for parallelization, because we need independence among differ
 
 To build the executable run:
 
-`cmake -B build/ && make -C build/ [-j]`
+`cmake -B build/`
+
+`make -C build/ [-j]`
 
 ### Running the Simulation
 
 To run, enter in directory `build/` and run:
 
-`./lbm-2-lbm <grid_num_cells_x> <grid_num_cells_y> <reynold_number> <lid_initial_velocity>`
+`./lbm-2-lbm <path/to/configuration_file.txt>`
+
+#### Configuration File
+
+The configuration file should have the following structure:
+
+```
+# Line Comment
+Nx 100
+Ny 100
+Re 100
+U_lid 0.1
+Nsteps 5000
+Nframes 50
+out_norm out/norm.txt
+out_bench out/data.txt
+Col BGK
+
+Nx 200
+Ny 200
+Re 100
+U_lid 0.1
+Nsteps 5000
+Nframes 0
+out_norm out/norm_2.txt
+out_bench out/data_2.txt
+Col BGK
+```
+
+Two simulations should be separated by at least a whiteline (for clarity purposes).\
+All parameters must be explicitely set, there are no default values and no checks for missing
+parameters.\
+The structure cannot be modified (otherwise a parsing error will pop up).\
 
 ### Visualize the results
 
@@ -218,7 +252,7 @@ bash
 python frameVisualize.py
 
 Lastly, the following animation shows the time evolution of the velocity magnitude for the lid-driven cavity simulation.
-![Lid-driven cavity simulation](lid_driven_cavity_simulation.gif "Velocity magnitude evolution for the lid-driven cavity flow")
+![Lid-driven cavity simulation](./include/lid_driven_cavity_simulation1.gif "Velocity magnitude evolution for the lid-driven cavity flow")
 
 ## Conclusions
 

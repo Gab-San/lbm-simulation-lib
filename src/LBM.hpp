@@ -1,7 +1,7 @@
 #ifndef LBM_HPP
 #define LBM_HPP
 
-#include "defs.h"
+#include "defs.hpp"
 
 #include <stdexcept> // for runtime_error
 #include <cstddef>   // for size_t
@@ -12,11 +12,20 @@
 /**
  * LBM
  *
- * This class handles the functions through which the lattice Boltzmann
- * method can be executed.
+ * \brief This class implements the lattice Boltzmann algorithm steps
+ * considering a D2Q9 velocity set and the lid driven cavity problem.
  *
  * It contains the general parameters needed to implement the algorithm
  * and it is initialized with the parameters of the problem.
+ *
+ * It is flexible w.r.t. the size of the problem but
+ * it is viable for the D2Q9 velocity set only.
+ *
+ * The steps used are:
+ * - setup lid driven cavity problem
+ * - initialize equilibrium
+ * - stream, calculate densities and velocities & collide
+ *
  */
 class LBM {
 
@@ -35,7 +44,6 @@ public:
     LBM(int num_cells_x_, int num_cells_y_, double rey_num_, double u_lid_, lbm_lbm::CollisionOperator op_):
 	op(op_),
         nu(u_lid_ * num_cells_y_ / rey_num_), 
-        tau(0.5 + 3.0 * nu),
         Nx(num_cells_x_), 
         Ny(num_cells_y_), 
         u_lid(u_lid_),
@@ -52,43 +60,144 @@ public:
         }
     }; 
 
+    /**
+     * Number of direction of the D2Q9 set.
+     */
     static const unsigned short int ndir = 9;
+	
+    /// Weight in (dx,dy)=(0,0)
+    const double w0 = 4.0/9.0;
 
-    const double w0 = 4.0/9.0;  // weight in (dx,dy)=(0,0)
-    const double ws = 1.0/9.0;  // weight for adjacent points
-    const double wd = 1.0/36.0; // diagonal weight
+    /// Weight for adjacent points
+    const double ws = 1.0/9.0;
 
+    /// Diagonal weight
+    const double wd = 1.0/36.0;
+
+    /**
+     * Direction weights map.
+     *
+     * The direction numbering scheme is: \n
+     * ------ + x \n
+     * |7 4 8 \n
+     * |3 0 1 \n
+     * |6 2 5 \n
+     * +\n
+     * y
+     */
     const std::array<double, ndir> wi = {w0, ws, ws, ws, ws, wd, wd, wd, wd};
 
+    /**
+     * Array of directions in the x direction following the numbering scheme.
+     *
+     * The direction numbering scheme is: \n
+     * ------ + x \n
+     * |7 4 8 \n
+     * |3 0 1 \n
+     * |6 2 5 \n
+     * \n
+     * y
+     */
     const std::array<int, ndir> dirx = {0,1,0,-1,0,1,-1,-1,1};
+
+    /**
+     * Array of direction in the y direction following the numbering scheme.
+     *
+     * The direction numbering scheme is: \n
+     * ------ + x \n
+     * |7 4 8 \n
+     * |3 0 1 \n
+     * |6 2 5 \n
+     * \n
+     * y
+     */
     const std::array<int, ndir> diry = {0,0,1,0,-1,1,1,-1,-1};
 
+    /// Collision operator
     const lbm_lbm::CollisionOperator op;
 
-    const int Nx, Ny;
-    const double Re, u_lid;
-    const double nu;
-    const double tau;
+    /// Number of cells along the X axis
+    const int Nx;
+    /// Number of cells along the Y axis
+    const int Ny; 
+    ///Reynold number (viscosity related)
+    const double Re; 
+    /// Velocity of the lid cavity
+    const double u_lid; 
+    /// Kinematic viscosity
+    const double nu; 
+    /// Relaxation parameter (used in BGK)
+    const double tau = 0.5 + 3.0 * nu; 
 
+    /// Fluid default density
     const double rho0 = 1.0;
 
+    /// 
     const double tauinv = 2.0/(6.0*nu+1.0);
-    const double omtauinv = 1.0-tauinv;
 
-    // Separate relaxation times if needed
+    ///
+    const double omtauinv = 1.0-tauinv; 
+
+    /** 
+     * Tau positive relaxation parameter.
+     *
+     * (considering expanded collision formula)
+     *
+     * \important TRT not supported
+     *
+     * N.B: This parameter has not been checked 
+     */
     const double tau_pos_inv = 2.0/(6.0*nu+1.0);
-    const double tau_min_inv = 2.0/(6.0*nu+1.0);
 
-    // Funzioni principali
+    /** 
+     * Tau negative relaxation parameter.
+     *
+     * (considering expanded collision formula)
+     *
+     * \important TRT not supported
+     *
+     * N.B: This parameter is not correct
+     */
+    const double tau_min_inv = 2.0/(6.0*nu+1.0); 
+
+    /**
+     * Compute the equilibrium of the system.
+     *
+     * @param f particle population
+     */
     void init_equilibrium(std::vector<double>& f);
+    /**
+     * Initialize the velocities and the density 
+     * of the particle populations
+     */
     void init_lid_driven_cavity();
+    /**
+     * Apply the boundary conditions for
+     * the lid cavity problem.
+     *
+     * @param f particle population
+     */
     void apply_boundary_conditions(std::vector<double>& f);
+
     void update_stream_collide(std::vector<double>& f_src, std::vector<double>& f_dst, bool save);
+    
+    /**
+     * Write the norm of the macroscopic velocities.
+     *
+     * @param output_file file stream on which to write
+     */
     void write_norms(std::ofstream& output_file);
+
+    /**
+     * Write the values of the velocities in the
+     * y direction on the horizontal axis of symmetry
+     * of the square cavity.
+     *
+     * @param output_file file stream on which to write
+     */
     void write_bench_data(std::ofstream& output_file);
 
 private:
-
 
     const std::array<int, ndir> opp = {0, 3, 4, 1, 2, 6, 5, 7, 8};
 

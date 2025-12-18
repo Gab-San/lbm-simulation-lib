@@ -41,4 +41,5 @@ src/LBM_test.cpp
 .DS_Store
 src/LBM_test_TRT.cpp
 out/
+docs/
 

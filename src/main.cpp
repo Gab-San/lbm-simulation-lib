@@ -7,6 +7,22 @@
 #include <chrono>
 #include <omp.h>
 
+/**
+ * \mainpage Lattice Boltzmann Method Implementation
+ *
+ * \section Introduction
+ *
+ * This is an implementation of the lattice Boltzmann method.
+ *
+ * \section Collision Operators
+ *
+ * This implementations supports only BGK collision operator.
+ *
+ * \subsection TRT
+ *
+ * Using the TRT operator the code would run correctly 
+ * but doesn't correctly implement the TRT operator.
+ */
 int main(int argc, char* argv[])
 {
     // Command argument count
@@ -33,7 +49,7 @@ int main(int argc, char* argv[])
 	Re = j.reyn_num;
 	u_lid = j.u_lid;
 	nsteps = j.num_steps;
-	nskips = j.num_steps / j.num_frames;
+	nskips = j.num_frames == 0 ? j.num_steps : j.num_steps / j.num_frames;
 	filename_norms = j.vel_norm_out;
 	filename_bench = j.vel_bench_out;
 	
