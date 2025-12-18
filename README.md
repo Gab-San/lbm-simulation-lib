@@ -251,8 +251,20 @@ To visualize the evolution of the flow field, run:
 bash
 python frameVisualize.py
 
-Lastly, the following animation shows the time evolution of the velocity magnitude for the lid-driven cavity simulation.
-![Lid-driven cavity simulation](./include/lid_driven_cavity_simulation1.gif "Velocity magnitude evolution for the lid-driven cavity flow")
+Lastly, the following animation shows the time evolution of the velocity magnitude for the lid-driven cavity simulation.<p align="center">
+  <img src="include/lid_driven_cavity_simulation_129.gif" width="45%" />
+  <img src="include/lid_driven_cavity_simulation_200.gif" width="45%" />
+</p>
+
+<p align="center">
+  <img src="include/bench_data_100.png" width="45%" />
+  <img src="include/bench_data_1000.png" width="45%" />
+</p>
+
+<p align="center">
+  <img src="include/lid_driven_cavity_simulation_7500.gif" width="45%" />
+  <img src="include/bench_data_1k.png" width="45%" />
+</p>
 
 ## Conclusions
 
@@ -270,4 +282,5 @@ Lastly, the following animation shows the time evolution of the velocity magnitu
 [Elisa Antonioli](https://github.com/ElisaAntonioli) |
 [Chiara Nonino](https://github.com/ChiaraNonino) |
 [Gabriele Santandrea](https://github.com/Gab-San)
+
 
