@@ -34,12 +34,11 @@ public:
     /**
      * Default Construct
      *
-     * @param grid_x_ number of cells along the X axis
-     * @param grid_y_ number of cells along the Y axis
+     * @param num_cells_x_ number of cells along the X axis
+     * @param num_cells_y_ number of cells along the Y axis
      * @param rey_num_ : Reynold number (viscosity related)
-     * @param u_lid : Initial velocity of the lid cavity
-     * @param nu: kinematic viscosity
-     * @param tau: relaxation parameter
+     * @param u_lid_ : Initial velocity of the lid cavity
+     * @param op_: collision operator
      */
     LBM(int num_cells_x_, int num_cells_y_, double rey_num_, double u_lid_, lbm_lbm::CollisionOperator op_):
 	op(op_),
@@ -50,7 +49,9 @@ public:
         Re(rey_num_),
 	ux(num_cells_x_*num_cells_y_, 0.0),
 	uy(num_cells_x_*num_cells_y_, 0.0),
-	rho(num_cells_x_*num_cells_y_, rho0)
+	rho(num_cells_x_*num_cells_y_, rho0),
+	f1(num_cells_x_*num_cells_y_*ndir, 0.0),
+	f2(num_cells_x_*num_cells_y_*ndir, 0.0)
     {
         if (tau <= 0.5) {
             throw std::runtime_error("LBM error: tau must be > 0.5");
@@ -143,7 +144,7 @@ public:
      *
      * (considering expanded collision formula)
      *
-     * \important TRT not supported
+     * \note TRT not supported
      *
      * N.B: This parameter has not been checked 
      */
@@ -154,32 +155,37 @@ public:
      *
      * (considering expanded collision formula)
      *
-     * \important TRT not supported
+     * \note TRT not supported
      *
      * N.B: This parameter is not correct
      */
-    const double tau_min_inv = 2.0/(6.0*nu+1.0); 
+    const double tau_min_inv = 2.0/(6.0*nu+1.0);
 
     /**
      * Compute the equilibrium of the system.
-     *
-     * @param f particle population
      */
-    void init_equilibrium(std::vector<double>& f);
+    void init_equilibrium();
+
     /**
      * Initialize the velocities and the density 
      * of the particle populations
      */
     void init_lid_driven_cavity();
+
     /**
      * Apply the boundary conditions for
      * the lid cavity problem.
-     *
-     * @param f particle population
      */
-    void apply_boundary_conditions(std::vector<double>& f);
+    void apply_boundary_conditions();
 
-    void update_stream_collide(std::vector<double>& f_src, std::vector<double>& f_dst, bool save);
+    /**
+     * Perform the stream and collision operations
+     * of the LBM algorithm, using the specified
+     * collision operator.
+     *
+     * @param save true if saving in this iterations, false otherwise
+     */
+    void update_stream_collide(bool save);
     
     /**
      * Write the norm of the macroscopic velocities.
@@ -197,6 +203,9 @@ public:
      */
     void write_bench_data(std::ofstream& output_file);
 
+    std::vector<double> f1;
+    std::vector<double> f2;
+
 private:
 
     const std::array<int, ndir> opp = {0, 3, 4, 1, 2, 6, 5, 7, 8};
@@ -211,7 +220,7 @@ private:
     inline size_t field_index(unsigned int x, unsigned int y, unsigned int d) const {
         return Nx * (Ny * d + y) + x;
     }
-
+    
     /**
      * Velocitiy vector on the x axis
      */

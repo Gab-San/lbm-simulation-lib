@@ -7,6 +7,8 @@
 #include <chrono>
 #include <omp.h>
 
+#define WEAK_SCALING false
+
 /**
  * \mainpage Lattice Boltzmann Method Implementation
  *
@@ -35,8 +37,12 @@ int main(int argc, char* argv[])
     using namespace lbm_lbm;
 
     std::vector<Job> jobs = parse_file(std::string(argv[1])); 
-    
-    std::cout << "Number of jobs: " << jobs.size() << std::endl;
+
+    std::cout << "Number of simulations: " << jobs.size() << std::endl;
+
+    #if WEAK_SCALING
+    std::ofstream weak_scaling_data("../weak_scaling_data.txt", std::ios::binary);
+    #endif
 
     unsigned int Nx, Ny;
     double Re, u_lid;
@@ -55,24 +61,19 @@ int main(int argc, char* argv[])
 	
 	// Print parameters to stdout
 	printf("Simulation parameters:\n");
-	printf(" Grid dimensions: %d x %d\n", Nx, Ny);
-	printf(" Reynolds number: %f\n", Re);
+	printf(" Grid dimensions: %d x %d\n", Nx, Ny); printf(" Reynolds number: %f\n", Re);
 	printf(" Lid velocity: %f\n", u_lid);
 	printf(" Number of steps: %d\n Number of frames: %d\n", nsteps, j.num_frames);
+	size_t mem_size_ndir   = Nx * Ny * LBM::ndir * sizeof(double); // for f1, f2
 
 	// Instantiate LBM data structure
 	LBM lbm(Nx, Ny, Re, u_lid, j.coll_op);
-
-	size_t mem_size_ndir   = Nx * Ny * lbm.ndir * sizeof(double); // for f1, f2
-
-	std::vector<double> f1(mem_size_ndir);
-	std::vector<double> f2(mem_size_ndir);
 
 	// initialize lid-driven cavity flow
 	lbm.init_lid_driven_cavity();
 
 	// initialise f1 as equilibrium for rho, ux, uy
-	lbm.init_equilibrium(f1);
+	lbm.init_equilibrium();
 
 	// Apertura file output
 	std::cout << "Opening " << filename_norms << std::endl;
@@ -93,37 +94,48 @@ int main(int argc, char* argv[])
 	}
 
 	// Write grid dimensions to file
-	norms_file << Nx << "\n" << Ny << "\n";
+	norms_file.write(reinterpret_cast<char *>(&Nx), sizeof(int));
+	norms_file.write(reinterpret_cast<char *>(&Ny), sizeof(int));
 
 	// main simulation loop; take NSTEPS time steps
 	// also compute the time taken for the simulation
 
+	#if WEAK_SCALING
 	auto startTime = std::chrono::high_resolution_clock::now();
+	#endif
 
 	for(unsigned int n = 0; n < nsteps; ++n)
 	{
 
 	    bool save = n % nskips == 0;
-	    lbm.update_stream_collide(f1, f2, save);
+	    lbm.update_stream_collide(save);
 
 	    // swap pointers
-	    std::swap(f1,f2);
+	    std::swap(lbm.f1,lbm.f2);
 
 	    if(save)  lbm.write_norms(norms_file);
 
 	    // at the last step 
 	    if (n + 1 >= nsteps) lbm.write_bench_data(bench_file);
-
 	}
 
+	#if WEAK_SCALING
 	auto endTime = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> elapsedSeconds = endTime - startTime;
 
 	printf("Simulation completed in %f seconds.\n", elapsedSeconds.count());
+	#endif	
 
 	norms_file.close();
 	bench_file.close();
 	printf("\nFinished writing to file.\n");    
+
+	#if WEAK_SCALING
+	std::string output = std::to_string(Nx) + " " + std::to_string(elapsedSeconds.count());
+	weak_scaling_data.write(output.c_str(), sizeof(output.c_str()));
+	weak_scaling_data.close();
+	#endif
+
     }
 
     return 0;

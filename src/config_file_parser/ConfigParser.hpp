@@ -30,7 +30,7 @@ namespace lbm_lbm {
  * There is no special string of characters to divide jobs,
  * but all of the parameters of a job must be configured.
  *
- * \important TRT operator is not supported
+ * \note TRT operator is not supported
  *
  *
  * \section Configuration File

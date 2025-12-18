@@ -1,6 +1,4 @@
 # Use out/ in order not to track output files
-
-
 # 129x129 100 0.1
 # GridX
 Nx 129
@@ -11,10 +9,10 @@ Re 100
 # Starting lid velocity
 U_lid 0.1
 # Number of Steps
-Nsteps 5000
+Nsteps 10000
 # Number of frames
 # frames to get the gif at the end
-Nframes 50
+Nframes 100
 # Output of norms
 out_norm ../frames/norms_129_100_01.txt
 # Output for benchmark
@@ -23,26 +21,26 @@ out_bench ../data/data_129_100_01.txt
 Col BGK
 
 
-# 200x200 1000 0.5
+# 200x200 1000 0.1
 Nx 200
 Ny 200
 Re 1000
 U_lid 0.1
 Nsteps 20000
-Nframes 50
+Nframes 100
 out_norm ../frames/norms_200_1k_01.txt
 out_bench ../data/data_200_1k_01.txt
 Col BGK
 
-# Non converge
-# 400x400 10000 1
-#Nx 400
-#Ny 400
-#Re 10000
-#U_lid 1
-#Nsteps 40000
-#Nframes 50
-#out_norm ../data/norms_400_10k_1.txt
-#out_bench ../frames/data_400_10k_1.txt
-#Col BGK
+
+# 1000x1000 7500 0.1
+Nx 1000
+Ny 1000
+Re 7500
+U_lid 0.1
+Nsteps 40000
+Nframes 100
+out_norm ../frames/norms_1000_7500_01.txt
+out_bench ../data/data_1000_7500_01.txt
+Col BGK
 

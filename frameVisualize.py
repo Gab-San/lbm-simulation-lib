@@ -4,15 +4,13 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 def read_data(file_name):
-    with open(file_name, 'rb') as f:
+    with open(file_name, "rb") as f:
         # reading grid size
-        nx = int(f.readline().strip())
-        ny = int(f.readline().strip())
+        nx = np.fromfile(f, dtype=np.int32, count=1)[0]
+        ny = np.fromfile(f, dtype=np.int32, count=1)[0]
 
         # reading velocities
-        data = []
-        for line in f:
-            data.append(float(line.strip()))
+        data = np.fromfile(f, dtype=np.float32)
 
     return nx, ny, data
 

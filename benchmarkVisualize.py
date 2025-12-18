@@ -22,13 +22,14 @@ def read_data(file_name, bench_name):
     # leggo i dati della simulazione dal file
     with open(file_name, 'rb') as f:
         # reading velocities
-        data = []
-        for line in f:
-            data.append(float(line.strip()))
+        data = np.fromfile(f, dtype=np.float64)
 
-        # normalizzo i dati rispetto al massimo valore in modulo
-        max_value = max([abs(v) for v in data])
-        data = [v / max_value for v in data]    
+        max_value = np.abs(data).max()
+        if max_value > 0:
+            data = data / max_value
+
+        # max_value = max([abs(v) for v in data])
+        # data = [v / max_value for v in data]    
 
     return data, ghia_data
 
