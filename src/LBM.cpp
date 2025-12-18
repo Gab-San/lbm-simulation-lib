@@ -1,64 +1,55 @@
 #include "LBM.hpp"
+
+#include <omp.h>
+#include <fstream>
 #include <cmath>
 
-// enable OpenMP for parallelization
-#include <omp.h>
-
-const int LBM::opp[9] = {0, 3, 4, 1, 2, 6, 5, 7, 8};
 
 //initialize velocities and pressure fields for the lid driven cavity flow
-void LBM::init_lid_driven_cavity(double *u, double *v, double *r)
+void LBM::init_lid_driven_cavity()
 {
-    for(unsigned int y = 0; y < Ny; ++y)
-    {
-        for(unsigned int x = 0; x < Nx; ++x)
-        {
-            size_t sidx = scalar_index(x,y);
-	        u[sidx] = 0.0;
-	        v[sidx] = 0.0;
-            r[sidx] = rho0;
-        }
-    }
-
     // set lid velocity at the top boundary
     for(unsigned int x = 0; x < Nx; ++x)
     {
         size_t sidx = scalar_index(x,Ny-1);
-        u[sidx] = u_lid;
+        ux[sidx] = u_lid;
     }
 }
 
 //compute equilibrium
 //evolution of the steps (for cycle) -> UPDATE collision, macros and apply boundary conditions
-void LBM::init_equilibrium(double *f, double *r, double *u, double *v)
+void LBM::init_equilibrium(std::vector<double> & f)
 {
+    #pragma omp parallel for schedule(static) collapse(2)
     for(unsigned int y = 0; y< Ny; ++y)
     {
         for(unsigned int x = 0; x < Nx; ++x)
         {
-            double rho = r[scalar_index(x,y)];
-            double ux = u[scalar_index(x,y)];
-            double uy = v[scalar_index(x,y)];
+            double r = rho[scalar_index(x,y)];
+            double ux_val = ux[scalar_index(x,y)];
+            double uy_val = uy[scalar_index(x,y)];
+
+	    #pragma omp simd
             for(unsigned int i = 0; i < ndir; ++i)
             {
-                double cidotu = dirx[i]*ux + diry[i]*uy;
+                double cidotu = dirx[i]*ux_val + diry[i]*uy_val;
                 // wi sono i coefficienti di peso del modello D2Q9
                 // Imposta f nella direzione i uguale alla distribuzione di equilibrio corrispondente a densità rho e velocità (ux,uy).
-                f[field_index(x,y,i)] = wi[i]*rho*(1.0 + 3.0*cidotu+4.5*cidotu*cidotu-1.5*(ux*ux+uy*uy));
+                f[field_index(x,y,i)] = wi[i]*r*(1.0 + 3.0*cidotu+4.5*cidotu*cidotu-1.5*(ux_val*ux_val+uy_val*uy_val));
             }
         }
     }
 }
 
 // Single function that performs streaming, boundary conditions, macro computation, and collision
-void LBM::update_stream_collide(double * f_src, double * f_dst, double * r, double * u, double * v)  
+void LBM::update_stream_collide(std::vector<double> &  f_src, std::vector<double> &  f_dst)
 {
     #pragma omp parallel for schedule(static) collapse(2)
     for (unsigned int y = 0; y < Ny; ++y) {
         for (unsigned int x = 0; x < Nx; ++x) {
 
             // first apply streaming
-
+	    #pragma omp unroll full
             for (unsigned int i = 0; i < ndir; ++i) {
 
                 unsigned int xs = x - dirx[i];
@@ -83,221 +74,160 @@ void LBM::update_stream_collide(double * f_src, double * f_dst, double * r, doub
     for (unsigned int y = 0; y < Ny; ++y) {
         for (unsigned int x = 0; x < Nx; ++x) {
 
-            double rho = 0.0;
-            double ux =  0.0;
-            double uy =  0.0;
+            double r = 0.0;
+            double ux_val =  0.0;
+            double uy_val =  0.0;
 
-            #pragma omp simd reduction(+:rho,ux,uy)
+            #pragma omp simd reduction(+:r,ux_val,uy_val)
             for (unsigned int i = 0; i < ndir; ++i) {
 
                 // precompute f_dist
                 double f_dist = f_dst[field_index(x,y,i)];
 
                 // calculate macroscopic variables
-                rho += f_dist;
-                ux  += dirx[i]*f_dist;
-                uy  += diry[i]*f_dist;
+                r += f_dist;
+                ux_val  += dirx[i]*f_dist;
+                uy_val  += diry[i]*f_dist;
             }
 
-            ux /= rho;
-            uy /= rho;
+            ux_val /= r;
+            uy_val /= r;
 
             // assign computed macroscopic values
             const unsigned int s_idx = scalar_index(x,y);
-            r[s_idx] = rho;
-            u[s_idx] = ux;
-            v[s_idx] = uy;
+            rho[s_idx] = r;
+            ux[s_idx] = ux_val;
+            uy[s_idx] = uy_val;
 
             // Collisione con SIMD
-            const double u_sq = ux*ux + uy*uy;
+            const double u_sq = ux_val*ux_val + uy_val*uy_val;
             const double c1 = -1.5 * u_sq;
-            //TRT Collision
-            #pragma omp simd
-            for (unsigned int i = 0; i < ndir; ++i)
-            {
-                int io = opp[i];
             
+	    if(op == lbm_lbm::TRT) {
+		#pragma omp simd
+		for (unsigned int i = 0; i < ndir; ++i)
+		{
+		    int io = opp[i];
+		    if (i > io) continue;   // evita doppio aggiornamento
 
-                double fi  = f_dst[field_index(x,y,i)];
-                double fio = f_dst[field_index(x,y,io)];
+		    double fi  = f_dst[field_index(x,y,i)];
+		    double fio = f_dst[field_index(x,y,io)];
 
-                // symmetric part and antusymmetric
-                double f_plus  = 0.5 * (fi + fio);
-                double f_minus = 0.5 * (fi - fio);
+		    // parti simmetrica / antisimmetrica
+		    double f_plus  = 0.5 * (fi + fio);
+		    double f_minus = 0.5 * (fi - fio);
 
-                                double cidotu  = dirx[i]*ux  + diry[i]*uy;
-                double cidotuo = dirx[io]*ux + diry[io]*uy;
+		    // prodotti scalari
+		    double cidotu  = dirx[i]*ux_val  + diry[i]*uy_val;
+		    double cidotuo = dirx[io]*ux_val + diry[io]*uy_val;
 
-          
-                double feq_i = wi[i] * rho *
-                    (1.0 + 3.0*cidotu + 4.5*cidotu*cidotu + c1);
+		    // equilibrio
+		    double feq_i = wi[i] * r *
+			(1.0 + 3.0*cidotu + 4.5*cidotu*cidotu + c1);
 
-                double feq_io = wi[io] * rho *
-                    (1.0 + 3.0*cidotuo + 4.5*cidotuo*cidotuo + c1);
+		    double feq_io = wi[io] * r *
+			(1.0 + 3.0*cidotuo + 4.5*cidotuo*cidotuo + c1);
 
-                double feq_plus  = 0.5 * (feq_i + feq_io);
-                double feq_minus = 0.5 * (feq_i - feq_io);
+		    double feq_plus  = 0.5 * (feq_i + feq_io);
+		    double feq_minus = 0.5 * (feq_i - feq_io);
 
-                // two relaxation parameters for stability and viscosità
-                double f_plus_new  = f_plus  - taup_inv * (f_plus  - feq_plus);
-                double f_minus_new = f_minus - taum_inv * (f_minus - feq_minus);
+		    // rilassamento TRT
+		    double f_plus_new  = f_plus  - tau_pos_inv * (f_plus  - feq_plus);
+		    double f_minus_new = f_minus - tau_min_inv * (f_minus - feq_minus);
 
-                
-                f_dst[field_index(x,y,i )] = f_plus_new + f_minus_new;
-                f_dst[field_index(x,y,io)] = f_plus_new - f_minus_new;
-            }
+		    // ricostruzione
+		    f_dst[field_index(x,y,i )] = f_plus_new + f_minus_new;
+		    f_dst[field_index(x,y,io)] = f_plus_new - f_minus_new;
+		}
+	    }
 
-            /*for (unsigned int i = 0; i < ndir; ++i) {
-                // calculate dot product beetwen the velocity u(x,y) and the direction vector to its neighbour
-                double cidotu = dirx[i]*ux + diry[i]*uy;
-                // calculate equilibrium
-                double feq = wi[i] * rho * (1.0 + 3.0*cidotu + 4.5*cidotu*cidotu + c1);           
-                // relax to equilibrium
-                f_dst[field_index(x,y,i)] = omtauinv * f_dst[field_index(x,y,i)] + tauinv * feq;
-            }*/
+	    if (op == lbm_lbm::BGK) {
+		#pragma omp simd
+		for (unsigned int i = 0; i < ndir; ++i) {
+		    // calculate dot product beetwen the velocity u(x,y) and the direction vector to its neighbour
+		    double cidotu = dirx[i]*ux_val + diry[i]*uy_val;
+		    // calculate equilibrium
+		    double feq = wi[i] * r * (1.0 + 3.0*cidotu + 4.5*cidotu*cidotu + c1);           
+		    // relax to equilibrium
+		    f_dst[field_index(x,y,i)] = omtauinv * f_dst[field_index(x,y,i)] + tauinv * feq;
+		}
+	    }
         }
     }
 
 }
 
-void LBM::apply_boundary_conditions(double* f)
+void LBM::apply_boundary_conditions(std::vector<double> & f)
 {
     #pragma omp parallel sections
     {
         #pragma omp section
         {
-            // LEFT wall (x = 0)
-            #pragma omp parallel for
+            #pragma omp parallel for simd
             for (int y = 0; y < Ny; y++) {
-                int x = 0;
-                f[field_index(x,y,1)] = f[field_index(x,y,3)];
-                f[field_index(x,y,5)] = f[field_index(x,y,7)];
-                f[field_index(x,y,8)] = f[field_index(x,y,6)];
-            }
-        }
-        
-        #pragma omp section
-        {
-            // RIGHT wall (x = Nx-1)
-            #pragma omp parallel for
-            for (int y = 0; y < Ny; y++) {
-                int x = Nx - 1;
-                f[field_index(x,y,3)] = f[field_index(x,y,1)];
-                f[field_index(x,y,6)] = f[field_index(x,y,8)];
-                f[field_index(x,y,7)] = f[field_index(x,y,5)];
+		// LEFT wall (x = 0)
+                const int x0 = 0;
+                f[field_index(x0,y,1)] = f[field_index(x0,y,3)];
+                f[field_index(x0,y,5)] = f[field_index(x0,y,7)];
+                f[field_index(x0,y,8)] = f[field_index(x0,y,6)];
+		// RIGHT wall (x = Nx-1)
+                const int xn = Nx - 1;
+                f[field_index(xn,y,3)] = f[field_index(xn,y,1)];
+                f[field_index(xn,y,6)] = f[field_index(xn,y,8)];
+                f[field_index(xn,y,7)] = f[field_index(xn,y,5)];
             }
         }
 
         #pragma omp section
         {
-            // BOTTOM wall (y = 0) 
             #pragma omp parallel for
             for (int x = 0; x < Nx; x++) {
-                int y = 0;
-                f[field_index(x,y,2)] = f[field_index(x,y,4)];
-                f[field_index(x,y,5)] = f[field_index(x,y,7)];
-                f[field_index(x,y,6)] = f[field_index(x,y,8)];
-            }
-        }   
+		// BOTTOM wall (y = 0) 
+                const int y0 = 0;
+                f[field_index(x,y0,2)] = f[field_index(x,y0,4)];
+                f[field_index(x,y0,5)] = f[field_index(x,y0,7)];
+                f[field_index(x,y0,6)] = f[field_index(x,y0,8)];
+		// TOP wall (y = Ny-1)
+                const int yn = Ny - 1;
 
-        #pragma omp section
-        {
-            // TOP wall (y = Ny-1)
-            #pragma omp parallel for
-            for (int x = 0; x < Nx; x++) {
-                int y = Ny - 1;
-                
                 double rho =
                     (
-                        f[field_index(x,y,0)] +
-                        f[field_index(x,y,1)] +
-                        f[field_index(x,y,3)] +
+                        f[field_index(x,yn,0)] +
+                        f[field_index(x,yn,1)] +
+                        f[field_index(x,yn,3)] +
                         2.0 * (
-                            f[field_index(x,y,2)] +
-                            f[field_index(x,y,5)] +
-                            f[field_index(x,y,6)]
+                            f[field_index(x,yn,2)] +
+                            f[field_index(x,yn,5)] +
+                            f[field_index(x,yn,6)]
                         )
                     ) / (1.0 + u_lid);
 
-                f[field_index(x,y,4)] = f[field_index(x,y,2)];
-                f[field_index(x,y,7)] = f[field_index(x,y,5)] - 0.5 * rho * u_lid;
-                f[field_index(x,y,8)] = f[field_index(x,y,6)] + 0.5 * rho * u_lid;
+                f[field_index(x,yn,4)] = f[field_index(x,yn,2)];
+                f[field_index(x,yn,7)] = f[field_index(x,yn,5)] - 0.5 * rho * u_lid;
+                f[field_index(x,yn,8)] = f[field_index(x,yn,6)] + 0.5 * rho * u_lid;
             }
         }
     }
 }
 
-// Streaming step is not periodic, so we need to be careful at the boundaries
-void LBM::stream(double *f_src, double *f_dst)
-{
-    // streaming vero e proprio
-    for (unsigned int y = 0; y < Ny; ++y) {
-        for (unsigned int x = 0; x < Nx; ++x) {
-            for (unsigned int i = 0; i < ndir; ++i) {
+void LBM::write_norms(std::ofstream& output_file) {
+	// saving euclidian norms of the vectors at each step 
+	for (int j = 0; j < Ny; ++j) {
+		for (int i = 0; i < Nx; ++i) {
+		    double vx = ux[Nx * j + i];
+		    double vy = uy[Nx * j + i];
+		    double v  = sqrt(vx * vx + vy * vy);
+		    output_file << v << "\n";
+		}
+	}
 
-                unsigned int xs = x - dirx[i];
-                unsigned int ys = y - diry[i];
-
-                // stream SOLO se il nodo sorgente è interno
-                if (xs >= 0 && xs < Nx && ys >= 0 && ys < Ny) {
-                    f_dst[field_index(x,y,i)] = f_src[field_index(xs,ys,i)];
-                } else {
-                    // altrimenti, imposto il valore a 0
-                    f_dst[field_index(x,y,i)] = 0.0;
-                }
-            }
-        }
-    }
 }
 
-void LBM::compute_rho_u(double *f, double *r, double *u, double *v)
-{
-    for(unsigned int y = 0; y< Ny;++y)
-    {
-        for(unsigned int x = 0; x < Nx; ++x)
-        {
-            double rho = 0.0;
-            double ux = 0.0;
-            double uy = 0.0;
-
-            for(unsigned int i = 0; i < ndir; ++i)
-            {
-                rho += f[field_index(x,y,i)];
-                ux += dirx[i]*f[field_index(x,y,i)];
-                uy += diry[i]*f[field_index(x,y,i)];
-            }
-
-            r[scalar_index(x,y)] = rho;
-            u[scalar_index(x,y)] = ux/rho;
-            v[scalar_index(x,y)] = uy/rho;
-        }
-    }
-}
-
-
-// implementation of the BGK collision operator
-void LBM::collide(double *f, double *r, double *u, double *v)
-{
-    // useful constants
-    const double tauinv = 2.0/(6.0*nu+1.0); // 1/tau
-    const double omtauinv = 1.0-tauinv;
-    for(unsigned int y = 0; y< Ny;++y)
-    {
-        for(unsigned int x = 0; x < Nx; ++x)
-        {
-            double rho = r[scalar_index(x,y)];
-            double ux = u[scalar_index(x,y)];
-            double uy = v[scalar_index(x,y)];
-            // 1- 1/tau
-            for(unsigned int i = 0; i < ndir; ++i)
-            {
-                // calculate dot product beetwen the velocity u(x,y) and the direction vector to its neighbour
-                double cidotu = dirx[i]*ux + diry[i]*uy;
-                // calculate equilibrium
-                double feq = wi[i]*rho*(1.0 + 3.0*cidotu+4.5*cidotu*cidotu-1.5*(ux*ux+uy*uy));
-                // relax to equilibrium
-                f[field_index(x,y,i)] = omtauinv*f[field_index(x,y,i)]+tauinv*feq;
-            }
-        }
-    }
+void LBM::write_bench_data(std::ofstream& output_file) {
+	// Results for v-Velocity along Horizontal Line through Geometric Center of Cavity
+	int j_center = Ny / 2;
+	for (int i = 0; i < Nx; ++i) {
+	    double v_center = uy[Nx * j_center + i];
+	    output_file << v_center << "\n";
+	}
 }

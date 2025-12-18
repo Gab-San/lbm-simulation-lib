@@ -1,9 +1,12 @@
-#endif
 #ifndef LBM_HPP
 #define LBM_HPP
 
+#include "defs.h"
+
 #include <stdexcept> // for runtime_error
 #include <cstddef>   // for size_t
+#include <cstdio>    // for printf
+#include <array>
 #include <vector>
 
 /**
@@ -29,19 +32,18 @@ public:
      * @param nu: kinematic viscosity
      * @param tau: relaxation parameter
      */
-    LBM(int num_cells_x_, int num_cells_y_, double rey_num_, double u_lid_):
-        nu(u_lid_ * (num_cells_y_) / rey_num_), 
+    LBM(int num_cells_x_, int num_cells_y_, double rey_num_, double u_lid_, lbm_lbm::CollisionOperator op_):
+	op(op_),
+        nu(u_lid_ * (num_cells_y_ - 1) / rey_num_), 
         tau(0.5 + 3.0 * nu),
         Nx(num_cells_x_), 
         Ny(num_cells_y_), 
         u_lid(u_lid_),
         Re(rey_num_),
-        taup_inv(2.0/(6.0*nu+1.0)),
-        taum_inv(2.0/(6.0*nu+1.0))
-    /*
-    two tau relaxation for TRT
-    */
-        {
+	ux(num_cells_x_*num_cells_y_, 0.0),
+	uy(num_cells_x_*num_cells_y_, 0.0),
+	rho(num_cells_x_*num_cells_y_, rho0)
+    {
         if (tau <= 0.5) {
             throw std::runtime_error("LBM error: tau must be > 0.5");
         }
@@ -50,73 +52,46 @@ public:
         }
     }; 
 
-    /// Nx : Number of cells along the X axis
-    /// Ny : Number of cells along the Y axis
-    const int Nx, Ny;
-
-    /// Re : Reynold number (viscosity related)
-    /// u_lid : Velocity of the lid cavity
-    const double Re, u_lid;
+    static const unsigned short int ndir = 9;
 
     const double w0 = 4.0/9.0;  // weight in (dx,dy)=(0,0)
     const double ws = 1.0/9.0;  // weight for adjacent points
     const double wd = 1.0/36.0; // diagonal weight
 
-    // Arrays of the lattice weights and direction components
-    const double wi[9] = {w0,ws,ws,ws,ws,wd,wd,wd,wd};
+    const std::array<double, ndir> wi = {w0, ws, ws, ws, ws, wd, wd, wd, wd};
 
-    // direction numbering scheme:
-    // 7 4 8
-    // 3 0 1
-    // 6 2 5
-    const int dirx[9] = {0,1,0,-1, 0,1,-1,-1, 1};
-    const int diry[9] = {0,0,1, 0,-1,1, 1,-1,-1};
-    
-    // The kinematic viscosity and the corresponding relaxation parameter
+    const std::array<int, ndir> dirx = {0,1,0,-1,0,1,-1,-1,1};
+    const std::array<int, ndir> diry = {0,0,1,0,-1,1,1,-1,-1};
+
+    const lbm_lbm::CollisionOperator op;
+
+    const int Nx, Ny;
+    const double Re, u_lid;
     const double nu;
     const double tau;
-    //relaxaztion parameters
-    const double taup_inv;
-    const double taum_inv;
 
-    // number of directions (considering the center point)
-    const int ndir = 9; 
-    // The fluid density
     const double rho0 = 1.0;
 
-    // useful constants
     const double tauinv = 2.0/(6.0*nu+1.0);
     const double omtauinv = 1.0-tauinv;
 
-    /**
-    * Compute the equilibrium of the system.
-    */
-    void init_equilibrium();
+    // Separate relaxation times if needed
+    const double tau_pos_inv = 2.0/(6.0*nu+1.0);
+    const double tau_min_inv = 2.0/(6.0*nu+1.0);
 
-    /**
-    * Initialize the velocities and the density 
-    * of the particle populations.
-    */
+    // Funzioni principali
+    void init_equilibrium(std::vector<double>& f);
     void init_lid_driven_cavity();
-
-    /**
-    * Apply the boundary conditions for
-    * the lid cavity problem.
-    */
-    void apply_boundary_conditions();
-
-    // TODO: ADD COMMENTS
-    void update_stream_collide();
-
-    // TODO: ADD COMMENTS
+    void apply_boundary_conditions(std::vector<double>& f);
+    void update_stream_collide(std::vector<double>& f_src, std::vector<double>& f_dst);
     void write_norms(std::ofstream& output_file);
-    
-    // TODO: ADD COMMENTS
-    void write_bench_values(std::ofstream& output_file);
+    void write_bench_data(std::ofstream& output_file);
 
 private:
 
-    // Index position of a cell for a scalar defined vector
+
+    const std::array<int, ndir> opp = {0, 3, 4, 1, 2, 6, 5, 7, 8};
+
     inline size_t scalar_index(unsigned int x, unsigned int y) const {
         return Nx * y + x;
     }
@@ -128,16 +103,6 @@ private:
         return Nx * (Ny * d + y) + x;
     }
 
-    /**
-     * Particle Populations
-     */
-    std::vector<double> f;
-    /**
-     * Temporary Particle Populations
-     *
-     * Used to store intermediate solutions
-     */
-    std::vector<double> f_tmp;
     /**
      * Velocitiy vector on the x axis
      */

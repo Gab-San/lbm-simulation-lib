@@ -1,4 +1,5 @@
 #include "ConfigParser.hpp"
+
 #include <stdexcept>
 #include <fstream>
 #include <string>
@@ -34,7 +35,16 @@ std::string get_next_line(std::ifstream& in) {
     return trim(line);
 }
 
+
 using namespace lbm_lbm;
+
+CollisionOperator parse_op(std::string s) {
+	if(s == "BGK") return lbm_lbm::BGK;
+
+	if(s == "TRT") return TRT;
+	
+	throw std::runtime_error("[Error while parsing file] Operator not recognised");
+}
 
 std::vector<Job> lbm_lbm::parse_file(const std::string& file_path) {
 
@@ -57,7 +67,7 @@ std::vector<Job> lbm_lbm::parse_file(const std::string& file_path) {
 	if(line[0] == '#') continue;
 
 	Job currJob;
-	while(parsing_state != 8) {
+	while(parsing_state != -1) {
 	
 		toks = split(line, " ");
 		switch(parsing_state) {
@@ -118,13 +128,20 @@ std::vector<Job> lbm_lbm::parse_file(const std::string& file_path) {
 		    break;
 
 		    case 7:
-			std::cout << currJob.vel_norm_out << std::endl;
 			if(toks[0] != "out_bench")
 			    throw std::runtime_error("[Error while parsing] out_bench line expected!");
-			
-			currJob.vel_bench_out = std::string(toks[1]);
+
+			currJob.vel_bench_out = std::string(trim(toks[1]));	
 			parsing_state = 8;
-		   continue; 
+		    break; 
+			
+		    case 8:
+			if(toks[0] != "Col")
+			    throw std::runtime_error("[Error while parsing] collision line expected!");
+
+			currJob.coll_op = parse_op(trim(toks[1]));
+			parsing_state = -1;
+		    continue;
 
 		    default:
 			throw std::runtime_error("[Error while parsing] Reached an undefined parsing state!");

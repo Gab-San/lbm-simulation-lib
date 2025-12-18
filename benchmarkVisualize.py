@@ -1,15 +1,12 @@
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-# input file name
-input_file_1 = 'vel_y_testing.txt'  # Dati presi dalla simulazione
-input_file_2 = 'bench_data_1000.txt' # Dati presi da Ghia et al. 1982
-
-def read_data(file_name):
+def read_data(file_name, bench_file):
 
     # leggo i dati di ghia
-    with open(input_file_2, 'r') as f:
+    with open(bench_file, 'r') as f:
         ghia_data = []
         for line in f:
             x, y = line.strip().split()
@@ -53,5 +50,9 @@ def create_graph(data, ghia_data):
     plt.show()
 
 if __name__ == '__main__':
-    data, ghia_data = read_data(input_file_1)
+    if(len(sys.argv) < 3):
+        print(f"Usage: {sys.argv[0]} <input_file_1> <ghia_bench_data>")
+        sys.exit()
+
+    data, ghia_data = read_data(sys.argv[1], sys.argv[2])
     create_graph(data, ghia_data)
