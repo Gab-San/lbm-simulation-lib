@@ -32,7 +32,7 @@ simpler and this is why it is frequently used in numerical problems of CFD simul
 
 ## Overview
 
-The lattice Boltzmann method revolves around the _discrete-veolcity distribution function_ $f_{i}(x,t)$, 
+The lattice Boltzmann method revolves around the _discrete-velocity distribution function_ $f_{i}(x,t)$, 
 often called the particle _populations_.
 
 This density function is used to describe how the fluid behaves on a mesoscopic scale,
@@ -49,7 +49,9 @@ in which:
 
 As previously stated, the collision operator used in this hands-on is the Bhatangar-Gross-Krook (BGK) operator:
 
-$$ \Omega_{i}(f) = -\frac{f_{i}-f^{eq}_{i}}{\tau} \Delta{t}.$$
+$$ \Omega_{i}(f) = -\frac{f_{i}-f^{eq}_{i}}{\tau} \Delta{t}$$
+
+with $\tau$ the reaxation time and $\Delta{t}$ the time step.
 
 The equilibrium is given by:
 
@@ -59,6 +61,7 @@ w_{i} \rho (1 + \frac{u * c_{i}}{c_{s}^2}
 
 in which:
 
+- $w_{i}$ is the weight and $\rho$ the density
 - $c_{i}$ represents the set of discrete particle velocities;
 - $u$ represents the macroscopic fluid velocity;
 - $c^2_{s} = (1/3)\frac{\Delta{x}^2}{\Delta{t}^2}$ determines the relation between the pressure and the density (in basic isothermal LBE).
@@ -77,6 +80,15 @@ corresponds to one time step. The substeps are:
 5. Compute the collision operation;
 6. Write the macroscopic fields.
 7. Increase time step and check convergence.
+
+### Key Parameters
+
+- Reynolds Number: $Re$
+- Kinematic viscosity: $\nu =\frac{u_{lid}L_x}{Re}$ 
+- Relaxation time: $\tau = 3\nu +0.5$
+
+## Parallelization
+!!!!ADD !!!
 
 ## Run the Simulation
 

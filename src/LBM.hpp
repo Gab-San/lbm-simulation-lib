@@ -61,9 +61,9 @@ public:
     const double wi[9] = {w0,ws,ws,ws,ws,wd,wd,wd,wd};
 
     // direction numbering scheme:
-    // 6 2 5
-    // 3 0 1
     // 7 4 8
+    // 3 0 1
+    // 6 2 5
     const int dirx[9] = {0,1,0,-1, 0,1,-1,-1, 1};
     const int diry[9] = {0,0,1, 0,-1,1, 1,-1,-1};
     
