@@ -33,14 +33,12 @@
 
 # Project Files
 build/
-*.txt
 .vscode/
 visualizer.pyZone.Identifier
-*.gif
 src/LBM_test.cpp
 .DS_Store
 src/LBM_test_TRT.cpp
 out/
-docs/
+docs/html/
 *_scaling_*.txt
 *.xlsx

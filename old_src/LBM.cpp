@@ -222,7 +222,7 @@ void LBM::write_norms(std::ofstream& output_file) {
 		for (unsigned int i = 0; i < Nx; ++i) {
 		    double vx = ux[Nx * j + i];
 		    double vy = uy[Nx * j + i];
-		    vsq[scalar_index(i,j)]  =static_cast<float>(sqrt(vx * vx + vy * vy));
+		    vsq[scalar_index(i,j)]  = static_cast<float>(sqrt(vx * vx + vy * vy));
 		}
 	}
 
