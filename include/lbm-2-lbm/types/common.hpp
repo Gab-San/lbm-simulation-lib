@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lbm-2-lbm/core/point.hpp"
+
 #include <cstddef>
 
 namespace lbm {

@@ -29,11 +29,12 @@ struct Grid<2> {
     /// Fluid default density
     const double rho0 = 1.0;
 
-    Grid(types::DimPoint<2> _grid_dim)
-        : Nx(_grid_dim.x), Ny(_grid_dim.y),
-          ux(_grid_dim.x * _grid_dim.y, 0.0),
-          uy(_grid_dim.x * _grid_dim.y, 0.0),
-          rho(_grid_dim.x * _grid_dim.y, rho0) {}
+    Grid(types::DimPoint<2> _grid_dim):
+        Nx(_grid_dim.x), Ny(_grid_dim.y),
+        ux(_grid_dim.x * _grid_dim.y, 0.0),
+        uy(_grid_dim.x * _grid_dim.y, 0.0),
+        rho(_grid_dim.x * _grid_dim.y, rho0) 
+    {}
 
     inline std::size_t scalar_index(std::size_t x, std::size_t y) const {
         return Nx * y + x;
@@ -73,11 +74,11 @@ struct Grid<3> {
     const double rho0 = 1.0;
 
     Grid(types::DimPoint<3> _grid_dim) :
-	Nx(_grid_dim.x), Ny(_grid_dim.y), Nz(_grid_dim.z),
-	ux(_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
-	uy(_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
-	uz(_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
-	rho(_grid_dim.x * _grid_dim.y * _grid_dim.z, rho0) 
+	    Nx(_grid_dim.x), Ny(_grid_dim.y), Nz(_grid_dim.z),
+	    ux(_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
+	    uy(_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
+	    uz(_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
+	    rho(_grid_dim.x * _grid_dim.y * _grid_dim.z, rho0) 
     {}
 
     // TODO: CHECK THIS IMPLEMENTATION

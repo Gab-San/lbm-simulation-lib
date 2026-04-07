@@ -80,7 +80,7 @@ struct D3Q27 {
  
     // implemented in 3D but not used yet of directions and their opposite in 3D, following the numbering scheme:(x,y,z)
     // 1(direction) --->2(opposite),3(direction) --->4(opposite),5(direction) --->6(opposite),7(direction) --->8(opposite),9(direction) --->10(opposite),11(direction) --->12(opposite),13(direction) --->14(opposite),15(direction) --->16(opposite),17(direction) --->18(opposite),19(direction) --->20(opposite),21(direction) --->22(opposite),23(direction) --->24(opposite),25(direction) --->26(opposite)
-    static constexpr std::array<int, ndir3D> dirx = {
+    static constexpr std::array<int, ndir> dirx = {
         0,
         1,-1, 0, 0, 0, 0,
         1,-1, 1,-1, 1,-1, 1,-1,
@@ -88,7 +88,7 @@ struct D3Q27 {
         1,-1, 1,-1, 1,-1, 1,-1
     };
 
-    static constexpr std::array<int, ndir3D> diry = {
+    static constexpr std::array<int, ndir> diry = {
         0,
         0, 0, 1,-1, 0, 0,
         1,-1,-1, 1, 0, 0, 0, 0,
@@ -96,7 +96,7 @@ struct D3Q27 {
         1,-1, 1,-1,-1, 1,-1, 1
     };
 
-    static constexpr std::array<int, ndir3D> dirz = {
+    static constexpr std::array<int, ndir> dirz = {
         0,
         0, 0, 0, 0, 1,-1,
         0, 0, 0, 0, 1,-1,-1, 1,
@@ -104,12 +104,14 @@ struct D3Q27 {
         1,-1,-1, 1, 1,-1,-1, 1
     };
     
-    static constexpr std::array<int, ndir3D> opp = {
+    static constexpr std::array<int, ndir> opp = {
         0,
         2, 1, 4, 3, 6, 5,
         8, 7,10, 9,12,11,14,13,
         16,15,18,17,
         20,19,22,21,24,23,26,25
     };  
+
+};
 
 }
