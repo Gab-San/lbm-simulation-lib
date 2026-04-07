@@ -7,6 +7,8 @@
 
 namespace lbm {
 
+
+
 template<int dim>
 struct Grid;
 
@@ -93,5 +95,4 @@ struct Grid<3> {
 	return Nx * Ny * Nz;
     }
 };
-
-}
+    }
