@@ -14,7 +14,7 @@ int main() {
     DIM,
     D2Q9,
     MPISolver2D<types::BGK2D>,
-    LidCavityProblem<2>,
+    LidCavityProblem<DIM>,
     CollisionOperatorType::BGK
     > simulation(
 	NUM_ITERS, NUM_FRAMES, /* num_skips = num_steps / num_frames */
