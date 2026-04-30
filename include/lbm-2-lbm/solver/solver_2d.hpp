@@ -52,24 +52,29 @@ public:
 
 
     void stream(
-        std::vector<double>& ffrom,
-        std::vector<double>& fto
+    std::vector<double>& ffrom,
+    std::vector<double>& fto
     ) override {
         #pragma omp parallel for schedule(static) collapse(2)
         for (unsigned int y = 0; y < this->grid.Ny; ++y) {
             for (unsigned int x = 0; x < this->grid.Nx; ++x) {
-                // first apply streaming
+
+                // ---- skip solid destination nodes ----
+                // apply_bc (bounce-back) handles the fluid nodes
+                // adjacent to the solid; solid internals stay at 0
+                // (zeroed by update_collide on the previous step).
+                if (this->grid.solid[this->grid.scalar_index(x, y)]) continue;
+
                 #pragma omp unroll full
                 for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
                     unsigned int xs = x - D2Q9::dirx[i];
                     unsigned int ys = y - D2Q9::diry[i];
 
-                    // stream only if the source node is internal
                     if (xs < this->grid.Nx && ys < this->grid.Ny) {
-                        fto[this->grid.field_index(x,y,i)] = ffrom[this->grid.field_index(xs,ys,i)];
+                        fto[this->grid.field_index(x, y, i)] =
+                            ffrom[this->grid.field_index(xs, ys, i)];
                     } else {
-                        // otherwise, set the value to 0
-                        fto[this->grid.field_index(x,y,i)] = 0.0;
+                        fto[this->grid.field_index(x, y, i)] = 0.0;
                     }
                 }
             }
@@ -78,56 +83,53 @@ public:
 
 
     void update_collide(
-        std::vector<double>& ffrom,
-        std::vector<double>& fto,
-        bool save
-    ) override  {
-        // finally compute macroscopic variables and collide
-        #pragma omp parallel for schedule(static) collapse(2)
+    std::vector<double>& ffrom,
+    std::vector<double>& fto,
+    bool save
+    ) override {
+    #pragma omp parallel for schedule(static) collapse(2)
         for (unsigned int y = 0; y < this->grid.Ny; ++y) {
             for (unsigned int x = 0; x < this->grid.Nx; ++x) {
 
-                double r = 0.0;
-                double ux_val =  0.0;
-                double uy_val =  0.0;
+                const unsigned int s_idx = this->grid.scalar_index(x, y);
+
+                // ---- skip solid nodes ----
+                // Zero out fto on solid so that after swap(f1,f2)
+                // no stale populations leak into the next stream step.
+                if (this->grid.solid[s_idx]) {
+                    for (unsigned int i = 0; i < D2Q9::ndir; ++i)
+                        fto[this->grid.field_index(x, y, i)] = 0.0;
+                    continue;
+                }
+
+                double r      = 0.0;
+                double ux_val = 0.0;
+                double uy_val = 0.0;
 
                 #pragma omp simd reduction(+:r,ux_val,uy_val)
                 for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
-
-                    // precompute f_dist
-                    double f_dist = fto[this->grid.field_index(x,y,i)];
-
-                    // calculate macroscopic variables
-                    r += f_dist;
-                    ux_val  += D2Q9::dirx[i]*f_dist;
-                    uy_val  += D2Q9::diry[i]*f_dist;
+                    const double f_dist = fto[this->grid.field_index(x, y, i)];
+                    r      += f_dist;
+                    ux_val += D2Q9::dirx[i] * f_dist;
+                    uy_val += D2Q9::diry[i] * f_dist;
                 }
 
                 ux_val /= r;
                 uy_val /= r;
 
-                // assign computed macroscopic values
-                const unsigned int s_idx = this->grid.scalar_index(x,y);
-                if(save){
+                if (save) {
                     this->grid.rho[s_idx] = r;
-                    this->grid.ux[s_idx] = ux_val;
-                    this->grid.uy[s_idx] = uy_val;
+                    this->grid.ux [s_idx] = ux_val;
+                    this->grid.uy [s_idx] = uy_val;
                 }
 
                 this->collision_strategy.apply(
-                    this->grid, 
+                    this->grid,
                     r,
                     fto,
-                    types::IndexPoint<2>(
-                        x,
-                        y
-                    ),
-                    types::ValuePoint<2>(
-                        ux_val,
-                        uy_val
-                    )
+                    types::IndexPoint<2>(x, y),
+                    types::ValuePoint<2>(ux_val, uy_val)
                 );
-
             }
         }
     };

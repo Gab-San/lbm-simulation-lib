@@ -8,6 +8,8 @@
 #include "lbm-2-lbm/solver/solver_2d.hpp"
 
 #include "lbm-2-lbm/problems/problem_2d.hpp"
+#include "lbm-2-lbm/problems/naca_airfoil_2d.hpp"
+
 
 #include "defines.h"
 
@@ -16,7 +18,16 @@
 int main() {
     using namespace lbm;
 
-    const auto problem = std::make_unique<LidCavity2D<ExecutionBackend::MPI>>();
+    //const auto problem = std::make_unique<LidCavity2D<ExecutionBackend::MPI>>();
+
+    const auto problem = std::make_unique<NACAirfoil2D<ExecutionBackend::MPI>>(
+        "NACA2412.dat",  // path al file .dat
+        0.30,            // chord / Nx
+        0.25,            // leading edge x / Nx
+        0.50,            // centro verticale / Ny
+        5.0,             // angle of attack [deg]
+        true             // open channel (free-slip top/bottom)
+    );
 
     LBMSimulation<
     DIM,

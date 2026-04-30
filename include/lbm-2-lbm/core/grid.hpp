@@ -7,8 +7,6 @@
 
 namespace lbm {
 
-
-
 template<int dim>
 struct Grid;
 
@@ -29,26 +27,34 @@ struct Grid<2> {
     /// Fluid default density
     const double rho0 = 1.0;
 
+    /// Solid obstacle mask — true means the node is inside a solid body.
+    /// Initialised to false (all fluid). Problems that include solid
+    /// obstacles (e.g. airfoils, cylinders) set this during init().
+    std::vector<bool> solid;
+
     Grid(types::DimPoint<2> _grid_dim):
         Nx(_grid_dim.x), Ny(_grid_dim.y),
-        ux(_grid_dim.x * _grid_dim.y, 0.0),
-        uy(_grid_dim.x * _grid_dim.y, 0.0),
-        rho(_grid_dim.x * _grid_dim.y, rho0) 
+        ux (_grid_dim.x * _grid_dim.y, 0.0),
+        uy (_grid_dim.x * _grid_dim.y, 0.0),
+        rho(_grid_dim.x * _grid_dim.y, rho0),
+        solid(_grid_dim.x * _grid_dim.y, false)
     {}
 
+    /// Linear index for macroscopic fields (rho, ux, uy, solid)
     inline std::size_t scalar_index(std::size_t x, std::size_t y) const {
         return Nx * y + x;
     }
 
-    // Index position of a cell for a direction defined vector
-    // This function is equal to: (Nx*Ny*dir) + (Nx*y)+x
-    // making dir work as an offset.
+    /// Linear index into the distribution-function array f[].
+    /// Layout is SoA: f is stored direction-major, i.e.
+    ///   f[ dir * Nx*Ny  +  y * Nx  +  x ]
+    /// which equals  Nx * (Ny * dir + y) + x
     inline std::size_t field_index(std::size_t x, std::size_t y, std::size_t dir) const {
         return Nx * (Ny * dir + y) + x;
     }
 
     inline std::size_t getArea() const {
-	return Nx * Ny;
+        return Nx * Ny;
     }
 };
 
@@ -73,17 +79,21 @@ struct Grid<3> {
     /// Fluid default density
     const double rho0 = 1.0;
 
+    /// Solid obstacle mask — true means the node is inside a solid body.
+    std::vector<bool> solid;
+
     Grid(types::DimPoint<3> _grid_dim) :
-	    Nx(_grid_dim.x), Ny(_grid_dim.y), Nz(_grid_dim.z),
-	    ux(_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
-	    uy(_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
-	    uz(_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
-	    rho(_grid_dim.x * _grid_dim.y * _grid_dim.z, rho0) 
+        Nx(_grid_dim.x), Ny(_grid_dim.y), Nz(_grid_dim.z),
+        ux (_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
+        uy (_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
+        uz (_grid_dim.x * _grid_dim.y * _grid_dim.z, 0.0),
+        rho(_grid_dim.x * _grid_dim.y * _grid_dim.z, rho0),
+        solid(_grid_dim.x * _grid_dim.y * _grid_dim.z, false)
     {}
 
     // TODO: CHECK THIS IMPLEMENTATION
     inline std::size_t scalar_index(
-	std::size_t x, std::size_t y, std::size_t z
+        std::size_t x, std::size_t y, std::size_t z
     ) const {
         return Nx * (Ny * z + y) + x;
     }
@@ -93,7 +103,8 @@ struct Grid<3> {
     }
 
     inline std::size_t getArea() const {
-	return Nx * Ny * Nz;
+        return Nx * Ny * Nz;
     }
 };
-    }
+
+} // namespace lbm

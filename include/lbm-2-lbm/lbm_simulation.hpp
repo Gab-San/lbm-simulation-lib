@@ -114,38 +114,70 @@ public:
 
     void output(const char* filepath) {
         using namespace std::filesystem;
-        
+
         path outpath = filepath;
-        path parent = outpath.parent_path();
-        
-        if (!exists(parent))
-            create_directories(parent);
-        
-        std::cout << "Opening " << outpath << std::endl;
-        
+        create_directories(outpath.parent_path());
+
         std::ofstream fout(outpath, std::ios::binary);
-        
-        if (!fout.is_open())
-            std::cerr << "Failed to create file: " <<
-        	outpath << std::endl;
-        
-        std::cout << "Writing..." << std::endl;
-        
-        std::vector<double> v_center(grid.Nx);
-        int j_center = grid.Ny / 2;
-        for (int i = 0; i < grid.Nx; ++i) {
-            v_center[i] = grid.uy[grid.Nx * j_center + i];
+        if (!fout.is_open()) {
+            std::cerr << "Failed to create file: " << outpath << std::endl;
+            return;
         }
-        
-        fout.write(
-            reinterpret_cast<const char*>(v_center.data()), 
-            v_center.size() * sizeof(double)
-        );
-        
-        std::cout << "Finished writing to " << outpath << std::endl;
-        
+
+        std::cout << "Writing to " << outpath << "..." << std::endl;
+
+        const std::size_t Nx = grid.Nx;
+        const std::size_t Ny = grid.Ny;
+
+        // --- header: grid dimensions (2 x uint64) ---
+        const uint64_t nx64 = Nx, ny64 = Ny;
+        fout.write(reinterpret_cast<const char*>(&nx64), sizeof(uint64_t));
+        fout.write(reinterpret_cast<const char*>(&ny64), sizeof(uint64_t));
+
+        // --- solid mask (Nx*Ny x uint8, 1=solid 0=fluid) ---
+        // Written separately so the reader can mask out solid nodes.
+        std::vector<uint8_t> solid_out(Nx * Ny);
+        for (std::size_t i = 0; i < Nx * Ny; ++i)
+            solid_out[i] = grid.solid[i] ? 1u : 0u;
+        fout.write(reinterpret_cast<const char*>(solid_out.data()),
+                solid_out.size() * sizeof(uint8_t));
+
+        // --- macroscopic fields: rho, ux, uy (Nx*Ny x double each) ---
+        // Solid nodes are written as NaN so any accidental read is obvious.
+        std::vector<double> rho_out(Nx * Ny);
+        std::vector<double> ux_out (Nx * Ny);
+        std::vector<double> uy_out (Nx * Ny);
+
+        constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
+
+        for (std::size_t y = 0; y < Ny; ++y) {
+            for (std::size_t x = 0; x < Nx; ++x) {
+                const std::size_t idx = grid.scalar_index(x, y);
+                if (grid.solid[idx]) {
+                    rho_out[idx] = NaN;
+                    ux_out [idx] = NaN;
+                    uy_out [idx] = NaN;
+                } else {
+                    rho_out[idx] = grid.rho[idx];
+                    ux_out [idx] = grid.ux [idx];
+                    uy_out [idx] = grid.uy [idx];
+                }
+            }
+        }
+
+        fout.write(reinterpret_cast<const char*>(rho_out.data()),
+                rho_out.size() * sizeof(double));
+        fout.write(reinterpret_cast<const char*>(ux_out.data()),
+                ux_out.size()  * sizeof(double));
+        fout.write(reinterpret_cast<const char*>(uy_out.data()),
+                uy_out.size()  * sizeof(double));
+
+        std::cout << "Done. Written "
+                << Nx << "x" << Ny << " grid ("
+                << Nx*Ny << " nodes)." << std::endl;
+
         fout.close();
-    };
+    }
 };
 
 }
