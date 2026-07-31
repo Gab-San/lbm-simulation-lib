@@ -39,6 +39,10 @@ src/LBM_test.cpp
 .DS_Store
 src/LBM_test_TRT.cpp
 out/
-docs/html/
 *_scaling_*.txt
 *.xlsx
+venv/
+shim_include/
+build/
+bin/
+*.gif
