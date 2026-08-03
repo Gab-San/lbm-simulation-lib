@@ -94,6 +94,14 @@ int main() {
   const Coordinate<2> C(128, 128);
   const Coordinate<2> D(128, 0);
 
+  const Coordinate<2> A2(0, 0);
+  const Coordinate<2> B2(0, 199);
+  const Coordinate<2> C2(199, 199);
+  const Coordinate<2> D2(199, 0);
+
+  const Coordinate<2> B_ = B2 - Coordinate<2>(0, 1);
+  const Coordinate<2> C_ = C2 - Coordinate<2>(0, 1);
+
   std::vector<Config<DIM>> configs{
       Config<DIM>(129, 129, /*iters*/ 10000, /*frames*/ 100,
                   /*reyn*/ 100.0, /*init_vel*/ 0.1,
@@ -103,7 +111,19 @@ int main() {
                            CollisionDetection::Segment(A, D),
                            CollisionDetection::Segment(D, C)}),
                    CollisionDetection::CollisionArea(
-                       A, {CollisionDetection::Segment(B, C)})})};
+                       A, {CollisionDetection::Segment(B, C)})}),
+
+      Config<DIM>(200, 200, /*iters*/ 30000, /*frames*/ 100,
+                  /*reyn*/ 1000.0, /*init_vel*/ 0.1,
+                  "out/norms_200_1000_01_bgk.bin",
+                  "out/data_200_1000_01_bgk.bin",
+                  {CollisionDetection::CollisionArea(
+                       A2, {CollisionDetection::Segment(A2, B2),
+                            CollisionDetection::Segment(A2, D2),
+                            CollisionDetection::Segment(D2, C2)}),
+                   CollisionDetection::CollisionArea(
+                       A2, {CollisionDetection::Segment(B2, C2)})}),
+  };
 
   constexpr auto CollisionType = CollisionModel::BGK;
 
@@ -116,8 +136,6 @@ int main() {
                  out_data, obstacles] = conf;
 
     const Structure<DIM> strt(obstacles, 1);
-    strt.obstacles[0].getPerimeter();
-    strt.obstacles[1].getPerimeter();
 
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(out_frames);

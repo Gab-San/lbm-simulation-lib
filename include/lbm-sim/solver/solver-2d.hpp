@@ -177,6 +177,7 @@ private:
                           CollisionDetection::utils::dot(D2Q9::dir[i], u0) * 3;
         }
       }
+      return;
     }
 
     // Checking all obstacles in our space

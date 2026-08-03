@@ -1,5 +1,3 @@
-set(CMAKE_BUILD_TYPE Debug)
-
 # Auto-compile all generated simulation files in this directory
 file(GLOB SOURCES "*.cpp")
 
