@@ -10,7 +10,7 @@ assignees: ''
 ## Brief Description
 Write a brief description of the feature...
 
-## Develpment Steps
+## Roadmap
 Write down a list of development steps to organize your work...
 1. Step 1
     - [ ] Checklist Item
