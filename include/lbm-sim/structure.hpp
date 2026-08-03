@@ -4,7 +4,7 @@
 // COLLISION DETECTION LIB
 #include "collision-detection/collision-area.hpp"
 
-template <int dim> struct Structure {
+template <unsigned short int dim> struct Structure {
   const std::vector<CollisionDetection::CollisionArea<dim>> &obstacles;
   const std::size_t moving_boundary;
   Structure(const std::vector<CollisionDetection::CollisionArea<2>> &obstacles_,

@@ -3,10 +3,10 @@
 
 #include "lbm-sim/solver/solver-base.hpp"
 
+#include "lbm-sim/backend/metadata.hpp"
+#include "lbm-sim/boundaries.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
-
-#include "lbm-sim/backend/metadata.hpp"
 
 // COLLISION DETECTION LIB
 #include "collision-detection/core/operators.hpp"
@@ -14,6 +14,7 @@
 
 // C++ STANDARD LIB
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <vector>
 
@@ -29,8 +30,8 @@ class MPISolver2D : public SolverBase2D<cm_t, ExecutionBackend::OPEN_MP> {
 
 public:
   MPISolver2D(const unsigned int num_iters_, const unsigned int num_frames_,
-              const Structure<2> &strt_)
-      : Base(num_iters_, num_frames_, strt_) {};
+              const Solid::types::boundary_mask_t &boundary_mask_)
+      : Base(num_iters_, num_frames_, boundary_mask_) {};
 
   ~MPISolver2D() = default;
 
@@ -63,6 +64,7 @@ public:
              std::vector<double> &ffrom,
              std::vector<double> &fto) const override {
     const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> cs(params_);
+
     for (unsigned int iter = 0; iter < this->niters; iter++) {
       bool save = (iter % this->nskips == 0);
       update_stream_collide(grid, cs, ffrom, fto, save);
@@ -102,13 +104,13 @@ private:
 
         // FULLWAY-BOUNCE-BACK
 
-        // TODO: WE NEED TO CALCULATE LOCAL RHO
         double r = 0.0;
 #pragma omp unroll full
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
           // calculate local rho before collision
           r += fp[i];
         }
+
         apply_boundary_conditions(p, r, cs.params.init_vel, fp, grid, context);
 
         // COMPUTE MACROSCOPIC VARIABLES
@@ -156,51 +158,20 @@ private:
           ExecutionContext<OPEN_MP>{}) const {
     (void)context;
 
-    const CollisionDetection::types::DimPoint<2> N = grid.size;
-    const auto &obstacles = this->strt.obstacles;
-    const auto &moving_boundary_id = this->strt.moving_boundary;
+    Solid::types::boundary_t b = this->strt[grid.scalar_index(p)];
 
-    const CollisionDetection::CollisionArea<2> &moving_obstacle =
-        obstacles[moving_boundary_id];
-
-    // FIXME: Fix collisions and contains
-    if (moving_obstacle.isCollidingWith(p)) {
-#pragma omp simd
-      // Can skip direction zero since it will be on the obstacle
-      for (std::size_t i = 1; i < D2Q9::ndir; i++) {
-        const auto target_coord = p + D2Q9::dir[i];
-        if (!grid.contains(target_coord)) {
-          // FIXME: c_s = 1/sqrt(3) should be a variable (or even
-          // better 1/c_s)
-          fp[D2Q9::opp[i]] =
-              fp[i] - 2 * D2Q9::wi[i] * localrho *
-                          CollisionDetection::utils::dot(D2Q9::dir[i], u0) * 3;
-        }
-      }
-      return;
-    }
-
-    // Checking all obstacles in our space
-    for (std::size_t obs_idx = 0; obs_idx < obstacles.size(); obs_idx++) {
-      assert(grid.contains(p));
-
-      if (obs_idx == moving_boundary_id) {
-        continue;
-      }
-
-      const CollisionDetection::CollisionArea<2> &obstacle = obstacles[obs_idx];
-
-      if (!obstacle.isCollidingWith(p)) {
-        continue;
-      }
-
-#pragma omp simd
-      // Can skip direction zero since it will be on the obstacle
-      // and does not require bounce back
-      for (std::size_t i = 1; i < D2Q9::ndir; i++) {
-        const auto target_coord = p + D2Q9::dir[i];
-        if (!grid.contains(target_coord)) {
-          fp[D2Q9::opp[i]] = fp[i];
+#pragma omp unroll full
+    for (std::size_t diridx = 0; diridx < D2Q9::ndir; diridx++) {
+      if (!grid.contains(p + D2Q9::dir[diridx])) {
+        switch (b) {
+        case Solid::BB_RIGID_WALL:
+          Solid::apply_bb_rigid_wall<D2Q9>(fp, diridx);
+          break;
+        case Solid::BB_MOVING_WALL:
+          Solid::apply_bb_moving_wall<2, D2Q9>(localrho, u0, fp, diridx);
+          break;
+        default:
+          break;
         }
       }
     }

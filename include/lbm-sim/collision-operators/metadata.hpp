@@ -7,9 +7,9 @@
 namespace lbm {
 enum CollisionModel { BGK, TRT, MRT };
 
-template <int dim, enum CollisionModel cm_t> struct Params;
+template <unsigned short int dim, enum CollisionModel cm_t> struct Params;
 // constexpr bool always_false = false;
-template <int dim> struct Params<dim, CollisionModel::BGK> {
+template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
   const CollisionDetection::utils::Vector<double, dim> init_vel;
   const CollisionDetection::types::DimPoint<dim> num_cells;
 
@@ -44,7 +44,7 @@ template <int dim> struct Params<dim, CollisionModel::BGK> {
   }
 };
 
-template <int dim> struct Params<dim, CollisionModel::TRT> {
+template <unsigned short int dim> struct Params<dim, CollisionModel::TRT> {
   const CollisionDetection::utils::Vector<double, dim> init_vel;
   const CollisionDetection::types::DimPoint<dim> num_cells;
 

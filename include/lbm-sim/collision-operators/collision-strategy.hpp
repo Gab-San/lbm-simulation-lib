@@ -11,8 +11,8 @@
 
 namespace lbm {
 
-template <int dim, typename VelocitySet, enum CollisionModel cm_t,
-          enum ExecutionBackend backend_t>
+template <unsigned short int dim, typename VelocitySet,
+          enum CollisionModel cm_t, enum ExecutionBackend backend_t>
 class CollisionStrategy {
 public:
   const Params<dim, cm_t> params;

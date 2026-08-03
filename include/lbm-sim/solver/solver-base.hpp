@@ -10,28 +10,28 @@
 
 #include "lbm-sim/data/data-observable.hpp"
 
-#include "lbm-sim/structure.hpp"
+#include "lbm-sim/boundaries.hpp"
 
 // C++ STANDARD LIB
 #include <vector>
 
 namespace lbm {
-template <int dim, typename VelocitySet, enum CollisionModel cm_t,
-          enum ExecutionBackend backend_t>
+template <unsigned short int dim, typename VelocitySet,
+          enum CollisionModel cm_t, enum ExecutionBackend backend_t>
 class SolverBase : public DataObservable {
 protected:
   const unsigned int niters, nskips;
-  const Structure<dim> &strt;
+  const Solid::types::boundary_mask_t &strt;
 
 public:
   static constexpr CollisionModel cm_type = cm_t;
   static constexpr ExecutionBackend backend_type = backend_t;
 
   SolverBase(const unsigned int num_iters_, const unsigned int num_frames_,
-             const Structure<dim> &strt_)
+             const Solid::types::boundary_mask_t &binary_mask_)
       : niters(num_iters_),
         nskips(num_frames_ > 0 ? num_iters_ / num_frames_ : num_iters_),
-        strt(strt_) /*, logger(logger_)*/ {
+        strt(std::move(binary_mask_)) {
     if (num_iters_ < num_frames_) {
       throw std::invalid_argument("the number of iterations must be higher "
                                   "than the number of frames!");
@@ -56,8 +56,8 @@ class SolverBase2D : public SolverBase<2, D2Q9, cm_t, backend_t> {
 
 public:
   SolverBase2D(const unsigned int num_iters_, const unsigned int num_frames_,
-               const Structure<2> &strt_)
-      : Base(num_iters_, num_frames_, strt_) {}
+               const Solid::types::boundary_mask_t &boundary_mask_)
+      : Base(num_iters_, num_frames_, boundary_mask_) {}
 
   virtual ~SolverBase2D() = default;
   virtual void

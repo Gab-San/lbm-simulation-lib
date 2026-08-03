@@ -10,7 +10,7 @@
 
 namespace lbm {
 // constexpr bool always_false = false;
-template <int dim> struct Grid {
+template <unsigned short int dim> struct Grid {
   const CollisionDetection::types::DimPoint<dim> size;
   std::vector<CollisionDetection::utils::Vector<double, dim>> u;
   const double rho0;

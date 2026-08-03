@@ -25,7 +25,7 @@
 
 namespace lbm {
 
-template <int dim, typename VelocitySet,
+template <unsigned short int dim, typename VelocitySet,
           enum CollisionModel cm_t = CollisionModel::BGK>
 class LBMSimulation : public DataObservable {
 private:

@@ -9,12 +9,13 @@
 #include <cstddef>
 
 namespace lbm {
-template <int dim>
+
+template <unsigned short int dim>
 using VectorInt = CollisionDetection::utils::Vector<int, dim>;
 
 struct D2Q9 {
 
-  static constexpr int dim = 2;
+  static constexpr unsigned short int dim = 2;
 
   /// Number of directions
   static constexpr std::size_t ndir = 9;
@@ -64,7 +65,7 @@ struct D2Q9 {
 
 struct D3Q27 {
 
-  static constexpr int dim = 3;
+  static constexpr unsigned short int dim = 3;
   /// Number of directions
   static constexpr std::size_t ndir = 27;
   /// Weight in (dx,dy)=(0,0)

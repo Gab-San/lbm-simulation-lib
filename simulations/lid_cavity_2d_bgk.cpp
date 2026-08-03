@@ -5,7 +5,6 @@
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/problems/problem_2d.hpp"
 #include "lbm-sim/solver/solver-2d.hpp"
-#include "lbm-sim/structure.hpp"
 
 // COLLISION DETECTION LIB
 #include "collision-detection/collision-area.hpp"
@@ -13,6 +12,7 @@
 
 // C++ STD LIB
 #include <memory>
+#include <unordered_map>
 
 static constexpr unsigned int DIM = 2;
 
@@ -71,17 +71,21 @@ template <> struct Config<2> {
   /// Output path for benchmark data
   const std::string out_data;
 
-  const std::vector<CollisionDetection::CollisionArea<2>> obstacles;
+  const std::vector<CollisionDetection::CollisionArea<DIM>> obstacles;
+
+  const std::unordered_map<unsigned int, uint8_t> strt;
 
   Config<2>(
       const std::size_t c_x, const std::size_t c_y, const unsigned int c_iters,
       const unsigned int c_frames, const double c_reyn_num,
       const double c_init_vel, const std::string c_out_frames,
       const std::string c_out_data,
-      const std::vector<CollisionDetection::CollisionArea<2>> &&obstacles_)
+      const std::vector<CollisionDetection::CollisionArea<DIM>> &obstacles_,
+      const std::unordered_map<unsigned int, uint8_t> &strt_)
       : grid_num_cells_x(c_x), grid_num_cells_y(c_y), iters(c_iters),
         frames(c_frames), reyn_num(c_reyn_num), init_vel(c_init_vel),
-        out_frames(c_out_frames), out_data(c_out_data), obstacles(obstacles_) {}
+        out_frames(c_out_frames), out_data(c_out_data), obstacles(obstacles_),
+        strt(strt_) {}
 };
 
 int main() {
@@ -111,7 +115,8 @@ int main() {
                            CollisionDetection::Segment(A, D),
                            CollisionDetection::Segment(D, C)}),
                    CollisionDetection::CollisionArea(
-                       A, {CollisionDetection::Segment(B, C)})}),
+                       A, {CollisionDetection::Segment(B, C)})},
+                  {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
 
       Config<DIM>(200, 200, /*iters*/ 30000, /*frames*/ 100,
                   /*reyn*/ 1000.0, /*init_vel*/ 0.1,
@@ -122,7 +127,8 @@ int main() {
                             CollisionDetection::Segment(A2, D2),
                             CollisionDetection::Segment(D2, C2)}),
                    CollisionDetection::CollisionArea(
-                       A2, {CollisionDetection::Segment(B2, C2)})}),
+                       A2, {CollisionDetection::Segment(B2, C2)})},
+                  {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
   };
 
   constexpr auto CollisionType = CollisionModel::BGK;
@@ -133,9 +139,10 @@ int main() {
 
   for (const auto &conf : configs) {
     const auto &[size_x, size_y, iters, frames, reyn, init_vel, out_frames,
-                 out_data, obstacles] = conf;
+                 out_data, obstacles, strt] = conf;
 
-    const Structure<DIM> strt(obstacles, 1);
+    Solid::types::boundary_mask_t boundary_mask =
+        Solid::compute_boundary_mask<DIM>(strt, obstacles, {size_x, size_y});
 
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(out_frames);
@@ -146,7 +153,7 @@ int main() {
 
     simulation.attachListener(writer);
 
-    MPISolver2D<CollisionType> solver(iters, frames, strt);
+    MPISolver2D<CollisionType> solver(iters, frames, boundary_mask);
     solver.attachListener(writer);
 
     simulation.solve(solver /*, preconditioner*/, problem);
