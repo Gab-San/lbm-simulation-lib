@@ -33,21 +33,21 @@ private:
       dim == VelocitySet::dim,
       "LBMSimulation: template parameter 'dim' must match VelocitySet::dim");
 
-  Grid<dim> grid;
+  Lattice<dim> lattice;
   const Params<dim, cm_t> params;
 
 public:
   LBMSimulation(const CollisionDetection::types::DimPoint<dim> grid_dim_,
                 const Params<dim, cm_t> params_)
-      : grid(grid_dim_), params(params_) {};
+      : lattice(grid_dim_), params(params_) {};
 
   template <enum ExecutionBackend backend_t>
   void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver,
              const LidCavity2D &problem) {
     std::cout << "Initializing Simulation." << std::endl;
 
-    std::vector<double> f1(grid.getArea() * VelocitySet::ndir, 0.0);
-    std::vector<double> f2(grid.getArea() * VelocitySet::ndir, 0.0);
+    std::vector<double> f1(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
+    std::vector<double> f2(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
 
     // FIXME: cannot be initialized like this
     // define generic initialization
@@ -61,12 +61,12 @@ public:
 
     // FIXME: check that initialization + init_equilibrium suffices
     std::cout << "Problem Initialized." << std::endl;
-    solver.init_equilibrium(grid, f1);
+    solver.init_equilibrium(lattice, f1);
     std::cout << "Equilibrium Initialized." << std::endl;
 
-    write_header(grid);
+    write_header(lattice.grid);
 
-    solver.solve(grid, params, f1, f2);
+    solver.solve(lattice, params, f1, f2);
 
     std::cout << "Finished Simulation." << std::endl;
   };
@@ -89,10 +89,10 @@ public:
 
     std::cout << "Writing..." << std::endl;
 
-    std::vector<double> v_center(grid.size.x);
-    int j_center = grid.size.y / 2;
-    for (int i = 0; i < grid.size.x; ++i) {
-      v_center[i] = grid.u[grid.size.x * j_center + i].dy;
+    std::vector<double> v_center(lattice.grid.size.x);
+    int j_center = lattice.grid.size.y / 2;
+    for (int i = 0; i < lattice.grid.size.x; ++i) {
+      v_center[i] = lattice.u[lattice.grid.size.x * j_center + i].dy;
     }
 
     fout.write(reinterpret_cast<const char *>(v_center.data()),

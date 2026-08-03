@@ -2,22 +2,16 @@
 #define __LBM_SIM_CORE_GRID_HPP
 
 #include "collision-detection/core/types.hpp"
-#include "collision-detection/core/vector.hpp"
 
 // C++ STANDARD LIB
 #include <cstddef>
-#include <vector>
 
 namespace lbm {
 // constexpr bool always_false = false;
 template <unsigned short int dim> struct Grid {
   const CollisionDetection::types::DimPoint<dim> size;
-  std::vector<CollisionDetection::utils::Vector<double, dim>> u;
-  const double rho0;
-  std::vector<double> rho;
 
-  Grid(CollisionDetection::types::DimPoint<dim> grid_dim_)
-      : size(grid_dim_), u(getArea()), rho0(1.0), rho(getArea(), rho0) {}
+  Grid(CollisionDetection::types::DimPoint<dim> grid_dim_) : size(grid_dim_) {}
 
   inline const std::size_t
   scalar_index(const CollisionDetection::types::Coordinate<dim> &p) const {
@@ -61,7 +55,6 @@ template <unsigned short int dim> struct Grid {
   inline bool
   contains(const CollisionDetection::types::Coordinate<dim> &p) const {
     const bool isIn = p.x >= 0 && p.x < size.x && p.y >= 0 && p.y < size.y;
-
     if constexpr (dim == 2) {
       return isIn;
     } else {

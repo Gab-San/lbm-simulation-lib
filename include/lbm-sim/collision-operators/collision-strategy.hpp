@@ -25,9 +25,9 @@ public:
              const double localrho, std::array<double, VelocitySet::ndir> &fp,
              const Grid<dim> &grid) const {
     if constexpr (cm_t == CollisionModel::BGK) {
-      apply_bgk(p, u, localrho, fp, grid);
+      apply_bgk(p, u, localrho, fp);
     } else if constexpr (cm_t == CollisionModel::TRT) {
-      apply_trt(p, u, localrho, fp, grid);
+      apply_trt(p, u, localrho, fp);
     } else {
       static_assert(
           cm_t == CollisionModel::MRT,
@@ -39,8 +39,7 @@ private:
   void apply_bgk(const CollisionDetection::types::Coordinate<dim> p,
                  const CollisionDetection::utils::Vector<double, dim> u,
                  const double localrho,
-                 std::array<double, VelocitySet::ndir> &fp,
-                 const Grid<dim> &grid) const {
+                 std::array<double, VelocitySet::ndir> &fp) const {
     using CollisionDetection::utils::dot;
 
     const double omusq = -1.5 * dot(u, u);
@@ -76,8 +75,7 @@ private:
   void apply_trt(const CollisionDetection::types::Coordinate<dim> p,
                  const CollisionDetection::utils::Vector<double, dim> u,
                  const double localrho,
-                 std::array<double, VelocitySet::ndir> &fp,
-                 const Grid<dim> &grid) const {
+                 std::array<double, VelocitySet::ndir> &fp) const {
     using CollisionDetection::utils::dot;
 
     const double omusq = -1.5 * dot(u, u);

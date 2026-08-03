@@ -7,6 +7,7 @@
 #include "lbm-sim/boundaries.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/core/grid.hpp"
 
 // COLLISION DETECTION LIB
 #include "collision-detection/core/operators.hpp"
@@ -14,7 +15,6 @@
 
 // C++ STANDARD LIB
 #include <cmath>
-#include <cstdint>
 #include <cstring>
 #include <vector>
 
@@ -36,23 +36,24 @@ public:
   ~MPISolver2D() = default;
 
   // TODO: adapt to initialization
-  void init_equilibrium(const Grid<2> &grid,
+  void init_equilibrium(const Lattice<2> &lattice,
                         std::vector<double> &part_stream) const override {
-#pragma omp parallel for shared(grid, part_stream) schedule(static) collapse(2)
-    for (unsigned int y = 0; y < grid.size.y; ++y) {
-      for (unsigned int x = 0; x < grid.size.x; ++x) {
+#pragma omp parallel for shared(lattice, part_stream) schedule(static)         \
+    collapse(2)
+    for (unsigned int y = 0; y < lattice.grid.size.y; ++y) {
+      for (unsigned int x = 0; x < lattice.grid.size.x; ++x) {
         const CollisionDetection::types::Coordinate<2> p(x, y);
 
-        double r = grid.rho[grid.scalar_index(p)];
+        double r = lattice.rho[lattice.grid.scalar_index(p)];
         const CollisionDetection::utils::Vector<double, 2> u =
-            grid.u[grid.scalar_index(p)];
+            lattice.u[lattice.grid.scalar_index(p)];
         const double u_sq = CollisionDetection::utils::dot(u, u);
 
 #pragma omp simd
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
           double cidotu = CollisionDetection::utils::dot(D2Q9::dir[i], u);
 
-          part_stream[grid.field_index(p, i, D2Q9::ndir)] =
+          part_stream[lattice.grid.field_index(p, i, D2Q9::ndir)] =
               D2Q9::wi[i] * r *
               (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu - 1.5 * u_sq);
         }
@@ -60,46 +61,46 @@ public:
     }
   };
 
-  void solve(Grid<2> &grid, const Params<2, cm_t> &params_,
+  void solve(Lattice<2> &lattice, const Params<2, cm_t> &params_,
              std::vector<double> &ffrom,
              std::vector<double> &fto) const override {
     const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> cs(params_);
-              //partono iterazioni
+    // partono iterazioni
     for (unsigned int iter = 0; iter < this->niters; iter++) {
       bool save = (iter % this->nskips == 0);
-      update_stream_collide(grid, cs, ffrom, fto, save);
+      update_stream_collide(lattice, cs, ffrom, fto, save);
       std::swap(ffrom, fto);
       if (save)
-        write_norms(grid);
+        write_norms(lattice);
     }
   }
 
 private:
   // FIXME: Execution context ??
   void update_stream_collide(
-      Grid<2> &grid, const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> &cs,
+      Lattice<2> &lattice, const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> &cs,
       const std::vector<double> &ffrom, std::vector<double> &fto, bool save,
       const ExecutionContext<OPEN_MP> &context =
           ExecutionContext<OPEN_MP>{}) const {
 
     // STREAMING
-#pragma omp parallel for shared(ffrom, fto, cs, grid, save) schedule(static)   \
-    collapse(2)
-    //ciclo della griglia di partenza sul dominio
-    for (std::size_t y = 0; y < grid.size.y; ++y) {
-      for (std::size_t x = 0; x < grid.size.x; ++x) {
+#pragma omp parallel for shared(ffrom, fto, cs, lattice, save)                 \
+    schedule(static) collapse(2)
+    for (std::size_t y = 0; y < lattice.grid.size.y; ++y) {
+      for (std::size_t x = 0; x < lattice.grid.size.x; ++x) {
         std::array<double, D2Q9::ndir> fp;
         const CollisionDetection::utils::Point<int, 2> p(x, y);
 
 #pragma omp unroll full
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
           const CollisionDetection::types::Coordinate<2> src = p - D2Q9::dir[i];
-          ///raccolgo i flussi e verifico se siano le direzioni interne al dominio
+          /// raccolgo i flussi e verifico se siano le direzioni interne al
+          /// dominio
           // stream only if the source node is internal
-          if (!grid.contains(src)) {
-            fp[i] = ffrom[grid.field_index(p, i, D2Q9::ndir)];
+          if (!lattice.grid.contains(src)) {
+            fp[i] = ffrom[lattice.grid.field_index(p, i, D2Q9::ndir)];
           } else {
-            fp[i] = ffrom[grid.field_index(src, i, D2Q9::ndir)];
+            fp[i] = ffrom[lattice.grid.field_index(src, i, D2Q9::ndir)];
           }
         }
 
@@ -107,13 +108,14 @@ private:
 
         double r = 0.0;
 #pragma omp unroll full
-        //sommo tutti i flussi per fare il rho del punto
+        // sommo tutti i flussi per fare il rho del punto
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
           // calculate local rho before collision
           r += fp[i];
         }
-        //applico condizioni di bordo
-        apply_boundary_conditions(p, r, cs.params.init_vel, fp,ffrom, grid, context);
+
+        apply_boundary_conditions(p, r, cs.params.init_vel, fp, ffrom,
+                                  lattice.grid, context);
 
         // COMPUTE MACROSCOPIC VARIABLES
 
@@ -136,17 +138,17 @@ private:
 
         // STORE computed macroscopic values
         if (save) {
-          const unsigned int s_idx = grid.scalar_index(p);
-          grid.rho[s_idx] = r;
-          grid.u[s_idx] = u;
+          const unsigned int s_idx = lattice.grid.scalar_index(p);
+          lattice.rho[s_idx] = r;
+          lattice.u[s_idx] = u;
         }
 
         // APPLY COLLISION
-        cs.apply(p, u, r, fp, grid);
+        cs.apply(p, u, r, fp, lattice.grid);
 
         // COPY LOCAL DENSITY TO GRID
         for (auto i = 0; i < D2Q9::ndir; i++) {
-          fto[grid.field_index(p, i, D2Q9::ndir)] = fp[i];
+          fto[lattice.grid.field_index(p, i, D2Q9::ndir)] = fp[i];
         }
       }
     }
@@ -155,13 +157,13 @@ private:
   void apply_boundary_conditions(
       const CollisionDetection::types::Coordinate<2> p, const double &localrho,
       const CollisionDetection::utils::Vector<double, 2> u0,
-      std::array<double, D2Q9::ndir> &fp,const std::vector<double> &ffrom, const Grid<2> &grid,
+      std::array<double, D2Q9::ndir> &fp, const std::vector<double> &ffrom,
+      const Grid<2> &grid,
       const ExecutionContext<OPEN_MP> &context =
           ExecutionContext<OPEN_MP>{}) const {
     (void)context;
 
     Solid::types::boundary_t b = this->strt[grid.scalar_index(p)];
-    
 
 #pragma omp unroll full
     for (std::size_t diridx = 0; diridx < D2Q9::ndir; diridx++) {
@@ -174,7 +176,7 @@ private:
           Solid::apply_bb_moving_wall<2, D2Q9>(localrho, u0, fp, diridx);
           break;
         case Solid::CONTINUE:
-          Solid::apply_continue<2, D2Q9>(localrho,grid, ffrom,p, fp, diridx);
+          Solid::apply_continue<2, D2Q9>(localrho, grid, ffrom, p, fp, diridx);
           break;
         default:
           break;
@@ -187,17 +189,17 @@ private:
   // cambia solo la destinazione dei dati calcolati: invece di scrivere
   // direttamente su un AsyncBinaryWriter posseduto dal solver, notifica
   // i listener registrati tramite DataObservable (pattern Observer/Listener).
-  void write_norms(const Grid<2> &grid) const override {
+  void write_norms(const Lattice<2> &lattice) const override {
     using CollisionDetection::utils::dot;
-    std::vector<float> vsq(grid.getArea());
+    std::vector<float> vsq(lattice.grid.getArea());
 
 #pragma omp parallel for collapse(2)
-    for (unsigned int y = 0; y < grid.size.y; ++y) {
-      for (unsigned int x = 0; x < grid.size.x; ++x) {
+    for (unsigned int y = 0; y < lattice.grid.size.y; ++y) {
+      for (unsigned int x = 0; x < lattice.grid.size.x; ++x) {
         const CollisionDetection::types::Coordinate<2> p(x, y);
-        const auto &vel = grid.u[grid.scalar_index(p)];
+        const auto &vel = lattice.u[lattice.grid.scalar_index(p)];
 
-        vsq[grid.scalar_index(p)] =
+        vsq[lattice.grid.scalar_index(p)] =
             static_cast<float>(std::sqrt(dot(vel, vel)));
       }
     }
@@ -206,7 +208,7 @@ private:
     std::memcpy(buf.data(), vsq.data(), buf.size());
     this->notifyListeners(std::move(buf));
   }
-  
+
 }; // class MPISolver2D
 
 } // namespace lbm
