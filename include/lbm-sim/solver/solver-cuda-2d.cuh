@@ -275,6 +275,13 @@ inline void upload_lattice_constants() {
 
 
 // CUDASolver2D:
+//parallelizzazione: un thread cuda per nodo di griglia (x,y), mappato su griglia 2D (FIX ME GENERALIZZARE)
+//di blocchi/thread. il ciclo sulle 9 direz resta sequenziale al singolo thread. in collisione
+//e non c'è lavoro condiviso tra thread diversi per direzioni e tenerle nello stesso thread permette
+//di accumulare rho/ux/uy in registri invece di global mem. 
+//BC usano un grid 1D dedicato ai soli thread non interni.
+//f struct of array,  (stride nx*ny tra direz), identico a Grid<2>::field_index: per un warp che varia la
+// sola x, questo produce coalesced accesses. (FIXME DA VERIFICARE)
 template <enum CollisionModel cm_t>
 class CUDASolver2D : public SolverBase2D<cm_t, ExecutionBackend::CUDA> {
   using Base = SolverBase2D<cm_t, ExecutionBackend::CUDA>;
@@ -296,8 +303,118 @@ public:
     }
   }
 
+  CUDASolver2D(const CUDASolver2D &) = delete;
+  CUDASolver2D &operator=(const CUDASolver2D &) = delete;
+
+  void init_equilibrium(Grid<2> &grid,
+                        std::vector<double> &part_stream) const override {
+    ensure_device_buffers(grid);
+    const cudaStream_t stream = current_stream();
+
+    LBM_CUDA_CHECK(cudaMemcpyAsync(d_rho_, grid.rho.data(),
+                                   area_ * sizeof(double),
+                                   cudaMemcpyHostToDevice, stream));
+
+    std::vector<double2> h_u(area_);
+    for (std::size_t k = 0; k < area_; ++k) {
+      h_u[k] = make_double2(grid.u[k].dx, grid.u[k].dy);
+    }
+    LBM_CUDA_CHECK(cudaMemcpyAsync(d_u_, h_u.data(), area_ * sizeof(double2),
+                                   cudaMemcpyHostToDevice, stream));
+
+    const dim3 block(ctx_.block_x, ctx_.block_y);
+    const dim3 gridDim(cuda_detail::ceil_div(static_cast<unsigned int>(nx_),
+                                             block.x),
+                       cuda_detail::ceil_div(static_cast<unsigned int>(ny_),
+                                             block.y));
+
+    cuda_detail::kernel_init_equilibrium<<<gridDim, block, 0, stream>>>(
+        d_f_a_, d_rho_, d_u_, nx_, ny_);
+    LBM_CUDA_CHECK(cudaGetLastError());
+
+    part_stream.resize(area_ * D2Q9::ndir);
+    LBM_CUDA_CHECK(cudaMemcpyAsync(part_stream.data(), d_f_a_,
+                                   area_ * D2Q9::ndir * sizeof(double),
+                                   cudaMemcpyDeviceToHost, stream));
+    LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
+  }
+
+   void solve(Grid<2> &grid, const Params<2, cm_t> &params_,
+             std::vector<double> &ffrom,
+             std::vector<double> &fto) const override {
+    ensure_device_buffers(grid);
+    const cudaStream_t stream = current_stream();
+    const std::size_t fsize = area_ * D2Q9::ndir;
+
+    // ffrom fto come in host
+    LBM_CUDA_CHECK(cudaMemcpyAsync(d_f_a_, ffrom.data(), fsize * sizeof(double),
+                                   cudaMemcpyHostToDevice, stream));
+    LBM_CUDA_CHECK(cudaMemcpyAsync(d_f_b_, fto.data(), fsize * sizeof(double),
+                                   cudaMemcpyHostToDevice, stream));
+
+    const cuda_detail::CudaCollisionParams<cm_t> cparams =
+        cuda_detail::make_cuda_params(params_);
+    const double ux0 = params_.init_vel.dx;
+    const double uy0 = params_.init_vel.dy;
+
+    write_header(grid);
+
+    double *d_from = d_f_a_;
+    double *d_to = d_f_b_;
+
+    const dim3 block(ctx_.block_x, ctx_.block_y);
+    const dim3 gridDim(cuda_detail::ceil_div(static_cast<unsigned int>(nx_),
+                                             block.x),
+                       cuda_detail::ceil_div(static_cast<unsigned int>(ny_),
+                                             block.y));
+
+    const unsigned int bc_threads = 128;
+    const dim3 blockB(bc_threads);
+    const dim3 gridB(cuda_detail::ceil_div(
+        static_cast<unsigned int>(std::max(n_boundary_, 1)), bc_threads));
+
+    for (unsigned int iter = 0; iter < this->niters; ++iter) {
+      const bool save = (this->nskips > 0) && (iter % this->nskips == 0);
+
+      cuda_detail::kernel_stream_and_density<<<gridDim, block, 0, stream>>>(
+          d_from, d_to, d_rho_tmp_, nx_, ny_);
+
+      if (n_boundary_ > 0) {
+        cuda_detail::kernel_boundary_conditions<<<gridB, blockB, 0, stream>>>(
+            d_to, d_rho_tmp_, d_boundary_, n_boundary_, nx_, ny_, ux0, uy0);
+      }
+
+      cuda_detail::kernel_macroscopic_and_collide<cm_t>
+          <<<gridDim, block, 0, stream>>>(d_to, save ? d_rho_ : nullptr,
+                                          save ? d_u_ : nullptr,
+                                          save ? d_norm_ : nullptr, nx_, ny_,
+                                          save, cparams);
+      LBM_CUDA_CHECK(cudaGetLastError());
+
+      std::swap(d_from, d_to);
+
+      if (save) {
+        LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
+        download_macroscopic(grid, stream);
+        write_norms(stream);
+      }
+    }
+
+    LBM_CUDA_CHECK(cudaMemcpyAsync(ffrom.data(), d_from, fsize * sizeof(double),
+                                   cudaMemcpyDeviceToHost, stream));
+    LBM_CUDA_CHECK(cudaMemcpyAsync(fto.data(), d_to, fsize * sizeof(double),
+                                   cudaMemcpyDeviceToHost, stream));
+    LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
 
 private:
+  //nodi di bordo
+  //current stream
+  //ensure device buffers 
+  //free buffers
+  //upload boundary nodes
+  //save macroscopic quantities
+  //write norms
+  
 
 }
 
