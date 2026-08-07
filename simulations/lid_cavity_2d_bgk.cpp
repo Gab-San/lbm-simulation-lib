@@ -106,6 +106,14 @@ int main() {
   const Coordinate<2> B_ = B2 - Coordinate<2>(0, 1);
   const Coordinate<2> C_ = C2 - Coordinate<2>(0, 1);
 
+  // Ogni ostacolo viene associato a un tipo di parete tramite la mappa `strt`.
+  // Qui, l'ostacolo 0 diventa una parete rigida ferma e l'ostacolo 1 diventa
+  // il lato mobile della cavità (moving lid).
+  // Per cambiare il tipo di parete, modifica solo questa mappa.
+  // Esempio: due pareti rigide = {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_RIGID_WALL}}
+  // Esempio con terzo tipo fisso-rho = {{0, Solid::BB_RIGID_WALL},
+  //                                   {1, Solid::BB_MOVING_WALL},
+  //                                   {2, Solid::BB_FIXED_RHO_WALL}}
   std::vector<Config<DIM>> configs{
       Config<DIM>(129, 129, /*iters*/ 10000, /*frames*/ 100,
                   /*reyn*/ 100.0, /*init_vel*/ 0.1,

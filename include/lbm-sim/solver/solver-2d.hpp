@@ -111,7 +111,7 @@ private:
           r += fp[i];
         }
 
-        apply_boundary_conditions(p, r, cs.params.init_vel, fp, grid, context);
+        apply_boundary_conditions(p, r, cs.params.init_vel, fp,ffrom, grid, context);
 
         // COMPUTE MACROSCOPIC VARIABLES
 
@@ -153,12 +153,13 @@ private:
   void apply_boundary_conditions(
       const CollisionDetection::types::Coordinate<2> p, const double &localrho,
       const CollisionDetection::utils::Vector<double, 2> u0,
-      std::array<double, D2Q9::ndir> &fp, const Grid<2> &grid,
+      std::array<double, D2Q9::ndir> &fp,const std::vector<double> &ffrom, const Grid<2> &grid,
       const ExecutionContext<OPEN_MP> &context =
           ExecutionContext<OPEN_MP>{}) const {
     (void)context;
 
     Solid::types::boundary_t b = this->strt[grid.scalar_index(p)];
+    
 
 #pragma omp unroll full
     for (std::size_t diridx = 0; diridx < D2Q9::ndir; diridx++) {
@@ -169,6 +170,12 @@ private:
           break;
         case Solid::BB_MOVING_WALL:
           Solid::apply_bb_moving_wall<2, D2Q9>(localrho, u0, fp, diridx);
+          break;
+        case Solid::CONTINUE:
+          Solid::apply_continue(localrho,p, u0, fp, diridx,grid);
+          break;
+        case Solid::DIRICHLET:
+          Solid::apply_dirichlet(localrho,p, u0,ub, fp, diridx,grid);
           break;
         default:
           break;
