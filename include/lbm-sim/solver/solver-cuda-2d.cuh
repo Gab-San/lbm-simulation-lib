@@ -407,16 +407,137 @@ public:
     LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
 
 private:
-  //nodi di bordo
-  //current stream
-  //ensure device buffers 
-  //free buffers
-  //upload boundary nodes
-  //save macroscopic quantities
-  //write norms
-  
+    mutable AsyncBinaryWriter norms_writer;
+  ExecutionContext<ExecutionBackend::CUDA> ctx_;
 
-}
+  // buffer dimensione della griglia, allocati la prima volta che si conosce grid.size
+  mutable int nx_ = 0;
+  mutable int ny_ = 0;
+  mutable std::size_t area_ = 0;
+
+  mutable double *d_f_a_ = nullptr;   // buffer popolazioni A
+  mutable double *d_f_b_ = nullptr;   // buffer popolazioni B
+  mutable double *d_rho_tmp_ = nullptr; // densità pre-BC
+  mutable double *d_rho_ = nullptr;     // mirror di grid.rho
+  mutable double2 *d_u_ = nullptr;      // mirror di grid.u 
+  mutable float *d_norm_ = nullptr;     // norma della velox
+
+  //nodi di bordo (non dip da dim della griglia, solo da ostacoli)
+  cuda_detail::BoundaryNode *d_boundary_ = nullptr;
+  int n_boundary_ = 0;
+
+  //current stream
+  cudaStream_t current_stream() const {
+    return reinterpret_cast<cudaStream_t>(ctx_.stream);
+  }
+
+  void ensure_device_buffers(const Grid<2> &grid) const {
+    const int nx = static_cast<int>(grid.size.x);
+    const int ny = static_cast<int>(grid.size.y);
+
+    if (d_f_a_ != nullptr && nx == nx_ && ny == ny_) {
+      return; // buffer già allocati con la dim corretta
+    }
+
+    free_field_buffers();
+
+    nx_ = nx;
+    ny_ = ny;
+    area_ = static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_);
+    const std::size_t fsize = area_ * D2Q9::ndir;
+
+    LBM_CUDA_CHECK(cudaMalloc(&d_f_a_, fsize * sizeof(double)));
+    LBM_CUDA_CHECK(cudaMalloc(&d_f_b_, fsize * sizeof(double)));
+    LBM_CUDA_CHECK(cudaMalloc(&d_rho_tmp_, area_ * sizeof(double)));
+    LBM_CUDA_CHECK(cudaMalloc(&d_rho_, area_ * sizeof(double)));
+    LBM_CUDA_CHECK(cudaMalloc(&d_u_, area_ * sizeof(double2)));
+    LBM_CUDA_CHECK(cudaMalloc(&d_norm_, area_ * sizeof(float)));
+  }
+
+  void free_field_buffers() const {
+    if (d_f_a_ != nullptr) cudaFree(d_f_a_);
+    if (d_f_b_ != nullptr) cudaFree(d_f_b_);
+    if (d_rho_tmp_ != nullptr) cudaFree(d_rho_tmp_);
+    if (d_rho_ != nullptr) cudaFree(d_rho_);
+    if (d_u_ != nullptr) cudaFree(d_u_);
+    if (d_norm_ != nullptr) cudaFree(d_norm_);
+    d_f_a_ = d_f_b_ = d_rho_tmp_ = d_rho_ = nullptr;
+    d_u_ = nullptr;
+    d_norm_ = nullptr;
+  }
+
+  //array di boundary node che carica sul device. eseguito una volta nel costruttore
+  //ricalcola stessa geom a ogni iter (geom deve rimanere la stessa durante simulazione)
+  void upload_boundary_nodes() {
+    std::vector<cuda_detail::BoundaryNode> host_boundary;
+
+    const auto &obstacles = this->strt.obstacles;
+    const auto moving_id = this->strt.moving_boundary;
+
+    for (std::size_t obs_idx = 0; obs_idx < obstacles.size(); ++obs_idx) {
+      const int is_moving = (obs_idx == moving_id) ? 1 : 0;
+      for (const auto &p : obstacles[obs_idx].getPerimeter()) {
+        host_boundary.push_back(cuda_detail::BoundaryNode{
+            static_cast<int>(p.x), static_cast<int>(p.y), is_moving});
+      }
+    }
+    n_boundary_ = static_cast<int>(host_boundary.size());
+    if (n_boundary_ == 0) {
+      d_boundary_ = nullptr;
+      return;
+    }
+
+    LBM_CUDA_CHECK(cudaMalloc(
+        &d_boundary_, host_boundary.size() * sizeof(cuda_detail::BoundaryNode)));
+    LBM_CUDA_CHECK(cudaMemcpy(d_boundary_, host_boundary.data(),
+                              host_boundary.size() *
+                                  sizeof(cuda_detail::BoundaryNode),
+                              cudaMemcpyHostToDevice));
+  }
+
+
+  //scarica rho/u da device a grid, solo nei "save" iter
+  //no assunzioni su layout di CollisionDetection::utils::vector
+  void download_macroscopic(Grid<2> &grid, cudaStream_t stream) const {
+    LBM_CUDA_CHECK(cudaMemcpyAsync(grid.rho.data(), d_rho_,
+                                   area_ * sizeof(double),
+                                   cudaMemcpyDeviceToHost, stream));
+
+    std::vector<double2> h_u(area_);
+    LBM_CUDA_CHECK(cudaMemcpyAsync(h_u.data(), d_u_, area_ * sizeof(double2),
+                                   cudaMemcpyDeviceToHost, stream));
+    LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
+
+    for (std::size_t k = 0; k < area_; ++k) {
+      grid.u[k].dx = h_u[k].x;
+      grid.u[k].dy = h_u[k].y;
+    }
+  }
+
+  void write_norms(cudaStream_t stream) const {
+    std::vector<float> host_norms(area_);
+    LBM_CUDA_CHECK(cudaMemcpyAsync(host_norms.data(), d_norm_,
+                                   area_ * sizeof(float),
+                                   cudaMemcpyDeviceToHost, stream));
+    LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
+
+    std::vector<char> buf(host_norms.size() * sizeof(float));
+    std::memcpy(buf.data(), host_norms.data(), buf.size());
+    norms_writer.enqueue(std::move(buf));
+  }
+
+  void write_header(const Grid<2> &grid) const {
+    const int32_t nx = static_cast<int32_t>(grid.size.x);
+    const int32_t ny = static_cast<int32_t>(grid.size.y);
+
+    std::vector<char> buf(sizeof(int32_t) * 2);
+    std::memcpy(buf.data(), &nx, sizeof(int32_t));
+    std::memcpy(buf.data() + sizeof(int32_t), &ny, sizeof(int32_t));
+
+    norms_writer.enqueue(std::move(buf));
+  }
+};
+
 
 } //namespace lbm
 
