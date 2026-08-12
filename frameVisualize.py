@@ -1,12 +1,10 @@
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-# input file name
-input_file = 'vel_norms.txt'
-
 def read_data(file_name):
-    with open(file_name, 'r') as f:
+    with open(file_name, 'rb') as f:
         # reading grid size
         nx = int(f.readline().strip())
         ny = int(f.readline().strip())
@@ -46,6 +44,11 @@ def create_frames(nx, ny, data, num_iterations, vmax, save=False):
         anim.save('lid_driven_cavity_simulation.gif', writer='pillow')
 
 if __name__ == '__main__':
+    if(len(sys.argv) < 2):
+        print(f"Usage {sys.argv[0]} <input_norms>")
+        sys.exit()
+
+    input_file = sys.argv[1];
     nx, ny, data = read_data(input_file)
     #print("Stampo la norma delle velocità:\n", data)
     vmax = max(data)

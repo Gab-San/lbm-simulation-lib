@@ -42,6 +42,7 @@ int main(int argc, char* argv[])
 	printf(" Grid dimensions: %d x %d\n", Nx, Ny);
 	printf(" Reynolds number: %f\n", Re);
 	printf(" Lid velocity: %f\n", u_lid);
+	printf(" Number of steps: %d\n Number of frames: %d\n", nsteps, j.num_frames);
 
 	// Instantiate LBM data structure
 	LBM lbm(Nx, Ny, Re, u_lid, j.coll_op);
@@ -59,7 +60,7 @@ int main(int argc, char* argv[])
 
 	// Apertura file output
 	std::cout << "Opening " << filename_norms << std::endl;
-	std::ofstream norms_file(filename_norms);
+	std::ofstream norms_file(filename_norms, std::ios::binary);
 
 	if (!norms_file.is_open()) {
 	    std::cerr << "Error with opening the file " << filename_norms << std::endl;
@@ -68,7 +69,7 @@ int main(int argc, char* argv[])
 
 	// Apertura file per il testing
 	std::cout << "Opening " << j.vel_bench_out << std::endl;
-	std::ofstream bench_file(j.vel_bench_out);
+	std::ofstream bench_file(j.vel_bench_out, std::ios::binary);
 
 	if (!bench_file.is_open()) {
 	    std::cerr << "Error with opening the file " << j.vel_bench_out << std::endl;
@@ -86,12 +87,13 @@ int main(int argc, char* argv[])
 	for(unsigned int n = 0; n < nsteps; ++n)
 	{
 
-	    lbm.update_stream_collide(f1, f2);
+	    bool save = n % nskips == 0;
+	    lbm.update_stream_collide(f1, f2, save);
 
 	    // swap pointers
 	    std::swap(f1,f2);
 
-	    if(n % nskips == 0)  lbm.write_norms(norms_file);
+	    if(save)  lbm.write_norms(norms_file);
 
 	    // at the last step 
 	    if (n + 1 >= nsteps) lbm.write_bench_data(bench_file);

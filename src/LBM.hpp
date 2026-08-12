@@ -34,7 +34,7 @@ public:
      */
     LBM(int num_cells_x_, int num_cells_y_, double rey_num_, double u_lid_, lbm_lbm::CollisionOperator op_):
 	op(op_),
-        nu(u_lid_ * (num_cells_y_ - 1) / rey_num_), 
+        nu(u_lid_ * num_cells_y_ / rey_num_), 
         tau(0.5 + 3.0 * nu),
         Nx(num_cells_x_), 
         Ny(num_cells_y_), 
@@ -83,7 +83,7 @@ public:
     void init_equilibrium(std::vector<double>& f);
     void init_lid_driven_cavity();
     void apply_boundary_conditions(std::vector<double>& f);
-    void update_stream_collide(std::vector<double>& f_src, std::vector<double>& f_dst);
+    void update_stream_collide(std::vector<double>& f_src, std::vector<double>& f_dst, bool save);
     void write_norms(std::ofstream& output_file);
     void write_bench_data(std::ofstream& output_file);
 

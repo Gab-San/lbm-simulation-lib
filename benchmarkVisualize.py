@@ -3,10 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-def read_data(file_name, bench_file):
+def read_data(file_name, bench_name):
 
     # leggo i dati di ghia
-    with open(bench_file, 'r') as f:
+    with open(bench_name, 'r') as f:
         ghia_data = []
         for line in f:
             x, y = line.strip().split()
@@ -20,7 +20,7 @@ def read_data(file_name, bench_file):
         ghia_data = [(x, y / max_value_ghia) for x, y in ghia_data]
 
     # leggo i dati della simulazione dal file
-    with open(file_name, 'r') as f:
+    with open(file_name, 'rb') as f:
         # reading velocities
         data = []
         for line in f:

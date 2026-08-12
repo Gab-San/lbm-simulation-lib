@@ -29,7 +29,7 @@ void LBM::init_equilibrium(std::vector<double> & f)
             double ux_val = ux[scalar_index(x,y)];
             double uy_val = uy[scalar_index(x,y)];
 
-	    #pragma omp simd
+	    #pragma omp unroll full
             for(unsigned int i = 0; i < ndir; ++i)
             {
                 double cidotu = dirx[i]*ux_val + diry[i]*uy_val;
@@ -42,15 +42,15 @@ void LBM::init_equilibrium(std::vector<double> & f)
 }
 
 // Single function that performs streaming, boundary conditions, macro computation, and collision
-void LBM::update_stream_collide(std::vector<double> &  f_src, std::vector<double> &  f_dst)
+void LBM::update_stream_collide(std::vector<double> &  f_src, std::vector<double> &  f_dst, bool save)
 {
     #pragma omp parallel for schedule(static) collapse(2)
     for (unsigned int y = 0; y < Ny; ++y) {
         for (unsigned int x = 0; x < Nx; ++x) {
 
             // first apply streaming
-	    #pragma omp unroll full
-            for (unsigned int i = 0; i < ndir; ++i) {
+	    #pragma omp unroll full simd
+	    for (unsigned int i = 0; i < ndir; ++i) {
 
                 unsigned int xs = x - dirx[i];
                 unsigned int ys = y - diry[i];
@@ -95,16 +95,19 @@ void LBM::update_stream_collide(std::vector<double> &  f_src, std::vector<double
 
             // assign computed macroscopic values
             const unsigned int s_idx = scalar_index(x,y);
-            rho[s_idx] = r;
-            ux[s_idx] = ux_val;
-            uy[s_idx] = uy_val;
+	    if(save){
+		rho[s_idx] = r;
+		ux[s_idx] = ux_val;
+		uy[s_idx] = uy_val;
+	    }
 
             // Collisione con SIMD
             const double u_sq = ux_val*ux_val + uy_val*uy_val;
             const double c1 = -1.5 * u_sq;
             
 	    if(op == lbm_lbm::TRT) {
-		#pragma omp simd
+
+		#pragma omp unroll partial(3)
 		for (unsigned int i = 0; i < ndir; ++i)
 		{
 		    int io = opp[i];
@@ -142,7 +145,8 @@ void LBM::update_stream_collide(std::vector<double> &  f_src, std::vector<double
 	    }
 
 	    if (op == lbm_lbm::BGK) {
-		#pragma omp simd
+
+		#pragma omp unroll full simd
 		for (unsigned int i = 0; i < ndir; ++i) {
 		    // calculate dot product beetwen the velocity u(x,y) and the direction vector to its neighbour
 		    double cidotu = dirx[i]*ux_val + diry[i]*uy_val;
