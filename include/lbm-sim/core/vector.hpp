@@ -8,10 +8,10 @@
 #include <type_traits>
 #include <utility>
 
-namespace CollisionDetection {
+namespace lbm {
 namespace utils {
 
-template <typename T, unsigned int dim> struct Vector;
+template <typename T, unsigned short int dim> struct Vector;
 
 template <typename T> struct Vector<T, 2> {
   T dx, dy;
@@ -22,27 +22,7 @@ template <typename T> struct Vector<T, 2> {
       : Vector(B_.x - A_.x, B_.y - A_.y) {}
 };
 
-template <typename T, typename K, unsigned int dim>
-inline std::common_type_t<T, K> dot(const Vector<T, dim> &lhs,
-                                    const Vector<K, dim> &rhs) {
-  if constexpr (dim == 2) {
-    return lhs.dx * rhs.dx + lhs.dy * rhs.dy;
-  } else {
-    static_assert(dim == 2, "dot() : operator not yet implemented for 3D");
-  }
-}
-
-template <typename T, typename K, unsigned int dim>
-inline std::common_type_t<T, K> cross(const Vector<T, dim> &lhs,
-                                      const Vector<K, dim> &rhs) {
-  if constexpr (dim == 2) {
-    return lhs.dx * rhs.dy - lhs.dy * rhs.dx;
-  } else {
-    static_assert(dim == 2, "cross() : operator not yet implemented for 3D");
-  }
-}
-
-// FIXME: make add correct diension implementation
+// FIXME: make add correct diemsion implementation
 
 // WARN: template may need to be <typename T, int dim, typename K>
 
@@ -99,13 +79,7 @@ static_assert(
                    Vector<double, 2>>,
     "Vector<int,2> + Vector<double,2> must promote to Vector<double,2>");
 
-static_assert(
-    std::is_same_v<decltype(dot(std::declval<Vector<int, 2>>(),
-                                std::declval<Vector<double, 2>>())),
-                   double>,
-    "dot(Vector<int,2>, Vector<double,2>) must return double, not int");
-
 } // namespace utils
-} // namespace CollisionDetection
+} // namespace lbm
 
 #endif // __CORE_VECTOR_HPP

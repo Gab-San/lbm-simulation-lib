@@ -34,9 +34,10 @@ private:
   const Params<dim, cm_t> params;
 
 public:
-  LBMSimulation(const CollisionDetection::types::DimPoint<dim> grid_dim_,
+  LBMSimulation(const types::DimPoint<dim> grid_dim_,
+                types::boundary_mask_t boundary_mask_,
                 const Params<dim, cm_t> params_)
-      : lattice(grid_dim_), params(params_) {};
+      : lattice(grid_dim_, std::move(boundary_mask_)), params(params_) {};
 
   template <enum ExecutionBackend backend_t>
   void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver,
@@ -49,9 +50,9 @@ public:
     // FIXME: cannot be initialized like this
     // define generic initialization
 
-    // CollisionDetection::Segment<2> seg(
-    //     CollisionDetection::types::Coordinate<2>(0, grid.size.y - 1),
-    //     CollisionDetection::types::Coordinate<2>(grid.size.x - 1,
+    // Segment<2> seg(
+    //     types::Coordinate<2>(0, grid.size.y - 1),
+    //     types::Coordinate<2>(grid.size.x - 1,
     //                                              grid.size.y - 1));
     //
     // problem.init(grid, params.init_vel, seg.getPerimeter());

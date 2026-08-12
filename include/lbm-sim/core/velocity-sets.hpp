@@ -9,8 +9,7 @@
 
 namespace lbm {
 
-template <unsigned short int dim>
-using VectorInt = CollisionDetection::utils::Vector<int, dim>;
+template <unsigned short int dim> using VectorInt = utils::Vector<int, dim>;
 
 struct D2Q9 {
 

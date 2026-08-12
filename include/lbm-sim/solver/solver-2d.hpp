@@ -29,29 +29,29 @@ class MPISolver2D : public SolverBase2D<cm_t, ExecutionBackend::OPEN_MP> {
   using Base = SolverBase2D<cm_t, ExecutionBackend::OPEN_MP>;
 
 public:
-  MPISolver2D(const unsigned int num_iters_, const unsigned int num_frames_,
-              const Solid::types::boundary_mask_t &boundary_mask_)
-      : Base(num_iters_, num_frames_, boundary_mask_) {};
+  MPISolver2D(const unsigned int num_iters_, const unsigned int num_frames_)
+      : Base(num_iters_, num_frames_) {};
 
   ~MPISolver2D() = default;
 
   // TODO: adapt to initialization
   void init_equilibrium(const Lattice<2> &lattice,
                         std::vector<double> &part_stream) const override {
+    using utils::ops::dot;
 #pragma omp parallel for shared(lattice, part_stream) schedule(static)         \
     collapse(2)
     for (unsigned int y = 0; y < lattice.grid.size.y; ++y) {
       for (unsigned int x = 0; x < lattice.grid.size.x; ++x) {
-        const CollisionDetection::types::Coordinate<2> p(x, y);
+        const types::Coordinate<2> p(x, y);
 
         double r = lattice.rho[lattice.grid.scalar_index(p)];
-        const CollisionDetection::utils::Vector<double, 2> u =
+        const utils::Vector<double, 2> u =
             lattice.u[lattice.grid.scalar_index(p)];
-        const double u_sq = CollisionDetection::utils::dot(u, u);
+        const double u_sq = dot(u, u);
 
 #pragma omp simd
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
-          double cidotu = CollisionDetection::utils::dot(D2Q9::dir[i], u);
+          double cidotu = dot(D2Q9::dir[i], u);
 
           part_stream[lattice.grid.field_index(p, i, D2Q9::ndir)] =
               D2Q9::wi[i] * r *
@@ -89,11 +89,11 @@ private:
     for (std::size_t y = 0; y < lattice.grid.size.y; ++y) {
       for (std::size_t x = 0; x < lattice.grid.size.x; ++x) {
         std::array<double, D2Q9::ndir> fp;
-        const CollisionDetection::utils::Point<int, 2> p(x, y);
+        const utils::Point<int, 2> p(x, y);
 
 #pragma omp unroll full
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
-          const CollisionDetection::types::Coordinate<2> src = p - D2Q9::dir[i];
+          const types::Coordinate<2> src = p - D2Q9::dir[i];
           /// raccolgo i flussi e verifico se siano le direzioni interne al
           /// dominio
           // stream only if the source node is internal
@@ -114,8 +114,9 @@ private:
           r += fp[i];
         }
 
-        apply_boundary_conditions(p, r, cs.params.init_vel, fp, ffrom,
-                                  lattice.grid, context);
+        apply_boundary_conditions(lattice.boundary_mask, p, r,
+                                  cs.params.init_vel, fp, ffrom, lattice.grid,
+                                  context);
 
         // COMPUTE MACROSCOPIC VARIABLES
 
@@ -123,7 +124,7 @@ private:
         // rho*u = sum_i fi * ci
 
         r = 0.0;
-        CollisionDetection::utils::Vector<double, 2> u(0, 0);
+        utils::Vector<double, 2> u(0, 0);
 
 #pragma omp unroll full
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
@@ -154,16 +155,18 @@ private:
     }
   };
 
-  void apply_boundary_conditions(
-      const CollisionDetection::types::Coordinate<2> p, const double &localrho,
-      const CollisionDetection::utils::Vector<double, 2> u0,
-      std::array<double, D2Q9::ndir> &fp, const std::vector<double> &ffrom,
-      const Grid<2> &grid,
-      const ExecutionContext<OPEN_MP> &context =
-          ExecutionContext<OPEN_MP>{}) const {
+  void apply_boundary_conditions(const types::boundary_mask_t &boundary_mask,
+                                 const types::Coordinate<2> p,
+                                 const double &localrho,
+                                 const utils::Vector<double, 2> u0,
+                                 std::array<double, D2Q9::ndir> &fp,
+                                 const std::vector<double> &ffrom,
+                                 const Grid<2> &grid,
+                                 const ExecutionContext<OPEN_MP> &context =
+                                     ExecutionContext<OPEN_MP>{}) const {
     (void)context;
 
-    Solid::types::boundary_t b = this->strt[grid.scalar_index(p)];
+    types::boundary_t b = boundary_mask[grid.scalar_index(p)];
 
 #pragma omp unroll full
     for (std::size_t diridx = 0; diridx < D2Q9::ndir; diridx++) {
@@ -175,7 +178,7 @@ private:
         case Solid::BB_MOVING_WALL:
           Solid::apply_bb_moving_wall<2, D2Q9>(localrho, u0, fp, diridx);
           break;
-        case Solid::CONTINUE:
+        case Solid::PERIODIC:
           Solid::apply_continue<2, D2Q9>(localrho, grid, ffrom, p, fp, diridx);
           break;
         default:
@@ -190,13 +193,13 @@ private:
   // direttamente su un AsyncBinaryWriter posseduto dal solver, notifica
   // i listener registrati tramite DataObservable (pattern Observer/Listener).
   void write_norms(const Lattice<2> &lattice) const override {
-    using CollisionDetection::utils::dot;
+    using utils::ops::dot;
     std::vector<float> vsq(lattice.grid.getArea());
 
 #pragma omp parallel for collapse(2)
     for (unsigned int y = 0; y < lattice.grid.size.y; ++y) {
       for (unsigned int x = 0; x < lattice.grid.size.x; ++x) {
-        const CollisionDetection::types::Coordinate<2> p(x, y);
+        const types::Coordinate<2> p(x, y);
         const auto &vel = lattice.u[lattice.grid.scalar_index(p)];
 
         vsq[lattice.grid.scalar_index(p)] =
@@ -236,7 +239,7 @@ void initialize(GridT& grid, double rho0, double u_max, double H) {
     for (std::size_t y = 0; y < grid.size.y; ++y) {
         double ux = analytic_ux(static_cast<double>(y), H, u_max);
         for (std::size_t x = 0; x < grid.size.x; ++x) {
-            auto p = CollisionDetection::types::Coordinate<2>(x, y);
+            auto p = types::Coordinate<2>(x, y);
             auto feq = bc::equilibrium(rho0, ux, 0.0);
             // scrivi feq nelle f del nodo (x,y)
             for (int i = 0; i < 9; ++i) {

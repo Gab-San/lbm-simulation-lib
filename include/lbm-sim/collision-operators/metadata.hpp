@@ -10,18 +10,16 @@ enum CollisionModel { BGK, TRT, MRT };
 template <unsigned short int dim, enum CollisionModel cm_t> struct Params;
 // constexpr bool always_false = false;
 template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
-  const CollisionDetection::utils::Vector<double, dim> init_vel;
-  const CollisionDetection::types::DimPoint<dim> num_cells;
+  const utils::Vector<double, dim> init_vel;
+  const types::DimPoint<dim> num_cells;
 
   const double reyn_num;
   const double nu;
-  CollisionDetection::utils::Vector<double, dim> F{
-      6.66e-7, 0.0}; // default: nessuna forzante
+  utils::Vector<double, dim> F{6.66e-7, 0.0}; // default: nessuna forzante
   const double tauinv, omtauinv;
 
-  Params(const double reyn_num_,
-         const CollisionDetection::types::DimPoint<dim> num_cells_,
-         const CollisionDetection::utils::Vector<double, dim> init_vel_)
+  Params(const double reyn_num_, const types::DimPoint<dim> num_cells_,
+         const utils::Vector<double, dim> init_vel_)
       : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
         nu([&]() -> double {
           // WARN: this might need correction for different possible
@@ -46,8 +44,8 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
 };
 
 template <unsigned short int dim> struct Params<dim, CollisionModel::TRT> {
-  const CollisionDetection::utils::Vector<double, dim> init_vel;
-  const CollisionDetection::types::DimPoint<dim> num_cells;
+  const utils::Vector<double, dim> init_vel;
+  const types::DimPoint<dim> num_cells;
 
   const double reyn_num;
   const double nu;
@@ -55,9 +53,8 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::TRT> {
   const double tauPlus, tauMinus;
   const double s_plus, s_minus;
 
-  Params(const double reyn_num_,
-         const CollisionDetection::types::DimPoint<dim> num_cells_,
-         const CollisionDetection::utils::Vector<double, dim> init_vel_)
+  Params(const double reyn_num_, const types::DimPoint<dim> num_cells_,
+         const utils::Vector<double, dim> init_vel_)
       : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
         nu([&]() -> double {
           // WARN: this might need correction for different possible

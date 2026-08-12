@@ -6,6 +6,7 @@
 #include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/core/operators.hpp"
 #include "lbm-sim/core/types.hpp"
 
 namespace lbm {
@@ -19,8 +20,7 @@ public:
 
   CollisionStrategy(const Params<dim, cm_t> &params) : params(params) {}
 
-  void apply(const CollisionDetection::types::Coordinate<dim> p,
-             const CollisionDetection::utils::Vector<double, dim> u,
+  void apply(const types::Coordinate<dim> p, const utils::Vector<double, dim> u,
              const double localrho, std::array<double, VelocitySet::ndir> &fp,
              const Grid<dim> &grid) const {
     if constexpr (cm_t == CollisionModel::BGK) {
@@ -35,11 +35,10 @@ public:
   }
 
 private:
-  void apply_bgk(const CollisionDetection::types::Coordinate<dim> p,
-                 const CollisionDetection::utils::Vector<double, dim> u,
-                 const double localrho,
+  void apply_bgk(const types::Coordinate<dim> p,
+                 const utils::Vector<double, dim> u, const double localrho,
                  std::array<double, VelocitySet::ndir> &fp) const {
-    using CollisionDetection::utils::dot;
+    using utils::ops::dot;
 
     const double omusq = -1.5 * dot(u, u);
     const double force_prefactor = 1.0 - 0.5 * params.tauinv;
@@ -71,11 +70,10 @@ private:
     }
   }
 
-  void apply_trt(const CollisionDetection::types::Coordinate<dim> p,
-                 const CollisionDetection::utils::Vector<double, dim> u,
-                 const double localrho,
+  void apply_trt(const types::Coordinate<dim> p,
+                 const utils::Vector<double, dim> u, const double localrho,
                  std::array<double, VelocitySet::ndir> &fp) const {
-    using CollisionDetection::utils::dot;
+    using utils::ops::dot;
 
     const double omusq = -1.5 * dot(u, u);
 
