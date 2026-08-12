@@ -119,12 +119,13 @@ int main() {
                   /*reyn*/ 100.0, /*init_vel*/ 0.1,
                   "out/norms_129_100_01_bgk.bin", "out/data_129_100_01_bgk.bin",
                   {CollisionDetection::CollisionArea(
-                       A, {CollisionDetection::Segment(A, B),
-                           CollisionDetection::Segment(A, D),
-                           CollisionDetection::Segment(D, C)}),
+                       A, {CollisionDetection::Segment(A, B)}),
                    CollisionDetection::CollisionArea(
-                       A, {CollisionDetection::Segment(B, C)})},
-                  {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
+                       A, {CollisionDetection::Segment(D, C)}),
+                    CollisionDetection::CollisionArea(
+                       A, {CollisionDetection::Segment(B, C),
+                       CollisionDetection::Segment(A, D)})},
+                  {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL},{2, Solid::CONTINUE}}),
 
       Config<DIM>(200, 200, /*iters*/ 30000, /*frames*/ 100,
                   /*reyn*/ 1000.0, /*init_vel*/ 0.1,

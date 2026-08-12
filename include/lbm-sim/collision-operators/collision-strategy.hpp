@@ -44,7 +44,7 @@ private:
     using CollisionDetection::utils::dot;
 
     const double omusq = -1.5 * dot(u, u);
-
+    const double force_prefactor = 1.0 - 0.5 * params.tauinv;
     // Collisione con SIMD
 #pragma omp simd
     for (unsigned int i = 0; i < VelocitySet::ndir; ++i) {
@@ -56,7 +56,20 @@ private:
       const double feq = VelocitySet::wi[i] * localrho *
                          (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu + omusq);
       // relax to equilibrium
-      fp[i] = params.omtauinv * fp[i] + params.tauinv * feq;
+      int pois=0;
+      if(pois==1){
+      const double cidotF = dot(VelocitySet::dir[i], params.F);
+      const double udotF  = dot(u, params.F);
+      const double force_term = force_prefactor * VelocitySet::wi[i] *
+        (3.0 * (cidotF - udotF) + 9.0 * cidotu * cidotF);
+        
+        // ---------------------------------------
+
+      fp[i] = params.omtauinv * fp[i] + params.tauinv * feq +force_term;
+      }else{
+        fp[i] = params.omtauinv * fp[i] + params.tauinv * feq;
+      }
+    
     }
   }
 

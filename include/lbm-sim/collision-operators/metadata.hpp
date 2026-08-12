@@ -15,7 +15,7 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
 
   const double reyn_num;
   const double nu;
-
+  CollisionDetection::utils::Vector<double, dim> F{6.66e-7, 0.0}; // default: nessuna forzante
   const double tauinv, omtauinv;
 
   Params(const double reyn_num_,

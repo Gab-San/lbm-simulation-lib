@@ -64,7 +64,7 @@ public:
              std::vector<double> &ffrom,
              std::vector<double> &fto) const override {
     const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> cs(params_);
-
+              //partono iterazioni
     for (unsigned int iter = 0; iter < this->niters; iter++) {
       bool save = (iter % this->nskips == 0);
       update_stream_collide(grid, cs, ffrom, fto, save);
@@ -85,6 +85,7 @@ private:
     // STREAMING
 #pragma omp parallel for shared(ffrom, fto, cs, grid, save) schedule(static)   \
     collapse(2)
+    //ciclo della griglia di partenza sul dominio
     for (std::size_t y = 0; y < grid.size.y; ++y) {
       for (std::size_t x = 0; x < grid.size.x; ++x) {
         std::array<double, D2Q9::ndir> fp;
@@ -93,7 +94,7 @@ private:
 #pragma omp unroll full
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
           const CollisionDetection::types::Coordinate<2> src = p - D2Q9::dir[i];
-
+          ///raccolgo i flussi e verifico se siano le direzioni interne al dominio
           // stream only if the source node is internal
           if (!grid.contains(src)) {
             fp[i] = ffrom[grid.field_index(p, i, D2Q9::ndir)];
@@ -106,11 +107,12 @@ private:
 
         double r = 0.0;
 #pragma omp unroll full
+        //sommo tutti i flussi per fare il rho del punto
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
           // calculate local rho before collision
           r += fp[i];
         }
-
+        //applico condizioni di bordo
         apply_boundary_conditions(p, r, cs.params.init_vel, fp,ffrom, grid, context);
 
         // COMPUTE MACROSCOPIC VARIABLES
@@ -172,10 +174,7 @@ private:
           Solid::apply_bb_moving_wall<2, D2Q9>(localrho, u0, fp, diridx);
           break;
         case Solid::CONTINUE:
-          Solid::apply_continue(localrho,p, u0, fp, diridx,grid);
-          break;
-        case Solid::DIRICHLET:
-          Solid::apply_dirichlet(localrho,p, u0,ub, fp, diridx,grid);
+          Solid::apply_continue<2, D2Q9>(localrho,grid, ffrom,p, fp, diridx);
           break;
         default:
           break;
@@ -207,7 +206,46 @@ private:
     std::memcpy(buf.data(), vsq.data(), buf.size());
     this->notifyListeners(std::move(buf));
   }
+  
 }; // class MPISolver2D
 
 } // namespace lbm
+/*
+namespace poiseuille {
+
+// Calcola u_max dato il gradiente di pressione imposto e la viscosità
+inline double compute_u_max(double rho_in, double rho_out, double Lx,
+                             double H, double tau, double cs2 = 1.0/3.0) {
+    double dp_dx = (rho_in - rho_out) * cs2 / Lx;
+    double nu = cs2 * (tau - 0.5);
+    return dp_dx * H * H / (8.0 * nu);
+}
+
+// Profilo analitico di velocità in funzione di y
+inline double analytic_ux(double y, double H, double u_max) {
+    double y_c = y - H * 0.5;
+    return u_max * (1.0 - (y_c * y_c) / (H * 0.5 * H * 0.5));
+}
+
+// Inizializzazione IC coerente col profilo (riduce drasticamente
+// il transiente iniziale, come discusso)
+template <typename GridT>
+void initialize(GridT& grid, double rho0, double u_max, double H) {
+    for (std::size_t y = 0; y < grid.size.y; ++y) {
+        double ux = analytic_ux(static_cast<double>(y), H, u_max);
+        for (std::size_t x = 0; x < grid.size.x; ++x) {
+            auto p = CollisionDetection::types::Coordinate<2>(x, y);
+            auto feq = bc::equilibrium(rho0, ux, 0.0);
+            // scrivi feq nelle f del nodo (x,y)
+            for (int i = 0; i < 9; ++i) {
+                grid.f[grid.field_index(p, i, 9)] = feq[i];
+            }
+            grid.rho[grid.scalar_index(p)] = rho0;
+            grid.u[grid.scalar_index(p)] = {ux, 0.0};
+        }
+    }
+}
+
+} // namespace poiseuille
+ */
 #endif // __LBM_SIM_SOLVER_SOLVER_2D

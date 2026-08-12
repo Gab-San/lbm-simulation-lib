@@ -24,16 +24,7 @@ constexpr types::boundary_t NONE = 0;
 constexpr types::boundary_t BB_RIGID_WALL = 1;
 constexpr types::boundary_t BB_MOVING_WALL = 2;
 constexpr types::boundary_t CONTINUE = 3;
-constexpr types::boundary_t DIRICHLET = 4;
-inline double boundary_rho(types::boundary_t b) {
-  switch (b) {
 
-  case BB_MOVING_WALL:
-  case BB_RIGID_WALL:
-  case DIRICHLET:
-    return 1.0;
-  }
-}
 
 template <unsigned short int dim>
 std::size_t coord_to_scalar(CollisionDetection::types::Coordinate<dim> p,
@@ -76,8 +67,7 @@ inline void apply_bb_rigid_wall(std::array<double, VelocitySet::ndir> &fp,
 
 template <unsigned short int dim, typename VelocitySet>
 inline void
-apply_bb_moving_wall(const CollisionDetection::types::Coordinate<2> p,
-                     const double &localrho,
+apply_bb_moving_wall(const double &localrho,
                      const CollisionDetection::utils::Vector<double, dim> u0,
                      std::array<double, VelocitySet::ndir> &fp,
                      const unsigned int diridx) {
@@ -90,39 +80,57 @@ apply_bb_moving_wall(const CollisionDetection::types::Coordinate<2> p,
 }
 template <unsigned short int dim, typename VelocitySet>
 inline void
-apply_continue(const double &localrho,
-                     const CollisionDetection::utils::Vector<double, dim> u0,
-                     std::array<double, VelocitySet::ndir> &fp,
-                     const unsigned int diridx) {
-  // FIXME: c_s = 1/sqrt(3) should be a variable (or even
-  // better 1/c_s)
-  const CollisionDetection::types::Coordinate<2> x=p -VelocitySet::dir[diridx];
-  if(!grid.contains(src)){
-    
-    if(p.x==0){}
-      ffrom[grid.field_index(x, diridx, VelocitySet::ndir)]=ffrom[grid.field_index(x+grid.size.x, diridx, VelocitySet::opp[diridx])];
-    else if(p.x==static_cast<int>(grid.size.x)-1){
-      ffrom[grid.field_index(x, diridx, VelocitySet::ndir)]=ffrom[grid.field_index(x-grid.size.x, diridx, VelocitySet::opp[diridx])];
-    }else if(p.y==0){
-      ffrom[grid.field_index(x, diridx, VelocitySet::ndir)]=ffrom[grid.field_index(x+grid.size.y, diridx, VelocitySet::opp[diridx])];
-    }else if(p.y==static_cast<int>(grid.size.y)-1){
-      ffrom[grid.field_index(x, diridx, VelocitySet::ndir)]=ffrom[grid.field_index(x-grid.size.y, diridx, VelocitySet::opp[diridx])];
+apply_continue(const double &localrho, const Grid<2> &grid,
+               const std::vector<double> &ffrom,
+               CollisionDetection::types::Coordinate<2> p,
+               std::array<double, VelocitySet::ndir> &fp,
+               const unsigned int diridx) {
+  using Coord = CollisionDetection::types::Coordinate<2>;
+
+  const unsigned int missing = VelocitySet::opp[diridx];
+
+  const Coord raw = p + VelocitySet::dir[diridx];
+  const int size_x = static_cast<int>(grid.size.x);
+  const int wrapped_x = ((raw.x % size_x) + size_x) % size_x;
+  const Coord source(wrapped_x, raw.y);
+
+  fp[missing] = ffrom[grid.field_index(source, missing, VelocitySet::ndir)];
+}
+  
+  /*const CollisionDetection::types::Coordinate<2> x=p -VelocitySet::dir[diridx];
+  using Coord = CollisionDetection::types::Coordinate<2>;
+  
+  if(p.x==grid.size.x-1){
+    if (p.y == grid.size.y - 1) {
+      if(diridx==5)fp[8] = fp[diridx];
+    }else if (p.y == 0) {
+      if(diridx==8)fp[5] = fp[diridx];
+    } else {
+      // left boundary
+     
+      if(diridx==1)ffrom[grid.field_index(x, diridx, VelocitySet::ndir)]=ffrom[grid.field_index(x+Coord(grid.size.x-1,0), diridx,VelocitySet::ndir )];
+      if(diridx==5)ffrom[grid.field_index(x, diridx, VelocitySet::ndir)]=ffrom[grid.field_index(x+Coord(grid.size.x-1,1), diridx,VelocitySet::ndir )];
+      if(diridx==8)ffrom[grid.field_index(x, diridx, VelocitySet::ndir)]=ffrom[grid.field_index(x+Coord(grid.size.x-1,-1), diridx,VelocitySet::ndir )];
+  
+    }
+  }else{
+    if (p.y == grid.size.y - 1) {
+      if(diridx==6)fp[7] = fp[diridx];
+    }else if (p.y == 0) {
+      if(diridx==7)fp[6] = fp[diridx];
+    } else {
+      // left boundary
+      if(diridx==3)ffrom[grid.field_index(x, diridx, VelocitySet::ndir)]=ffrom[grid.field_index(x-Coord(grid.size.x-1,0), diridx,VelocitySet::ndir )];
+      if(diridx==6)ffrom[grid.field_index(x, diridx, VelocitySet::ndir)]=ffrom[grid.field_index(x-Coord(grid.size.x-1,1), diridx,VelocitySet::ndir )];
+      if(diridx==7)ffrom[grid.field_index(x, diridx, VelocitySet::ndir)]=ffrom[grid.field_index(x-Coord(grid.size.x-1,-1), diridx,VelocitySet::ndir )];
     }
   }
-}
-template <unsigned short int dim, typename VelocitySet>
-inline void
-apply_continue(const double &localrho,
-                     const CollisionDetection::utils::Vector<double, dim> u0,
-                     std::array<double, VelocitySet::ndir> &fp,
-                     const unsigned int diridx) {
-                      for(int i=0;i<VelocitySet::ndir;i++){
-                        fp[i]=+D2Q9::wi[i] * r *
-              (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu - 1.5 * (u0*u0));
-                      }
-                      
+    
+*/    
+    
 
-}
+
+
 } // namespace Solid
 } // namespace lbm
 
