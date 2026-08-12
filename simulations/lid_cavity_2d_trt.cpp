@@ -119,8 +119,8 @@ int main() {
   std::vector<Config<DIM>> configs{
       Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
                   /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_129_100_01_lid_cavity_openmp_bgk.bin",
-                  "out/data_129_100_01_lid_cavity_openmp_bgk.bin",
+                  "out/norms_129_100_01_lid_cavity_openmp_trt.bin",
+                  "out/data_129_100_01_lid_cavity_openmp_trt.bin",
                   {CollisionDetection::CollisionArea(
                        A2, {CollisionDetection::Segment(A, B),
                             CollisionDetection::Segment(A, D),
@@ -131,8 +131,8 @@ int main() {
 
       Config<DIM>({200, 200}, /*iters*/ 30000, /*frames*/ 100,
                   /*reyn*/ 1000.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_200_1000_01_lid_cavity_openmp_bgk.bin",
-                  "out/data_200_1000_01_lid_cavity_openmp_bgk.bin",
+                  "out/norms_200_1000_01_lid_cavity_openmp_trt.bin",
+                  "out/data_200_1000_01_lid_cavity_openmp_trt.bin",
                   {CollisionDetection::CollisionArea(
                        A2, {CollisionDetection::Segment(A2, B2),
                             CollisionDetection::Segment(A2, D2),
@@ -142,7 +142,7 @@ int main() {
                   {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
   };
 
-  constexpr auto CollisionType = CollisionModel::BGK;
+  constexpr auto CollisionType = CollisionModel::TRT;
 
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
