@@ -6,7 +6,6 @@
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/data-observable.hpp"
 
-#include "lbm-sim/boundaries.hpp"
 #include "lbm-sim/lattice.hpp"
 
 // C++ STANDARD LIB

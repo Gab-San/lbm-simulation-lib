@@ -8,14 +8,14 @@
 
 // LBM SIM LIB
 #include "lbm-sim/solver/solver-base.hpp"
-#include "lbm-sim/solver/solver-2d.hpp" // needed AsyncBinaryWriter
+
 #include "lbm-sim/collision-operators/metadata.hpp"
 #include "lbm-sim/collision-operators/collision-strategy-cuda.cuh"
+
 #include "lbm-sim/backend/metadata.hpp"
 
-// COLLISION DETECTION LIB
-#include "collision-detection/core/types.hpp"
-#include "collision-detection/core/operators.hpp" 
+#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/core/operators.hpp" 
 
 // CUDA
 #include <cuda_runtime.h>
@@ -523,18 +523,7 @@ private:
 
     std::vector<char> buf(host_norms.size() * sizeof(float));
     std::memcpy(buf.data(), host_norms.data(), buf.size());
-    norms_writer.enqueue(std::move(buf));
-  }
-
-  void write_header(const Grid<2> &grid) const {
-    const int32_t nx = static_cast<int32_t>(grid.size.x);
-    const int32_t ny = static_cast<int32_t>(grid.size.y);
-
-    std::vector<char> buf(sizeof(int32_t) * 2);
-    std::memcpy(buf.data(), &nx, sizeof(int32_t));
-    std::memcpy(buf.data() + sizeof(int32_t), &ny, sizeof(int32_t));
-
-    norms_writer.enqueue(std::move(buf));
+    this->notifyListeners(std::move(buf));
   }
 };
 
