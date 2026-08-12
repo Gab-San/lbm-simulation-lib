@@ -13,12 +13,6 @@
 namespace lbm {
 namespace cuda_detail {
 
-static __constant__ double c_wi[9];
-static __constant__ int c_dirx[9];
-static __constant__ int c_diry[9];
-static __constant__ int c_opp[9];
-
-
 // Costruisce i parametri device-side a partire dai Params host (una reference a
 // Params<dim, cm_t>).
 template <lbm::CollisionModel cm_t>

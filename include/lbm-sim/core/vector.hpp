@@ -3,6 +3,8 @@
 
 #include "lbm-sim/core/point.hpp"
 
+#include "lbm-sim/backend/cuda-annotations.hpp"
+
 // C++ STANDARD LIB
 #include <iostream>
 #include <type_traits>
@@ -16,10 +18,12 @@ template <typename T, unsigned short int dim> struct Vector;
 template <typename T> struct Vector<T, 2> {
   T dx, dy;
 
-  Vector() : dx(0), dy(0) {}
-  Vector(const T &x, const T &y) : dx(x), dy(y) {}
-  Vector(const Point<T, 2> &A_, const Point<T, 2> &B_)
+  LBM_HD_FUNC constexpr Vector() : dx(0), dy(0) {}
+  LBM_HD_FUNC constexpr Vector(const T &x, const T &y) : dx(x), dy(y) {}
+  LBM_HD_FUNC constexpr Vector(const Point<T, 2> &A_, const Point<T, 2> &B_)
       : Vector(B_.x - A_.x, B_.y - A_.y) {}
+
+  LBM_HD_FUNC ~Vector() = default;
 };
 
 // FIXME: make add correct diemsion implementation
@@ -28,22 +32,23 @@ template <typename T> struct Vector<T, 2> {
 
 // ---- OPERATOR OVERLOADING ----
 template <typename T, typename K>
-inline Vector<std::common_type_t<T, K>, 2> operator+(const Vector<T, 2> &lhs,
-                                                     const Vector<K, 2> &rhs) {
+LBM_HD_FUNC inline Vector<std::common_type_t<T, K>, 2>
+operator+(const Vector<T, 2> &lhs, const Vector<K, 2> &rhs) {
   using R = std::common_type_t<T, K>;
   return Vector<R, 2>(lhs.dx + rhs.dx, lhs.dy + rhs.dy);
 }
 
 template <typename T, typename K>
-inline Vector<T, 2> &operator+=(Vector<T, 2> &lhs, const Vector<K, 2> &rhs) {
+LBM_HD_FUNC inline Vector<T, 2> &operator+=(Vector<T, 2> &lhs,
+                                            const Vector<K, 2> &rhs) {
   lhs.dx += rhs.dx;
   lhs.dy += rhs.dy;
   return lhs;
 }
 
 template <typename T>
-inline Vector<T, 2> operator-(const Vector<T, 2> &lhs,
-                              const Vector<T, 2> &rhs) {
+LBM_HD_FUNC inline Vector<T, 2> operator-(const Vector<T, 2> &lhs,
+                                          const Vector<T, 2> &rhs) {
   return Vector<T, 2>(lhs.dx - rhs.dx, lhs.dy - rhs.dy);
 }
 
@@ -54,14 +59,15 @@ inline std::ostream &operator<<(std::ostream &out, const Vector<T, 2> &v) {
 
 // ---- OPERATION BY SCALAR ----
 template <typename T, typename K>
-inline Vector<std::common_type_t<T, K>, 2> operator*(const Vector<T, 2> &lhs,
-                                                     const K &scalar) {
+LBM_HD_FUNC inline Vector<std::common_type_t<T, K>, 2>
+operator*(const Vector<T, 2> &lhs, const K &scalar) {
   using R = std::common_type_t<T, K>;
   return Vector<R, 2>(lhs.dx * scalar, lhs.dy * scalar);
 }
 
 template <typename T, typename K>
-inline Vector<T, 2> &operator/=(Vector<T, 2> &lhs, const K &scalar) {
+LBM_HD_FUNC inline Vector<T, 2> &operator/=(Vector<T, 2> &lhs,
+                                            const K &scalar) {
   lhs.dx /= scalar;
   lhs.dy /= scalar;
   return lhs;

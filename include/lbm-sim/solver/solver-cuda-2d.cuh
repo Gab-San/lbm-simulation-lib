@@ -1,12 +1,11 @@
 #ifndef __LBM_SIM_SOLVER_SOLVER_2D_CUDA_CUH
 #define __LBM_SIM_SOLVER_SOLVER_2D_CUDA_CUH
 
-
 // NOTA IMPORTANTE SULLA BUILD:
 // va incluso da un file .cu o compilato con nvcc NON con g++/clang
 
+#include "lbm-sim/lattice.hpp"
 
-// LBM SIM LIB
 #include "lbm-sim/solver/solver-base.hpp"
 
 #include "lbm-sim/collision-operators/metadata.hpp"
@@ -247,28 +246,6 @@ kernel_init_equilibrium(double *__restrict__ f, const double *__restrict__ rho,
   }
 }
 
-// Copia le costanti del set di velocità D2Q9 (definite host-side in velocity-sets.hpp) 
-// nella constant memory dichiarata in collision-strategy-cuda.cuh. Va eseguita una volta 
-// per processo, prima di lanciare qualunque kernel: viene chiamata dal costruttore del
-// solver.
-inline void upload_lattice_constants() {
-  double h_wi[9];
-  int h_dirx[9];
-  int h_diry[9];
-  int h_opp[9];
-
-  for (int i = 0; i < 9; ++i) {
-    h_wi[i] = D2Q9::wi[i];
-    h_dirx[i] = D2Q9::dir[i].dx;
-    h_diry[i] = D2Q9::dir[i].dy;
-    h_opp[i] = D2Q9::opp[i];
-  }
-
-  LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_wi, h_wi, sizeof(h_wi)));
-  LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_dirx, h_dirx, sizeof(h_dirx)));
-  LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_diry, h_diry, sizeof(h_diry)));
-  LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_opp, h_opp, sizeof(h_opp)));
-}
 
 }//namespace cuda_detail
 
@@ -292,7 +269,6 @@ public:
               const ExecutionContext<ExecutionBackend::CUDA> &ctx = {})
       : Base(num_iters_, num_frames_, strt_), norms_writer(out_path),
         ctx_(ctx) {
-    cuda_detail::upload_lattice_constants();
     upload_boundary_nodes();
   }
 
@@ -339,7 +315,7 @@ public:
     LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
-   void solve(Grid<2> &grid, const Params<2, cm_t> &params_,
+   void solve(Lattice<2> &grid, const Params<2, cm_t> &params_,
              std::vector<double> &ffrom,
              std::vector<double> &fto) const override {
     ensure_device_buffers(grid);
@@ -512,6 +488,9 @@ private:
       grid.u[k].dx = h_u[k].x;
       grid.u[k].dy = h_u[k].y;
     }
+  }
+
+  void update_stream_collide() {
   }
 
   void write_norms(cudaStream_t stream) const {
