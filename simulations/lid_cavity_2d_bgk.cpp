@@ -1,14 +1,19 @@
 // LBM SIM LIB
-#include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/async-binary-writer.hpp"
+
 #include "lbm-sim/lbm-simulation.hpp"
+
+#include "lbm-sim/collision-operators/metadata.hpp"
+
+#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/core/velocity-sets.hpp"
+
 #include "lbm-sim/problems/problem_2d.hpp"
+
 #include "lbm-sim/solver/solver-2d.hpp"
 
-// COLLISION DETECTION LIB
-#include "collision-detection/collision-area.hpp"
-#include "collision-detection/core/types.hpp"
+#include "lbm-sim/collision-detection/collision-area.hpp"
+
+#include "lbm-sim/data/async-binary-writer.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -110,8 +115,9 @@ int main() {
   // Qui, l'ostacolo 0 diventa una parete rigida ferma e l'ostacolo 1 diventa
   // il lato mobile della cavità (moving lid).
   // Per cambiare il tipo di parete, modifica solo questa mappa.
-  // Esempio: due pareti rigide = {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_RIGID_WALL}}
-  // Esempio con terzo tipo fisso-rho = {{0, Solid::BB_RIGID_WALL},
+  // Esempio: due pareti rigide = {{0, Solid::BB_RIGID_WALL}, {1,
+  // Solid::BB_RIGID_WALL}} Esempio con terzo tipo fisso-rho = {{0,
+  // Solid::BB_RIGID_WALL},
   //                                   {1, Solid::BB_MOVING_WALL},
   //                                   {2, Solid::BB_FIXED_RHO_WALL}}
   std::vector<Config<DIM>> configs{
@@ -122,10 +128,12 @@ int main() {
                        A, {CollisionDetection::Segment(A, B)}),
                    CollisionDetection::CollisionArea(
                        A, {CollisionDetection::Segment(D, C)}),
-                    CollisionDetection::CollisionArea(
+                   CollisionDetection::CollisionArea(
                        A, {CollisionDetection::Segment(B, C),
-                       CollisionDetection::Segment(A, D)})},
-                  {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL},{2, Solid::CONTINUE}}),
+                           CollisionDetection::Segment(A, D)})},
+                  {{0, Solid::BB_RIGID_WALL},
+                   {1, Solid::BB_MOVING_WALL},
+                   {2, Solid::CONTINUE}}),
 
       Config<DIM>(200, 200, /*iters*/ 30000, /*frames*/ 100,
                   /*reyn*/ 1000.0, /*init_vel*/ 0.1,

@@ -1,13 +1,12 @@
 #ifndef _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 #define _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 
-// LBM SIM LIB
 #include "lbm-sim/backend/metadata.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm-sim/core/grid.hpp"
 
-// COLLISION DETECTION LIB
-#include "collision-detection/core/types.hpp"
+#include "lbm-sim/collision-operators/metadata.hpp"
+
+#include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/core/types.hpp"
 
 namespace lbm {
 
@@ -55,20 +54,20 @@ private:
       const double feq = VelocitySet::wi[i] * localrho *
                          (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu + omusq);
       // relax to equilibrium
-      int pois=0;
-      if(pois==1){
-      const double cidotF = dot(VelocitySet::dir[i], params.F);
-      const double udotF  = dot(u, params.F);
-      const double force_term = force_prefactor * VelocitySet::wi[i] *
-        (3.0 * (cidotF - udotF) + 9.0 * cidotu * cidotF);
-        
+      int pois = 0;
+      if (pois == 1) {
+        const double cidotF = dot(VelocitySet::dir[i], params.F);
+        const double udotF = dot(u, params.F);
+        const double force_term =
+            force_prefactor * VelocitySet::wi[i] *
+            (3.0 * (cidotF - udotF) + 9.0 * cidotu * cidotF);
+
         // ---------------------------------------
 
-      fp[i] = params.omtauinv * fp[i] + params.tauinv * feq +force_term;
-      }else{
+        fp[i] = params.omtauinv * fp[i] + params.tauinv * feq + force_term;
+      } else {
         fp[i] = params.omtauinv * fp[i] + params.tauinv * feq;
       }
-    
     }
   }
 

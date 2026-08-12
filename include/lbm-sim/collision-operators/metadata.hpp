@@ -1,8 +1,8 @@
 #ifndef __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP
 #define __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP
 
-#include "collision-detection/core/types.hpp"
-#include "collision-detection/core/vector.hpp"
+#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/core/vector.hpp"
 
 namespace lbm {
 enum CollisionModel { BGK, TRT, MRT };
@@ -15,7 +15,8 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
 
   const double reyn_num;
   const double nu;
-  CollisionDetection::utils::Vector<double, dim> F{6.66e-7, 0.0}; // default: nessuna forzante
+  CollisionDetection::utils::Vector<double, dim> F{
+      6.66e-7, 0.0}; // default: nessuna forzante
   const double tauinv, omtauinv;
 
   Params(const double reyn_num_,

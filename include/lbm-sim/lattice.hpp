@@ -2,8 +2,7 @@
 #define __LBM_SIM_LATTICE_HPP
 
 #include "lbm-sim/core/grid.hpp"
-
-#include "collision-detection/core/vector.hpp"
+#include "lbm-sim/core/vector.hpp"
 
 // C++ STD LIB
 #include <vector>

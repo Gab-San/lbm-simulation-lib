@@ -1,7 +1,7 @@
 #ifndef __LBM_SIM_CORE_GRID_HPP
 #define __LBM_SIM_CORE_GRID_HPP
 
-#include "collision-detection/core/types.hpp"
+#include "lbm-sim/core/types.hpp"
 
 // C++ STANDARD LIB
 #include <cstddef>

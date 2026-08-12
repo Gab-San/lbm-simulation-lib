@@ -1,8 +1,7 @@
 #ifndef __LBM_SIM_CORE_VELOCITY_SETS_HPP
 #define __LBM_SIM_CORE_VELOCITY_SETS_HPP
 
-// LBM SIM LIB
-#include "collision-detection/core/vector.hpp"
+#include "lbm-sim/core/vector.hpp"
 
 // C++ STANDARD LIB
 #include <array>

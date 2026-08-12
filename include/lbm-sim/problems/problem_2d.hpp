@@ -1,10 +1,10 @@
 #pragma once
 
-#include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/lattice.hpp"
 
-#include "collision-detection/core/types.hpp"
-#include "collision-detection/core/vector.hpp"
+#include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/core/vector.hpp"
 
 #include <omp.h>
 

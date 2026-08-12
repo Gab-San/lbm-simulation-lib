@@ -5,13 +5,13 @@
 
 #include "lbm-sim/backend/metadata.hpp"
 #include "lbm-sim/boundaries.hpp"
+
+#include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/core/operators.hpp"
+#include "lbm-sim/core/types.hpp"
+
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm-sim/core/grid.hpp"
-
-// COLLISION DETECTION LIB
-#include "collision-detection/core/operators.hpp"
-#include "collision-detection/core/types.hpp"
 
 // C++ STANDARD LIB
 #include <cmath>

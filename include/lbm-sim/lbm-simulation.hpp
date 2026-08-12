@@ -1,8 +1,8 @@
 #ifndef __LBM_SIM_LBM_SIMULATION_HPP
 #define __LBM_SIM_LBM_SIMULATION_HPP
 
-// LBM SIM LIB
 #include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/core/types.hpp"
 
 #include "lbm-sim/backend/metadata.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
@@ -10,9 +10,6 @@
 #include "lbm-sim/problems/problem_2d.hpp"
 
 #include "lbm-sim/solver/solver-base.hpp"
-
-// COLLISION DETECTION LIB
-#include "collision-detection/core/types.hpp"
 
 // C++ STANDARD LIB
 #include <filesystem>

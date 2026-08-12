@@ -1,10 +1,11 @@
 #ifndef __LBM_SIM_BOUNDARIES_HPP
 #define __LBM_SIM_BOUNDARIES_HPP
 
-#include "collision-detection/collision-area.hpp"
-#include "collision-detection/core/types.hpp"
-#include "collision-detection/core/vector.hpp"
 #include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/core/vector.hpp"
+
+#include "lbm-sim/collision-detection/collision-area.hpp"
 
 #include <array>
 #include <cstdint>
