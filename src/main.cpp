@@ -6,7 +6,7 @@
 #include <stdexcept>
 
 // Max number of steps
-#define NSTEPS 100
+#define NSTEPS 5000
 
 // TODO: lid velocity, stream, collide, apply no slip, compute Rho and Velocity, equilibrium,
 // TODO: save result + plotting + video/imaging
@@ -61,7 +61,10 @@ int main(int argc, char* argv[])
 
     // compute Taylor-Green flow at t=0
     // to initialise rho, ux, uy fields.
-    lbm.taylor_green(0,rho,ux,uy);
+    //lbm.taylor_green(0,rho,ux,uy);
+
+    // initialize lid-driven cavity flow
+    lbm.init_lid_driven_cavity(ux, uy, rho);
 
     // initialise f1 as equilibrium for rho, ux, uy
     lbm.init_equilibrium(f1,rho,ux,uy);
@@ -88,13 +91,25 @@ int main(int argc, char* argv[])
         // perform collision on f2
         lbm.collide(f2,rho,ux,uy);
 
+        // apply boundary conditions
+        lbm.apply_boundary_conditions(ux,uy,rho,f1,f2);
+
         // swap pointers
         double *temp = f1;
         f1 = f2;
         f2 = temp;
+        
+        if(n % 50 != 0) { continue; } // write every 50 time steps
 
-        // apply boundary conditions
-        lbm.apply_boundary_conditions(ux,uy,rho,f1,f2);
+        // calcolo le norme delle velocità e le salvo nel file
+        for (int j = 0; j < Ny; ++j) {
+            for (int i = 0; i < Nx; ++i) {
+                double vx = ux[Nx * j + i];
+                double vy = uy[Nx * j + i];
+                double v  = sqrt(vx * vx + vy * vy);
+                file << v << "\n";
+            }
+        }
     }
 
     file.close();

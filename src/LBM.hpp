@@ -53,8 +53,14 @@ public:
     const double w0 = 4.0/9.0;  // zero weight
     const double ws = 1.0/9.0;  // adjacent weight
     const double wd = 1.0/36.0; // diagonal weight
+
     // Arrays of the lattice weights and direction components
     const double wi[9] = {w0,ws,ws,ws,ws,wd,wd,wd,wd};
+
+    // direction numbering scheme:
+    // 6 2 5
+    // 3 0 1
+    // 7 4 8
     const int dirx[9] = {0,1,0,-1, 0,1,-1,-1, 1};
     const int diry[9] = {0,0,1, 0,-1,1, 1,-1,-1};
     // The kinematic viscosity and the corresponding relaxation parameter
@@ -91,6 +97,7 @@ public:
     void apply_boundary_conditions(double *u, double *v, double *r, double *f_src, double *f_dst);
     void taylor_green(unsigned int t, unsigned int x, unsigned int y, double *r, double *u, double *v);
     void taylor_green(unsigned int t, double *r,  double *u, double *v);
+    void init_lid_driven_cavity(double *u, double *v, double *r);
 
 
 // privata: ciò che il codice esterno non può vedere

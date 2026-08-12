@@ -3,11 +3,33 @@
 
 //to do: implementation of functions for lattice boltzmann method
 
+//initialize velocities and pressure fields for the lid driven cavity flow
+void LBM::init_lid_driven_cavity(double *u, double *v, double *r)
+{
+    for(unsigned int y = 0; y < Ny; ++y)
+    {
+        for(unsigned int x = 0; x < Nx; ++x)
+        {
+            size_t sidx = scalar_index(x,y);
+            u[sidx] = 0.0;
+            v[sidx] = 0.0;
+            r[sidx] = rho0;
+        }
+    }
+
+    // set lid velocity at the top boundary
+    for(unsigned int x = 0; x < Nx; ++x)
+    {
+        size_t sidx = scalar_index(x,Ny-1);
+        u[sidx] = u_lid;
+    }
+}
+
 //compute equilibrium
 //evolution of the steps (for cycle) -> UPDATE collision, macros and apply boundary conditions
 void LBM::init_equilibrium(double *f, double *r, double *u, double *v)
 {
-    for(unsigned int y = 0; y< Ny;++y)
+    for(unsigned int y = 0; y< Ny; ++y)
     {
         for(unsigned int x = 0; x < Nx; ++x)
         {
@@ -142,6 +164,8 @@ void LBM::apply_boundary_conditions(double *u, double *v, double *r, double *f_s
 
         r[scalar_index(0,j)] = r[scalar_index(1,j)];
         r[scalar_index(Nx-1,j)] = r[scalar_index(Nx-2,j)];
+
+        //DA RIVEDERE!!!
         for (int k = 0; k < ndir; k++) {
             f_dst[field_index(0, j, k)] = f_src[field_index(0, j, k)] + f_dst[field_index(1, j, k)] - f_src[field_index(1, j, k)];
             f_dst[field_index(Nx - 1, j, k)] = f_src[field_index(Nx - 1, j, k)] + f_dst[field_index(Nx - 2, j, k)] - f_src[field_index(Nx - 2, j, k)];
@@ -158,6 +182,8 @@ void LBM::apply_boundary_conditions(double *u, double *v, double *r, double *f_s
 
         r[scalar_index(i,Ny-1)] = r[scalar_index(i,Ny - 2)];
         r[scalar_index(i,0)] = r[scalar_index(i,1)];
+
+        //DA RIVEDERE!!!
         for (int k = 0; k < ndir; k++) {
             f_dst[field_index(i, Ny - 1, k)] = f_src[field_index(i, Ny - 1, k)] + f_dst[field_index(i, Ny - 2, k)] - f_src[field_index(i, Ny - 2, k)];
             f_dst[field_index(i, 0, k)] = f_src[field_index(i, 0, k)] + f_dst[field_index(i, 1, k)] - f_src[field_index(i, 1, k)];
