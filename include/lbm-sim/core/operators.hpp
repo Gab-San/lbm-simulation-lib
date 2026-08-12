@@ -5,6 +5,8 @@
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 
+#include "lbm-sim/backend/cuda-annotations.hpp"
+
 // C++ STANDARD LIB
 #include <type_traits>
 
@@ -12,37 +14,37 @@ namespace lbm {
 namespace utils {
 
 template <typename T, typename K>
-inline Point<std::common_type_t<T, K>, 2> operator+(const Point<T, 2> &lhs,
-                                                    const Vector<K, 2> &rhs) {
+LBM_HD_FUNC inline Point<std::common_type_t<T, K>, 2>
+operator+(const Point<T, 2> &lhs, const Vector<K, 2> &rhs) {
   using R = std::common_type_t<T, K>;
   return Point<R, 2>(lhs.x + rhs.dx, lhs.y + rhs.dy);
 }
 
 template <typename T, typename K>
-inline Point<std::common_type_t<T, K>, 2> operator+(const Vector<T, 2> &lhs,
-                                                    const Point<K, 2> &rhs) {
+LBM_HD_FUNC inline Point<std::common_type_t<T, K>, 2>
+operator+(const Vector<T, 2> &lhs, const Point<K, 2> &rhs) {
   using R = std::common_type_t<T, K>;
   return Point<R, 2>(lhs.dx + rhs.x, lhs.dy + rhs.y);
 }
 
 template <typename T, typename K>
-inline Point<std::common_type_t<T, K>, 2> operator-(const Point<T, 2> &lhs,
-                                                    const Vector<K, 2> &rhs) {
+LBM_HD_FUNC inline Point<std::common_type_t<T, K>, 2>
+operator-(const Point<T, 2> &lhs, const Vector<K, 2> &rhs) {
   using R = std::common_type_t<T, K>;
   return Point<R, 2>(lhs.x - rhs.dx, lhs.y - rhs.dy);
 }
 
 template <typename T, typename K>
-inline Point<std::common_type_t<T, K>, 2> operator-(const Vector<T, 2> &lhs,
-                                                    const Point<K, 2> &rhs) {
+LBM_HD_FUNC inline Point<std::common_type_t<T, K>, 2>
+operator-(const Vector<T, 2> &lhs, const Point<K, 2> &rhs) {
   using R = std::common_type_t<T, K>;
   return Point<R, 2>(lhs.dx - rhs.x, lhs.dy - rhs.y);
 }
 
 namespace ops {
 template <typename T, typename K, unsigned short int dim>
-inline std::common_type_t<T, K> dot(const Vector<T, dim> &lhs,
-                                    const Vector<K, dim> &rhs) {
+LBM_HD_FUNC inline std::common_type_t<T, K> dot(const Vector<T, dim> &lhs,
+                                                const Vector<K, dim> &rhs) {
   if constexpr (dim == 2) {
     return lhs.dx * rhs.dx + lhs.dy * rhs.dy;
   } else {
@@ -52,8 +54,8 @@ inline std::common_type_t<T, K> dot(const Vector<T, dim> &lhs,
 }
 
 template <typename T, typename K, unsigned short int dim>
-inline std::common_type_t<T, K> cross(const Vector<T, dim> &lhs,
-                                      const Vector<K, dim> &rhs) {
+LBM_HD_FUNC inline std::common_type_t<T, K> cross(const Vector<T, dim> &lhs,
+                                                  const Vector<K, dim> &rhs) {
   if constexpr (dim == 2) {
     return lhs.dx * rhs.dy - lhs.dy * rhs.dx;
   } else {
@@ -63,7 +65,7 @@ inline std::common_type_t<T, K> cross(const Vector<T, dim> &lhs,
 }
 
 template <unsigned short int dim>
-inline std::size_t measure(const types::DimPoint<dim> p) {
+LBM_HD_FUNC inline std::size_t measure(const types::DimPoint<dim> p) {
   if constexpr (dim == 2) {
     return p.x * p.y;
   } else if constexpr (dim == 3) {

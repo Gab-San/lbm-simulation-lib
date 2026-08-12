@@ -5,9 +5,9 @@
 // va incluso da un file .cu o compilato con nvcc NON con g++/clang
 
 // LBM SIM LIB
-#include "lbm-sim/solver/solver-base.hpp"
-
 #include "lbm-sim/lattice.hpp"
+
+#include "lbm-sim/solver/solver-base.hpp"
 
 #include "lbm-sim/collision-operators/collision-strategy-cuda.cuh"
 #include "lbm-sim/collision-operators/metadata.hpp"
@@ -245,7 +245,6 @@ public:
                const ExecutionContext<ExecutionBackend::CUDA> &ctx = {})
       : Base(num_iters_, num_frames_, strt_), norms_writer(out_path),
         ctx_(ctx) {
-    cuda_detail::upload_lattice_constants();
     upload_boundary_nodes();
   }
 
@@ -518,7 +517,6 @@ public:
     __device__ void apply_boundary_conditions(double *fto, double *ffrom, int x,
                                               int y, double localrho,
                                               double init_vel) {
-
       // LEFT BOUNDARY: RESTING WALL
       if (x == 0) {
         fto[field_index(x, y, 1, 9)] = fto[field_index(x, y, 3, 9)];
