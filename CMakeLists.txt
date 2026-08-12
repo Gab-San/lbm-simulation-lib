@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.18)
 
 project(lbm-simulation-lib)
 
@@ -8,6 +8,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(Quill)
+
+option(LBM_ENABLE_CUDA "Enable and build with CUDA Backend" OFF)
+
+if (LBM_ENABLE_CUDA)
+  enable_language(CUDA)
+endif()
+
+find_package(OpenMP REQUIRED)
 
 file(
   GLOB_RECURSE
@@ -49,46 +57,31 @@ lbm_apply_quill_log_level(${LBM_LOGGING_HELPER_LIB})
 
 target_link_libraries(${LBM_SIM_LIB} INTERFACE ${LBM_LOGGING_HELPER_LIB})
 
+if(LBM_ENABLE_CUDA)
+  set(CMAKE_CUDA_STANDARD 17)
+  set(CMAKE_CUDA_STANDARD_REQUIRED True)
+
+  if(NOT CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES 75)   # adjust to your target GPU(s)
+  endif()
+
+  file(GLOB_RECURSE LBM_CUDA_HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm-sim/*.cuh"
+  )
+
+  add_library(lib-lbm-sim-cuda INTERFACE ${LBM_CUDA_HEADERS})
+  target_include_directories(lib-lbm-sim-cuda INTERFACE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+  )
+  target_link_libraries(lib-lbm-sim-cuda INTERFACE lib-lbm-sim)
+  # target_compile_options(lib-lbm-sim-cuda INTERFACE
+  #   $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+  # )
+  # target_compile_definitions(lib-lbm-sim-cuda INTERFACE LBM_ENABLE_CUDA)
+endif()
+
 if (${PROJECT_IS_TOP_LEVEL})
   add_subdirectory(simulations)
 endif()
 
-find_package(Doxygen)
-if(Doxygen_FOUND)
-  set(DOXYGEN_ROOT_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/docs/doxygen")
-  set(DOXYGEN_PROJECT_NAME lbm-sim)
-  set(
-    DOXYGEN_OUTPUT_DIRECTORY
-    ${DOXYGEN_ROOT_OUTPUT_DIRECTORY}/lbm-sim
-  )
-
-  message(STATUS
-    "Doxygen found. Documentation will be outputted to
-    ${DOXYGEN_OUTPUT_DIRECTORY}"
-  )
-
-  doxygen_add_docs(lbm-sim-docs
-    ${LBM_CORE_HEADERS}
-    COMMENT "Generating documentation with Doxygen"
-  )
-
-  set(DOXYGEN_PROJECT_NAME ${PROJECT_NAME})
-  set(DOXYGEN_OUTPUT_DIRECTORY ${DOXYGEN_ROOT_OUTPUT_DIRECTORY})
-  set(
-    DOXYGEN_USE_MDFILE_AS_MAINPAGE
-    ${CMAKE_CURRENT_SOURCE_DIR}/docs/mainpage.md
-  )
-
-  doxygen_add_docs(lbm-docs-full
-    ${CMAKE_CURRENT_SOURCE_DIR}/docs/mainpage.md
-    COMMENT "Generating main documentation portal"
-  )
-
-  # --- THE AUTOMATION MAGIC ---
-  # This makes the main target depend on the two library targets
-  add_dependencies(lbm-docs-full lbm-sim-docs)
-
-  message(STATUS
-    "Doxygen automation configured. Use 'lbm-docs-full' to build all."
-  )
-endif()
+add_subdirectory(docs)
