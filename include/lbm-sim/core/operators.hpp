@@ -22,7 +22,7 @@ template <typename T, typename K>
 inline Point<std::common_type_t<T, K>, 2> operator+(const Vector<T, 2> &lhs,
                                                     const Point<K, 2> &rhs) {
   using R = std::common_type_t<T, K>;
-  return Point<R, 2>(lhs.x + rhs.dx, lhs.y + rhs.dy);
+  return Point<R, 2>(lhs.dx + rhs.x, lhs.dy + rhs.y);
 }
 
 template <typename T, typename K>
@@ -36,7 +36,7 @@ template <typename T, typename K>
 inline Point<std::common_type_t<T, K>, 2> operator-(const Vector<T, 2> &lhs,
                                                     const Point<K, 2> &rhs) {
   using R = std::common_type_t<T, K>;
-  return Point<R, 2>(lhs.x - rhs.dx, lhs.y - rhs.dy);
+  return Point<R, 2>(lhs.dx - rhs.x, lhs.dy - rhs.y);
 }
 
 namespace ops {
