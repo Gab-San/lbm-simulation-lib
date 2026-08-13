@@ -13,6 +13,10 @@
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
 
+#include "lbm/logging.hpp"
+
+#include "quill/LogMacros.h"
+
 // C++ STANDARD LIB
 #include <array>
 #include <cassert>
