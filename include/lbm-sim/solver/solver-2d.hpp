@@ -144,6 +144,7 @@ private:
         cs.apply(p, u, r, fp, lattice.grid);
 
         // COPY LOCAL DENSITY TO GRID
+#pragma omp simd
         for (auto i = 0; i < D2Q9::ndir; i++) {
           fto[lattice.grid.field_index(p, i, D2Q9::ndir)] = fp[i];
         }
