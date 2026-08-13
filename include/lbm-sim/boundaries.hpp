@@ -64,33 +64,39 @@ std::vector<uint8_t> compute_boundary_mask(
   return boundary_mask;
 }
 
-template <typename VelocitySet>
+template <unsigned short int dim, typename VelocitySet>
 inline void apply_bb_rigid_wall(std::array<double, VelocitySet::ndir> &fp,
-                                const unsigned int diridx) {
-  fp[VelocitySet::opp[diridx]] = fp[diridx];
+                                const std::vector<double> &ffrom,
+                                const std::size_t diridx, const Grid<dim> &grid,
+                                const types::Coordinate<dim> p) {
+  const auto oppdir = VelocitySet::opp[diridx];
+  fp[diridx] = ffrom[grid.field_index(p, oppdir, VelocitySet::ndir)];
 }
 
 template <unsigned short int dim, typename VelocitySet>
-inline void apply_bb_moving_wall(const double &localrho,
-                                 const utils::Vector<double, dim> u0,
-                                 std::array<double, VelocitySet::ndir> &fp,
-                                 const unsigned int diridx) {
+inline void
+apply_bb_moving_wall(std::array<double, VelocitySet::ndir> &fp,
+                     const std::vector<double> &ffrom, const std::size_t diridx,
+                     const Grid<dim> &grid, const types::Coordinate<dim> p,
+                     const double localrho,
+                     const utils::Vector<double, dim> u0) {
   // FIXME: c_s = 1/sqrt(3) should be a variable (or even
   // better 1/c_s)
-  fp[VelocitySet::opp[diridx]] =
-      fp[diridx] - 2 * VelocitySet::wi[diridx] * localrho *
-                       utils::ops::dot(VelocitySet::dir[diridx], u0) * 3;
+  const auto oppdir = VelocitySet::opp[diridx];
+  fp[diridx] = ffrom[grid.field_index(p, oppdir, VelocitySet::ndir)] -
+               2 * VelocitySet::wi[oppdir] * localrho *
+                   utils::ops::dot(VelocitySet::dir[oppdir], u0) * 3;
 }
 
 // FIXME: Make dimension independent
 
 // TODO: Check implementation
 template <unsigned short int dim, typename VelocitySet>
-inline void apply_continue(const double &localrho, const Grid<2> &grid,
+inline void apply_continue(std::array<double, VelocitySet::ndir> &fp,
                            const std::vector<double> &ffrom,
-                           types::Coordinate<2> p,
-                           std::array<double, VelocitySet::ndir> &fp,
-                           const unsigned int diridx) {
+                           const std::size_t diridx, const Grid<2> &grid,
+                           const types::Coordinate<2> p,
+                           const double localrho) {
   using Coord = types::Coordinate<2>;
 
   const unsigned int missing = VelocitySet::opp[diridx];

@@ -83,7 +83,7 @@ private:
       const ExecutionContext<OPEN_MP> &context =
           ExecutionContext<OPEN_MP>{}) const {
 
-    // STREAMING
+    // STREAMING + HALFWAY COLLISION
 #pragma omp parallel for shared(ffrom, fto, cs, lattice, save)                 \
     schedule(static) collapse(2)
     for (std::size_t y = 0; y < lattice.grid.size.y; ++y) {
@@ -91,39 +91,35 @@ private:
         std::array<double, D2Q9::ndir> fp;
         const utils::Point<int, 2> p(x, y);
 
+        double r_wall = 0.0;
 #pragma omp unroll full
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
-          const types::Coordinate<2> src = p - D2Q9::dir[i];
-          /// raccolgo i flussi e verifico se siano le direzioni interne al
-          /// dominio
-          // stream only if the source node is internal
+          // calculate local rho on wall before boundary conditions
+          r_wall += ffrom[lattice.grid.field_index(p, i, D2Q9::ndir)];
+        }
+
+#pragma omp unroll full
+        for (unsigned int diridx = 0; diridx < D2Q9::ndir; ++diridx) {
+          const types::Coordinate<2> src = p - D2Q9::dir[diridx];
+
           if (!lattice.grid.contains(src)) {
-            fp[i] = ffrom[lattice.grid.field_index(p, i, D2Q9::ndir)];
+            // if source node is external it is on a boundary node
+            apply_boundary_conditions(lattice.boundary_mask, fp, ffrom, diridx,
+                                      lattice.grid, p, r_wall,
+                                      cs.params.init_vel, context);
           } else {
-            fp[i] = ffrom[lattice.grid.field_index(src, i, D2Q9::ndir)];
+            // if source node is internal stream it.
+            fp[diridx] =
+                ffrom[lattice.grid.field_index(src, diridx, D2Q9::ndir)];
           }
         }
-
-        // FULLWAY-BOUNCE-BACK
-
-        double r = 0.0;
-#pragma omp unroll full
-        // sommo tutti i flussi per fare il rho del punto
-        for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
-          // calculate local rho before collision
-          r += fp[i];
-        }
-
-        apply_boundary_conditions(lattice.boundary_mask, p, r,
-                                  cs.params.init_vel, fp, ffrom, lattice.grid,
-                                  context);
 
         // COMPUTE MACROSCOPIC VARIABLES
 
         // rho = sum_i fi
         // rho*u = sum_i fi * ci
 
-        r = 0.0;
+        double r = 0.0;
         utils::Vector<double, 2> u(0, 0);
 
 #pragma omp unroll full
@@ -156,35 +152,31 @@ private:
   };
 
   void apply_boundary_conditions(const types::boundary_mask_t &boundary_mask,
+                                 std::array<double, D2Q9::ndir> &fp,
+                                 const std::vector<double> &ffrom,
+                                 const std::size_t diridx, const Grid<2> &grid,
                                  const types::Coordinate<2> p,
                                  const double &localrho,
                                  const utils::Vector<double, 2> u0,
-                                 std::array<double, D2Q9::ndir> &fp,
-                                 const std::vector<double> &ffrom,
-                                 const Grid<2> &grid,
                                  const ExecutionContext<OPEN_MP> &context =
                                      ExecutionContext<OPEN_MP>{}) const {
     (void)context;
 
     types::boundary_t b = boundary_mask[grid.scalar_index(p)];
 
-#pragma omp unroll full
-    for (std::size_t diridx = 0; diridx < D2Q9::ndir; diridx++) {
-      if (!grid.contains(p + D2Q9::dir[diridx])) {
-        switch (b) {
-        case Solid::BB_RIGID_WALL:
-          Solid::apply_bb_rigid_wall<D2Q9>(fp, diridx);
-          break;
-        case Solid::BB_MOVING_WALL:
-          Solid::apply_bb_moving_wall<2, D2Q9>(localrho, u0, fp, diridx);
-          break;
-        case Solid::PERIODIC:
-          Solid::apply_continue<2, D2Q9>(localrho, grid, ffrom, p, fp, diridx);
-          break;
-        default:
-          break;
-        }
-      }
+    switch (b) {
+    case Solid::BB_RIGID_WALL:
+      Solid::apply_bb_rigid_wall<2, D2Q9>(fp, ffrom, diridx, grid, p);
+      break;
+    case Solid::BB_MOVING_WALL:
+      Solid::apply_bb_moving_wall<2, D2Q9>(fp, ffrom, diridx, grid, p, localrho,
+                                           u0);
+      break;
+    case Solid::PERIODIC:
+      Solid::apply_continue<2, D2Q9>(fp, ffrom, diridx, grid, p, localrho);
+      break;
+    default:
+      break;
     }
   }
 
