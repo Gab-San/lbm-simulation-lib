@@ -41,6 +41,7 @@ private:
     using utils::ops::dot;
 
     const double omusq = -1.5 * dot(u, u);
+    // FIXME: Is this needed?
     const double force_prefactor = 1.0 - 0.5 * params.tauinv;
     // Collisione con SIMD
 #pragma omp simd
@@ -53,6 +54,7 @@ private:
       const double feq = VelocitySet::wi[i] * localrho *
                          (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu + omusq);
       // relax to equilibrium
+      // FIXME: Questo non va mai in poiseuille, lo leviamo?
       int pois = 0;
       if (pois == 1) {
         const double cidotF = dot(VelocitySet::dir[i], params.F);
