@@ -16,9 +16,6 @@
 
 #include "lbm/logging.hpp"
 
-// OMP LIB
-#include <omp.h>
-
 // QUILL LIB
 #include "quill/LogMacros.h"
 

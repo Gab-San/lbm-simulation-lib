@@ -14,13 +14,15 @@ file(
   "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm-sim/*.hpp"
 )
 
-add_library(lib-lbm-sim INTERFACE ${LBM_CORE_HEADERS})
+set(LBM_SIM_LIB lbm-sim)
+
+add_library(${LBM_SIM_LIB} INTERFACE ${LBM_CORE_HEADERS})
 target_include_directories(
-  lib-lbm-sim
+  ${LBM_SIM_LIB}
   INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
-target_link_libraries(lib-lbm-sim INTERFACE OpenMP::OpenMP_CXX)
+target_link_libraries(${LBM_SIM_LIB} INTERFACE OpenMP::OpenMP_CXX)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -47,7 +49,7 @@ target_include_directories(
 )
 target_link_libraries(${LBM_LOGGING_HELPER_LIB} PUBLIC quill::quill)
 
-target_link_libraries(lib-lbm-sim INTERFACE ${LBM_LOGGING_HELPER_LIB})
+target_link_libraries(${LBM_SIM_LIB} INTERFACE ${LBM_LOGGING_HELPER_LIB})
 
 if (${PROJECT_IS_TOP_LEVEL})
   add_subdirectory(simulations)
