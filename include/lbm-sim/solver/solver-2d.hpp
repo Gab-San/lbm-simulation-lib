@@ -70,6 +70,12 @@ public:
   void solve(Lattice<2> &lattice, const Params<2, cm_t> &params_,
              std::vector<double> &ffrom,
              std::vector<double> &fto) const override {
+
+    quill::Logger *solver_logger = logging::create_or_get_logger("solver");
+    LOG_INFO(solver_logger, "System has {} logical processors.",
+             omp_get_num_procs());
+    LOG_INFO(solver_logger, "System can work with up to {} threads.",
+             omp_get_max_threads());
     const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> cs(params_);
     // partono iterazioni
     for (unsigned int iter = 0; iter < this->niters; iter++) {
