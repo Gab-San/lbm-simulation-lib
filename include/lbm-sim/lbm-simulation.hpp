@@ -87,6 +87,11 @@ public:
 
     std::cout << "Writing..." << std::endl;
 
+    std::string header = "%%profile " + collision_model_to_string(cm_t) + " " +
+                         std::to_string(lattice.grid.size.y) + "\n";
+
+    fout.write(header.data(), header.size());
+
     std::vector<double> v_center(lattice.grid.size.x);
     int j_center = lattice.grid.size.y / 2;
     for (int i = 0; i < lattice.grid.size.x; ++i) {
