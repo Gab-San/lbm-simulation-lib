@@ -3,6 +3,7 @@
 
 // LBM SIM LIB
 #include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/core/velocity-sets.hpp"
 
 // CUDA
 #include <cuda_runtime.h>
@@ -12,6 +13,69 @@
 
 namespace lbm {
 namespace cuda_detail {
+
+//Dichiarazione di direzioni/pesi/opposti della griglia (visibile a tutti i thread device, 
+//con cache dedicata). Popolati una sola volta, lato host, da
+//upload_lattice_constants() (chiamata da costruttore da CUDASolver2D).
+__constant__ int c_dirx[9];
+__constant__ int c_diry[9];
+__constant__ double c_wi[9];
+__constant__ int c_opp[9]; // indice della direzione opposta (per il bounce-back)
+
+//carica le costanti della griglia in __constant__ memory a partire dai valori host di 
+//D2Q9::dir/wi. l'opposto di ogni direzione è calcolato per confronto diretto sui vettori 
+//-> non serve conoscere/duplicare la convenzione di ordinamento usata da D2Q9. 
+inline void upload_lattice_constants() {
+  static bool uploaded = false;
+  if (uploaded) {
+    return;
+  }
+
+  int h_dirx[D2Q9::ndir];
+  int h_diry[D2Q9::ndir];
+  double h_wi[D2Q9::ndir];
+  int h_opp[D2Q9::ndir];
+
+  for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
+    h_dirx[i] = static_cast<int>(D2Q9::dir[i].dx);
+    h_diry[i] = static_cast<int>(D2Q9::dir[i].dy);
+    h_wi[i] = D2Q9::wi[i];
+  }
+
+  for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
+    int opp = 0;
+    for (unsigned int j = 0; j < D2Q9::ndir; ++j) {
+      if (h_dirx[j] == -h_dirx[i] && h_diry[j] == -h_diry[i]) {
+        opp = static_cast<int>(j);
+        break;
+      }
+    }
+    h_opp[i] = opp;
+  }
+
+  cudaMemcpyToSymbol(c_dirx, h_dirx, sizeof(h_dirx));
+  cudaMemcpyToSymbol(c_diry, h_diry, sizeof(h_diry));
+  cudaMemcpyToSymbol(c_wi, h_wi, sizeof(h_wi));
+  cudaMemcpyToSymbol(c_opp, h_opp, sizeof(h_opp));
+
+  uploaded = true;
+}
+
+//CudacollisionParam per bgk e trt (livello device)
+template <lbm::CollisionModel cm_t>
+struct CudaCollisionParams;
+
+template <>
+struct CudaCollisionParams<lbm::CollisionModel::BGK> {
+  double tauinv;
+  double omtauinv;
+};
+
+template <>
+struct CudaCollisionParams<lbm::CollisionModel::TRT> {
+  double s_plus;
+  double s_minus;
+};
 
 // Costruisce i parametri device-side a partire dai Params host (una reference a
 // Params<dim, cm_t>).

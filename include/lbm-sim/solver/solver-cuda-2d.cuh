@@ -5,6 +5,7 @@
 // va incluso da un file .cu o compilato con nvcc NON con g++/clang
 
 #include "lbm-sim/lattice.hpp"
+#include "lbm-sim/boundaries.hpp"
 
 #include "lbm-sim/solver/solver-base.hpp"
 
@@ -28,6 +29,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <utility>
 
 #include <assert.h>
 
@@ -38,6 +40,7 @@ namespace lbm {
   do {
     const cudaError_t _lbm_err = (expr);
     if (_lbm_err != cudaSuccess) {
+      std::ostringstream _lbm_oss; 
       _lbm_oss << "CUDA ERROR " <<  cudaGetErrorString(err) << " at " 
       << __FILE__ << " : " << __LINE__;
       throw std::runtime_error(_lbm_oss.str());
@@ -72,7 +75,8 @@ namespace cuda_detail{
 // dal dominio sia registrato come nodo di bordo/ostacolo + corretto dal kernel boundary condition
 
 static __global__ void kernel_stream_density(const double *__restrict__ ffrom,
-                                        double *__restrict__ fto, int nx, int ny) {
+                                        double *__restrict__ fto, double *__restrict__ rho_tmp,
+                                         int nx, int ny) {
   const int x = blockIdx.x * blockDim.x + threadIdx.x; //offset cuda
   const int y = blockIdx.y * blockDim.y + threadIdx.y;
   if (x >= nx || y >= ny){
@@ -265,35 +269,37 @@ class CUDASolver2D : public SolverBase2D<cm_t, ExecutionBackend::CUDA> {
 
 public:
   CUDASolver2D(const unsigned int num_iters_, const unsigned int num_frames_,
-              const Structure<2> &strt_, const std::string &out_path,
               const ExecutionContext<ExecutionBackend::CUDA> &ctx = {})
       : Base(num_iters_, num_frames_, strt_), norms_writer(out_path),
         ctx_(ctx) {
-    upload_boundary_nodes();
+    cuda_detail::upload_lattice_constants(); //lattice
   }
+
+  //tolto strt e out_path, non ci sono più gli obstacles
 
   ~CUDASolver2D() override {
     free_field_buffers();
     if (d_boundary_ != nullptr) {
       cudaFree(d_boundary_);
+      d_boundary_ = nullptr;
     }
   }
 
   CUDASolver2D(const CUDASolver2D &) = delete;
   CUDASolver2D &operator=(const CUDASolver2D &) = delete;
 
-  void init_equilibrium(Grid<2> &grid,
+  void init_equilibrium(const Lattice<2> &lattice,
                         std::vector<double> &part_stream) const override {
-    ensure_device_buffers(grid);
+    ensure_device_buffers(lattice);
     const cudaStream_t stream = current_stream();
 
-    LBM_CUDA_CHECK(cudaMemcpyAsync(d_rho_, grid.rho.data(),
+    LBM_CUDA_CHECK(cudaMemcpyAsync(d_rho_, lattice.rho.data(),
                                    area_ * sizeof(double),
                                    cudaMemcpyHostToDevice, stream));
 
     std::vector<double2> h_u(area_);
     for (std::size_t k = 0; k < area_; ++k) {
-      h_u[k] = make_double2(grid.u[k].dx, grid.u[k].dy);
+      h_u[k] = make_double2(lattice.u[k].dx, lattice.u[k].dy);
     }
     LBM_CUDA_CHECK(cudaMemcpyAsync(d_u_, h_u.data(), area_ * sizeof(double2),
                                    cudaMemcpyHostToDevice, stream));
@@ -315,10 +321,10 @@ public:
     LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
-   void solve(Lattice<2> &grid, const Params<2, cm_t> &params_,
+   void solve(Lattice<2> &lattice, const Params<2, cm_t> &params_,
              std::vector<double> &ffrom,
              std::vector<double> &fto) const override {
-    ensure_device_buffers(grid);
+    ensure_device_buffers(lattice);
     const cudaStream_t stream = current_stream();
     const std::size_t fsize = area_ * D2Q9::ndir;
 
@@ -332,8 +338,6 @@ public:
         cuda_detail::make_cuda_params(params_);
     const double ux0 = params_.init_vel.dx;
     const double uy0 = params_.init_vel.dy;
-
-    write_header(grid);
 
     double *d_from = d_f_a_;
     double *d_to = d_f_b_;
@@ -381,6 +385,7 @@ public:
     LBM_CUDA_CHECK(cudaMemcpyAsync(fto.data(), d_to, fsize * sizeof(double),
                                    cudaMemcpyDeviceToHost, stream));
     LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
+  }
 
 private:
     mutable AsyncBinaryWriter norms_writer;
@@ -407,9 +412,9 @@ private:
     return reinterpret_cast<cudaStream_t>(ctx_.stream);
   }
 
-  void ensure_device_buffers(const Grid<2> &grid) const {
-    const int nx = static_cast<int>(grid.size.x);
-    const int ny = static_cast<int>(grid.size.y);
+  void ensure_device_buffers(const Lattice<2> &lattice) const {
+    const int nx = static_cast<int>(lattice.grid.size.x);
+    const int ny = static_cast<int>(lattice.grid.size.y);
 
     if (d_f_a_ != nullptr && nx == nx_ && ny == ny_) {
       return; // buffer già allocati con la dim corretta
@@ -428,6 +433,8 @@ private:
     LBM_CUDA_CHECK(cudaMalloc(&d_rho_, area_ * sizeof(double)));
     LBM_CUDA_CHECK(cudaMalloc(&d_u_, area_ * sizeof(double2)));
     LBM_CUDA_CHECK(cudaMalloc(&d_norm_, area_ * sizeof(float)));
+
+    build_boundary_nodes(lattice);
   }
 
   void free_field_buffers() const {
@@ -442,11 +449,16 @@ private:
     d_norm_ = nullptr;
   }
 
-  //array di boundary node che carica sul device. eseguito una volta nel costruttore
-  //ricalcola stessa geom a ogni iter (geom deve rimanere la stessa durante simulazione)
-  void upload_boundary_nodes() {
-    std::vector<cuda_detail::BoundaryNode> host_boundary;
+  //array di boundary node che carica sul device, ricostruito da
+  //lattice.boundary_mask ogni volta che cambia la dimensione della griglia
+  //(la geometria di ostacoli/pareti dipende dal dominio, non dall'iter)
+  void build_boundary_nodes(const Lattice<2> &lattice) const {
+    if (d_boundary_ != nullptr) {
+      cudaFree(d_boundary_);
+      d_boundary_ = nullptr;
+    }
 
+    //TODO DA FIXARE
     const auto &obstacles = this->strt.obstacles;
     const auto moving_id = this->strt.moving_boundary;
 
@@ -474,8 +486,8 @@ private:
 
   //scarica rho/u da device a grid, solo nei "save" iter
   //no assunzioni su layout di CollisionDetection::utils::vector
-  void download_macroscopic(Grid<2> &grid, cudaStream_t stream) const {
-    LBM_CUDA_CHECK(cudaMemcpyAsync(grid.rho.data(), d_rho_,
+  void download_macroscopic(Lattice<2> &lattice, cudaStream_t stream) const {
+    LBM_CUDA_CHECK(cudaMemcpyAsync(lattice.rho.data(), d_rho_,
                                    area_ * sizeof(double),
                                    cudaMemcpyDeviceToHost, stream));
 
@@ -485,15 +497,14 @@ private:
     LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
 
     for (std::size_t k = 0; k < area_; ++k) {
-      grid.u[k].dx = h_u[k].x;
-      grid.u[k].dy = h_u[k].y;
+      lattice.u[k].dx = h_u[k].x;
+      lattice.u[k].dy = h_u[k].y;
     }
   }
 
-  void update_stream_collide() {
-  }
-
-  void write_norms(cudaStream_t stream) const {
+  // Scarica la norma della velocità (già calcolata su device dal kernel di
+  // collisione) e la inoltra agli observer registrati.
+  void write_norms_from_device(cudaStream_t stream) const {
     std::vector<float> host_norms(area_);
     LBM_CUDA_CHECK(cudaMemcpyAsync(host_norms.data(), d_norm_,
                                    area_ * sizeof(float),
@@ -503,6 +514,15 @@ private:
     std::vector<char> buf(host_norms.size() * sizeof(float));
     std::memcpy(buf.data(), host_norms.data(), buf.size());
     this->notifyListeners(std::move(buf));
+  }
+
+  // Override richiesto da SolverBase2D (senza CUDASolver2D resta
+  // astratta e non è istanziabile): i dati sono già sul device, la firma
+  // con "lattice" serve solo a rispettare la virtuale della base, come fa
+  // MPISolver2D::write_norms lato host tramite DataObservable.
+  void write_norms(const Lattice<2> &lattice) const override {
+    (void)lattice;
+    write_norms_from_device(current_stream());
   }
 };
 
