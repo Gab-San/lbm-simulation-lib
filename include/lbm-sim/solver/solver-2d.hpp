@@ -210,15 +210,11 @@ private:
     }
   }
 
-  // Il calcolo delle norme resta interno al solver (come da checklist);
-  // cambia solo la destinazione dei dati calcolati: invece di scrivere
-  // direttamente su un AsyncBinaryWriter posseduto dal solver, notifica
-  // i listener registrati tramite DataObservable (pattern Observer/Listener).
   void write_norms(const Lattice<2> &lattice) const override {
     using utils::ops::dot;
     std::vector<float> vsq(lattice.grid.getArea());
 
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for shared(lattice, vsq) collapse(2)
     for (unsigned int y = 0; y < lattice.grid.size.y; ++y) {
       for (unsigned int x = 0; x < lattice.grid.size.x; ++x) {
         const types::Coordinate<2> p(x, y);
