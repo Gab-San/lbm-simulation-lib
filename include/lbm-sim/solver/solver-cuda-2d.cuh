@@ -62,81 +62,14 @@ do {
   sola volta su device, in costruzione del solver, la geom di ostacoli e pareti
   non cambia tra iter e l'altra, cambia solo la velox della parete mobile */
 
-  // KERNEL 1: streaming + calc densità temporanea
-  // uso un thread per nodo, lavora su dati dello stesso "worker" (ha appena
-  // scritto le 9 direz del proprio nodo) NO DIPENDENZA CROSS-THREAD tra kernel
-  // stream e kernel density lancio un kernel in meno.
-
-  // caso sorgente fuori dal dominio -> se p - dir[i] cade fuori da griglia, lo
-  // slot fto NON viene scritto (si legge il val già presente, in openMp era
-  // continue). ogni nodo il cui vicino esce dal dominio sia registrato come
-  // nodo di bordo/ostacolo + corretto dal kernel boundary condition
-
-  static __global__ void kernel_stream_density(const double *__restrict__ ffrom,
-                                               double *__restrict__ fto, int nx,
-                                               int ny) {
-    const int x = blockIdx.x * blockDim.x + threadIdx.x; // offset cuda
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (x >= nx || y >= ny) {
-      // Magari qui si potrebbe lanciare un errore.
-      // Sarebbe da vedere, perchè non so se si possa limitare la grandezza
-      // del kernel in base alla griglia (non ricordo se sia dinamico o
-      // statico).
-      return;
-    }
-
-    // Qui si potrebbe usare il metodo getArea() di grid (forse non è il massimo
-    // passare l'intera grid ci dovrei pensare)
-    // Oppure possiamo definire un metodo per poter calcolare il prodotto tra
-    // componenti di un vettore e calcolare così la grandezza di tutto.
-    const std::size_t plane =
-        static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
-    const std::size_t base = static_cast<std::size_t>(nx) * y + x;
-
-    double r = 0.0;
-
-    // fto e fdst qui dovrebbero essere o grandi
-    // quanto l'intera porzione di griglia di cui il blocco CUDA
-    // si occupa oppure si potrebbero usare dei semplici array grossi
-    // ndir
-    for (int i = 0; i < 9; ++i) {
-      const int sx = x - c_dirx[i];
-      const int sy = y - c_diry[i];
-      // Sarebbe meglio usare il calcolo vettoriale.
-      const std::size_t dst = plane * i + base;
-      if (sx >= 0 && sx < nx && sy >= 0 && sy < ny) {
-        const double fi =
-            ffrom[plane * i + static_cast<std::size_t>(nx) * sy + sx];
-        fto[dst] = fi;
-        r += fi;
-      } else {
-        // continue, se serve fa update in boundary conditions
-        r += fto[dst];
-      }
-    }
-
-    // Dipende in questo caso rho_tmp a cosa ti serve/
-    // Nel codice nuovo rho_tmp serve solamente per applicare le condizioni al
-    // contorno. L'applicazione di queste verrà probabilmente spostata durante
-    // lo streaming. Questo rende meno problematico il caso delle condizioni al
-    // contorno.
-
-    rho_tmp[base] = r;
-  }
-
-  // PER I VARI AGGIORNAMENTI AL CODICE (che ne semplificano la scrittura)
-  // guardare
-  // il branch optimizations/...
-
   // KERNEL 2: Boundary conditions (bounce back semplice / con correzione per
   // parete mobile) Un thread per nodo di bordo, non per nodo di griglia: la
   // lista è più corta del dominio completo. usa grid 1D dedicato senza scartare
   // al kernel domain wide il lavoro sui nodi che non sono di bordo
 
-  static __global__ void boundary_kernel(
-      double *__restrict__ f, const double *__restrict__ rho_tmp,
-      const BoundaryNode *__restrict__ boundary, int n_boundary, int nx, int ny,
-      double ux0, double uy0) {
+  static __global__ void kernel_boundary_conditions(
+      double *__restrict__ f, const double *__restrict__ rho_tmp, int nx,
+      int ny, double ux0, double uy0) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= n_boundary) {
       return;
@@ -290,6 +223,22 @@ template <enum CollisionModel cm_t>
 class CUDASolver2D : public SolverBase2D<cm_t, ExecutionBackend::CUDA> {
   using Base = SolverBase2D<cm_t, ExecutionBackend::CUDA>;
 
+  mutable AsyncBinaryWriter norms_writer;
+  ExecutionContext<ExecutionBackend::CUDA> ctx_;
+
+  // buffer dimensione della griglia, allocati la prima volta che si conosce
+  // grid.size
+  mutable int nx_ = 0;
+  mutable int ny_ = 0;
+  mutable std::size_t area_ = 0;
+
+  mutable double *d_f_a_ = nullptr;     // buffer popolazioni A
+  mutable double *d_f_b_ = nullptr;     // buffer popolazioni B
+  mutable double *d_rho_tmp_ = nullptr; // densità pre-BC
+  mutable double *d_rho_ = nullptr;     // mirror di grid.rho
+  mutable double2 *d_u_ = nullptr;      // mirror di grid.u
+  mutable float *d_norm_ = nullptr;     // norma della velox
+
 public:
   CUDASolver2D(const unsigned int num_iters_, const unsigned int num_frames_,
                const Structure<2> &strt_, const std::string &out_path,
@@ -378,13 +327,8 @@ public:
     for (unsigned int iter = 0; iter < this->niters; ++iter) {
       const bool save = (this->nskips > 0) && (iter % this->nskips == 0);
 
-      cuda_detail::kernel_stream_and_density<<<gridDim, block, 0, stream>>>(
+      kernel_stream_density<<<gridDim, block, 0, stream>>>(
           d_from, d_to, d_rho_tmp_, nx_, ny_);
-
-      if (n_boundary_ > 0) {
-        cuda_detail::kernel_boundary_conditions<<<gridB, blockB, 0, stream>>>(
-            d_to, d_rho_tmp_, d_boundary_, n_boundary_, nx_, ny_, ux0, uy0);
-      }
 
       cuda_detail::kernel_macroscopic_and_collide<cm_t>
           <<<gridDim, block, 0, stream>>>(
@@ -408,26 +352,6 @@ public:
     LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
 
   private:
-    mutable AsyncBinaryWriter norms_writer;
-    ExecutionContext<ExecutionBackend::CUDA> ctx_;
-
-    // buffer dimensione della griglia, allocati la prima volta che si conosce
-    // grid.size
-    mutable int nx_ = 0;
-    mutable int ny_ = 0;
-    mutable std::size_t area_ = 0;
-
-    mutable double *d_f_a_ = nullptr;     // buffer popolazioni A
-    mutable double *d_f_b_ = nullptr;     // buffer popolazioni B
-    mutable double *d_rho_tmp_ = nullptr; // densità pre-BC
-    mutable double *d_rho_ = nullptr;     // mirror di grid.rho
-    mutable double2 *d_u_ = nullptr;      // mirror di grid.u
-    mutable float *d_norm_ = nullptr;     // norma della velox
-
-    // nodi di bordo (non dip da dim della griglia, solo da ostacoli)
-    cuda_detail::BoundaryNode *d_boundary_ = nullptr;
-    int n_boundary_ = 0;
-
     // current stream
     cudaStream_t current_stream() const {
       return reinterpret_cast<cudaStream_t>(ctx_.stream);
@@ -520,6 +444,114 @@ public:
       for (std::size_t k = 0; k < area_; ++k) {
         lattice.u[k].dx = h_u[k].x;
         lattice.u[k].dy = h_u[k].y;
+      }
+    }
+
+    // KERNEL 1: streaming + calc densità temporanea
+    // uso un thread per nodo, lavora su dati dello stesso "worker" (ha appena
+    // scritto le 9 direz del proprio nodo) NO DIPENDENZA CROSS-THREAD tra
+    // kernel stream e kernel density lancio un kernel in meno.
+
+    // caso sorgente fuori dal dominio -> se p - dir[i] cade fuori da griglia,
+    // lo slot fto NON viene scritto (si legge il val già presente, in openMp
+    // era continue). ogni nodo il cui vicino esce dal dominio sia registrato
+    // come nodo di bordo/ostacolo + corretto dal kernel boundary condition
+
+    static __global__ void kernel_stream_density(
+        const double *__restrict__ ffrom, double *__restrict__ fto, int nx,
+        int ny, double init_vel) {
+      const int x = blockIdx.x * blockDim.x + threadIdx.x; // offset cuda
+      const int y = blockIdx.y * blockDim.y + threadIdx.y;
+      if (x > nx || y > ny) {
+        // Magari qui si potrebbe lanciare un errore.
+        // Sarebbe da vedere, perchè non so se si possa limitare la grandezza
+        // del kernel in base alla griglia (non ricordo se sia dinamico o
+        // statico).
+        return;
+      }
+
+      const std::size_t plane =
+          static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
+      const std::size_t base = static_cast<std::size_t>(nx) * y + x;
+
+      double r = 0.0;
+
+      // fto e fdst qui dovrebbero essere o grandi
+      // quanto l'intera porzione di griglia di cui il blocco CUDA
+      // si occupa oppure si potrebbero usare dei semplici array grossi
+      // ndir
+      for (int i = 0; i < 9; ++i) {
+        const int sx = x - c_dirx[i];
+        const int sy = y - c_diry[i];
+        // Sarebbe meglio usare il calcolo vettoriale.
+        const std::size_t dst = plane * i + base;
+        if (sx >= 0 && sx < nx && sy >= 0 && sy < ny) {
+          const double fi =
+              ffrom[plane * i + static_cast<std::size_t>(nx) * sy + sx];
+          fto[dst] = fi;
+          r += fi;
+        } else {
+          // continue, se serve fa update in boundary conditions
+          r += fto[dst];
+        }
+      }
+
+      // Dipende in questo caso rho_tmp a cosa ti serve/
+      // Nel codice nuovo rho_tmp serve solamente per applicare le condizioni al
+      // contorno. L'applicazione di queste verrà probabilmente spostata durante
+      // lo streaming. Questo rende meno problematico il caso delle condizioni
+      // al contorno.
+
+      // rho_tmp[base] = r;
+
+      // WARN: After unifying data structure Velocity Sets
+      // should be used here.
+      apply_boundary_conditions(fto, ffrom, x, y, r, init_vel);
+    }
+
+    __device__ void field_index(int x, int y, std::size_t nx,
+                                std::size_t ndir) {
+      // NOTE: More efficient memory access
+      return ndir * (nx * y + x) + i;
+    }
+
+    __device__ void apply_boundary_conditions(double *fto, double *ffrom, int x,
+                                              int y, double localrho,
+                                              double init_vel) {
+
+      // LEFT BOUNDARY: RESTING WALL
+      if (x == 0) {
+        fto[field_index(x, y, 1, 9)] = fto[field_index(x, y, 3, 9)];
+        fto[field_index(x, y, 5, 9)] = fto[field_index(x, y, 7, 9)];
+        fto[field_index(x, y, 8, 9)] = fto[field_index(x, y, 6, 9)];
+      }
+
+      // RIGHT BOUNDARY: RESTING WALL
+      if (x == nx_ - 1) {
+        fto[field_index(x, y, 3, 9)] = fto[field_index(x, y, 1, 9)];
+        fto[field_index(x, y, 7, 9)] = fto[field_index(x, y, 5, 9)];
+        fto[field_index(x, y, 6, 9)] = fto[field_index(x, y, 8, 9)];
+      }
+
+      // BOTTOM BOUNDARY: RESTING WALL
+      if (y == 0) {
+        fto[field_index(x, y, 4, 9)] = fto[field_index(x, y, 2, 9)];
+        fto[field_index(x, y, 7, 9)] = fto[field_index(x, y, 5, 9)];
+        fto[field_index(x, y, 8, 9)] = fto[field_index(x, y, 6, 9)];
+      }
+
+      // TOP BOUNDARY: MOVING WALL
+      if (y == ny_ - 1) {
+        // FIXME: Can't live with local encoding X*(((((
+        fto[field_index(x, y, 2, 9)] =
+            fto[field_index(x, y, 4, 9)] -
+            2 * wi * localrho * (subx * ux + suby * uy) * 3;
+        fto[field_index(x, y, 5, 9)] =
+            fto[field_index(x, y, 7, 9)] -
+            2 * wi * localrho * (subx * ux + suby * uy) * 3;
+        fto[field_index(x, y, 6, 9)] =
+            fto[field_index(x, y, 8, 9)] -
+            2 * wi * localrho * (subx * ux + suby * uy) * 3;
       }
     }
 
