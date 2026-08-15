@@ -5,6 +5,7 @@
 // va incluso da un file .cu o compilato con nvcc NON con g++/clang
 
 // LBM SIM LIB
+#include "lbm-sim/boundaries.hpp"
 #include "lbm-sim/lattice.hpp"
 
 #include "lbm-sim/solver/solver-base.hpp"
@@ -28,6 +29,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <assert.h>
@@ -39,13 +41,16 @@ namespace lbm {
 do {
   const cudaError_t _lbm_err = (expr);
   if (_lbm_err != cudaSuccess) {
+    std::ostringstream _lbm_oss;
     _lbm_oss << "CUDA ERROR " << cudaGetErrorString(err) << " at " << __FILE__
              << " : " << __LINE__;
     throw std::runtime_error(_lbm_oss.str());
   }
-} while (0)
+}
+} // namespace lbm
+while (0)
 
-    namespace cuda_detail {
+  namespace cuda_detail {
 
   inline unsigned int ceil_div(unsigned int a, unsigned int b) {
     return (a + b - 1) / b;
@@ -67,9 +72,10 @@ do {
   // lista è più corta del dominio completo. usa grid 1D dedicato senza scartare
   // al kernel domain wide il lavoro sui nodi che non sono di bordo
 
-  static __global__ void kernel_boundary_conditions(
-      double *__restrict__ f, const double *__restrict__ rho_tmp, int nx,
-      int ny, double ux0, double uy0) {
+  static __global__ void
+  kernel_boundary_conditions(double *__restrict__ f,
+                             const double *__restrict__ rho_tmp, int nx, int ny,
+                             double ux0, double uy0) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= n_boundary) {
       return;
@@ -160,9 +166,10 @@ do {
 
   // KERNEL 0: inizializzazione all'equilibrio
 
-  static __global__ void kernel_init_equilibrium(
-      double *__restrict__ f, const double *__restrict__ rho,
-      const double2 *__restrict__ u, int nx, int ny) {
+  static __global__ void kernel_init_equilibrium(double *__restrict__ f,
+                                                 const double *__restrict__ rho,
+                                                 const double2 *__restrict__ u,
+                                                 int nx, int ny) {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x >= nx || y >= ny) {
@@ -208,7 +215,7 @@ do {
     LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_opp, h_opp, sizeof(h_opp)));
   }
 
-} // namespace cuda_detail
+  } // namespace cuda_detail
 
 // CUDASolver2D:
 // parallelizzazione: un thread cuda per nodo di griglia (x,y), mappato su
@@ -241,29 +248,28 @@ class CUDASolver2D : public SolverBase2D<cm_t, ExecutionBackend::CUDA> {
 
 public:
   CUDASolver2D(const unsigned int num_iters_, const unsigned int num_frames_,
-               const Structure<2> &strt_, const std::string &out_path,
                const ExecutionContext<ExecutionBackend::CUDA> &ctx = {})
-      : Base(num_iters_, num_frames_, strt_), norms_writer(out_path),
-        ctx_(ctx) {
-    upload_boundary_nodes();
+      : Base(num_iters_, num_frames_), ctx_(ctx) {
+    cuda_detail::upload_lattice_constants(); // lattice
   }
 
   ~CUDASolver2D() override {
     free_field_buffers();
     if (d_boundary_ != nullptr) {
       cudaFree(d_boundary_);
+      d_boundary_ = nullptr;
     }
   }
 
   CUDASolver2D(const CUDASolver2D &) = delete;
   CUDASolver2D &operator=(const CUDASolver2D &) = delete;
 
-  void init_equilibrium(Lattice<2> &lattice,
+  void init_equilibrium(const Lattice<2> &lattice,
                         std::vector<double> &part_stream) const override {
     ensure_device_buffers(lattice);
     const cudaStream_t stream = current_stream();
 
-    LBM_CUDA_CHECK(cudaMemcpyAsync(d_rho_, grid.rho.data(),
+    LBM_CUDA_CHECK(cudaMemcpyAsync(d_rho_, lattice.rho.data(),
                                    area_ * sizeof(double),
                                    cudaMemcpyHostToDevice, stream));
 
@@ -308,8 +314,6 @@ public:
     const double ux0 = params_.init_vel.dx;
     const double uy0 = params_.init_vel.dy;
 
-    write_header(lattice.grid);
-
     double *d_from = d_f_a_;
     double *d_to = d_f_b_;
 
@@ -349,223 +353,230 @@ public:
     LBM_CUDA_CHECK(cudaMemcpyAsync(fto.data(), d_to, fsize * sizeof(double),
                                    cudaMemcpyDeviceToHost, stream));
     LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
+  }
 
-  private:
-    // current stream
-    cudaStream_t current_stream() const {
-      return reinterpret_cast<cudaStream_t>(ctx_.stream);
+private:
+  // current stream
+  cudaStream_t current_stream() const {
+    return reinterpret_cast<cudaStream_t>(ctx_.stream);
+  }
+
+  void ensure_device_buffers(const Lattice<2> &lattice) const {
+    const int nx = static_cast<int>(lattice.grid.size.x);
+    const int ny = static_cast<int>(lattice.grid.size.y);
+
+    if (d_f_a_ != nullptr && nx == nx_ && ny == y_) {
+      return; // buffer già allocati con la dim corretta
     }
 
-    void ensure_device_buffers(const Lattice<2> &lattice) const {
-      const int nx = static_cast<int>(lattice.grid.size.x);
-      const int ny = static_cast<int>(lattice.grid.size.y);
+    free_field_buffers();
+    LBM_CUDA_CHECK(cudaMalloc(&d_f_a_, fsize * sizeof(double)));
+    LBM_CUDA_CHECK(cudaMalloc(&d_f_b_, fsize * sizeof(double)));
+    LBM_CUDA_CHECK(cudaMalloc(&d_rho_tmp_, area_ * sizeof(double)));
+    LBM_CUDA_CHECK(cudaMalloc(&d_rho_, area_ * sizeof(double)));
+    LBM_CUDA_CHECK(cudaMalloc(&d_u_, area_ * sizeof(double2)));
+    LBM_CUDA_CHECK(cudaMalloc(&d_norm_, area_ * sizeof(float)));
 
-      if (d_f_a_ != nullptr && nx == nx_ && ny == y_) {
-        return; // buffer già allocati con la dim corretta
-      }
+    build_boundary_nodes(lattice);
+  }
 
-      free_field_buffers();
+  void free_field_buffers() const {
+    if (d_f_a_ != nullptr)
+      cudaFree(d_f_a_);
+    if (d_f_b_ != nullptr)
+      cudaFree(d_f_b_);
+    if (d_rho_tmp_ != nullptr)
+      cudaFree(d_rho_tmp_);
+    if (d_rho_ != nullptr)
+      cudaFree(d_rho_);
+    if (d_u_ != nullptr)
+      cudaFree(d_u_);
+    if (d_norm_ != nullptr)
+      cudaFree(d_norm_);
+    d_f_a_ = d_f_b_ = d_rho_tmp_ = d_rho_ = nullptr;
+    d_u_ = nullptr;
+    d_norm_ = nullptr;
+  }
 
-      nx_ = nx;
-      ny_ = ny;
-      area_ = static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_);
-      const std::size_t fsize = area_ * D2Q9::ndir;
+  // array di boundary node che carica sul device. eseguito una volta nel
+  // costruttore ricalcola stessa geom a ogni iter (geom deve rimanere la
+  // stessa durante simulazione)
+  void upload_boundary_nodes() {
+    std::vector<cuda_detail::BoundaryNode> host_boundary;
 
-      LBM_CUDA_CHECK(cudaMalloc(&d_f_a_, fsize * sizeof(double)));
-      LBM_CUDA_CHECK(cudaMalloc(&d_f_b_, fsize * sizeof(double)));
-      LBM_CUDA_CHECK(cudaMalloc(&d_rho_tmp_, area_ * sizeof(double)));
-      LBM_CUDA_CHECK(cudaMalloc(&d_rho_, area_ * sizeof(double)));
-      LBM_CUDA_CHECK(cudaMalloc(&d_u_, area_ * sizeof(double2)));
-      LBM_CUDA_CHECK(cudaMalloc(&d_norm_, area_ * sizeof(float)));
-    }
+    const auto &obstacles = this->strt.obstacles;
+    const auto moving_id = this->strt.moving_boundary;
 
-    void free_field_buffers() const {
-      if (d_f_a_ != nullptr)
-        cudaFree(d_f_a_);
-      if (d_f_b_ != nullptr)
-        cudaFree(d_f_b_);
-      if (d_rho_tmp_ != nullptr)
-        cudaFree(d_rho_tmp_);
-      if (d_rho_ != nullptr)
-        cudaFree(d_rho_);
-      if (d_u_ != nullptr)
-        cudaFree(d_u_);
-      if (d_norm_ != nullptr)
-        cudaFree(d_norm_);
-      d_f_a_ = d_f_b_ = d_rho_tmp_ = d_rho_ = nullptr;
-      d_u_ = nullptr;
-      d_norm_ = nullptr;
-    }
-
-    // array di boundary node che carica sul device. eseguito una volta nel
-    // costruttore ricalcola stessa geom a ogni iter (geom deve rimanere la
-    // stessa durante simulazione)
-    void upload_boundary_nodes() {
-      std::vector<cuda_detail::BoundaryNode> host_boundary;
-
-      const auto &obstacles = this->strt.obstacles;
-      const auto moving_id = this->strt.moving_boundary;
-
-      for (std::size_t obs_idx = 0; obs_idx < obstacles.size(); ++obs_idx) {
-        const int is_moving = (obs_idx == moving_id) ? 1 : 0;
-        for (const auto &p : obstacles[obs_idx].getPerimeter()) {
-          host_boundary.push_back(cuda_detail::BoundaryNode{
-              static_cast<int>(p.x), static_cast<int>(p.y), is_moving});
-        }
-      }
-      n_boundary_ = static_cast<int>(host_boundary.size());
-      if (n_boundary_ == 0) {
-        d_boundary_ = nullptr;
-        return;
-      }
-
-      LBM_CUDA_CHECK(
-          cudaMalloc(&d_boundary_,
-                     host_boundary.size() * sizeof(cuda_detail::BoundaryNode)));
-      LBM_CUDA_CHECK(
-          cudaMemcpy(d_boundary_, host_boundary.data(),
-                     host_boundary.size() * sizeof(cuda_detail::BoundaryNode),
-                     cudaMemcpyHostToDevice));
-    }
-
-    // scarica rho/u da device a grid, solo nei "save" iter
-    // no assunzioni su layout di CollisionDetection::utils::vector
-    void download_macroscopic(Lattice<2> & lattice, cudaStream_t stream) const {
-      LBM_CUDA_CHECK(cudaMemcpyAsync(lattice.rho.data(), d_rho_,
-                                     area_ * sizeof(double),
-                                     cudaMemcpyDeviceToHost, stream));
-
-      std::vector<double2> h_u(area_);
-      LBM_CUDA_CHECK(cudaMemcpyAsync(h_u.data(), d_u_, area_ * sizeof(double2),
-                                     cudaMemcpyDeviceToHost, stream));
-      LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
-
-      for (std::size_t k = 0; k < area_; ++k) {
-        lattice.u[k].dx = h_u[k].x;
-        lattice.u[k].dy = h_u[k].y;
+    for (std::size_t obs_idx = 0; obs_idx < obstacles.size(); ++obs_idx) {
+      const int is_moving = (obs_idx == moving_id) ? 1 : 0;
+      for (const auto &p : obstacles[obs_idx].getPerimeter()) {
+        host_boundary.push_back(cuda_detail::BoundaryNode{
+            static_cast<int>(p.x), static_cast<int>(p.y), is_moving});
       }
     }
-
-    // KERNEL 1: streaming + calc densità temporanea
-    // uso un thread per nodo, lavora su dati dello stesso "worker" (ha appena
-    // scritto le 9 direz del proprio nodo) NO DIPENDENZA CROSS-THREAD tra
-    // kernel stream e kernel density lancio un kernel in meno.
-
-    // caso sorgente fuori dal dominio -> se p - dir[i] cade fuori da griglia,
-    // lo slot fto NON viene scritto (si legge il val già presente, in openMp
-    // era continue). ogni nodo il cui vicino esce dal dominio sia registrato
-    // come nodo di bordo/ostacolo + corretto dal kernel boundary condition
-
-    static __global__ void kernel_stream_density(
-        const double *__restrict__ ffrom, double *__restrict__ fto, int nx,
-        int ny, double init_vel) {
-      const int x = blockIdx.x * blockDim.x + threadIdx.x; // offset cuda
-      const int y = blockIdx.y * blockDim.y + threadIdx.y;
-      if (x > nx || y > ny) {
-        // Magari qui si potrebbe lanciare un errore.
-        // Sarebbe da vedere, perchè non so se si possa limitare la grandezza
-        // del kernel in base alla griglia (non ricordo se sia dinamico o
-        // statico).
-        return;
-      }
-
-      const std::size_t plane =
-          static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
-      const std::size_t base = static_cast<std::size_t>(nx) * y + x;
-
-      double r = 0.0;
-
-      // fto e fdst qui dovrebbero essere o grandi
-      // quanto l'intera porzione di griglia di cui il blocco CUDA
-      // si occupa oppure si potrebbero usare dei semplici array grossi
-      // ndir
-      for (int i = 0; i < 9; ++i) {
-        const int sx = x - c_dirx[i];
-        const int sy = y - c_diry[i];
-        // Sarebbe meglio usare il calcolo vettoriale.
-        const std::size_t dst = plane * i + base;
-        if (sx >= 0 && sx < nx && sy >= 0 && sy < ny) {
-          const double fi =
-              ffrom[plane * i + static_cast<std::size_t>(nx) * sy + sx];
-          fto[dst] = fi;
-          r += fi;
-        } else {
-          // continue, se serve fa update in boundary conditions
-          r += fto[dst];
-        }
-      }
-
-      // Dipende in questo caso rho_tmp a cosa ti serve/
-      // Nel codice nuovo rho_tmp serve solamente per applicare le condizioni al
-      // contorno. L'applicazione di queste verrà probabilmente spostata durante
-      // lo streaming. Questo rende meno problematico il caso delle condizioni
-      // al contorno.
-
-      // rho_tmp[base] = r;
-
-      // WARN: After unifying data structure Velocity Sets
-      // should be used here.
-      apply_boundary_conditions(fto, ffrom, x, y, r, init_vel);
+    n_boundary_ = static_cast<int>(host_boundary.size());
+    if (n_boundary_ == 0) {
+      d_boundary_ = nullptr;
+      return;
     }
 
-    __device__ void field_index(int x, int y, std::size_t nx,
-                                std::size_t ndir) {
-      // NOTE: More efficient memory access
-      return ndir * (nx * y + x) + i;
+    LBM_CUDA_CHECK(
+        cudaMalloc(&d_boundary_,
+                   host_boundary.size() * sizeof(cuda_detail::BoundaryNode)));
+    LBM_CUDA_CHECK(
+        cudaMemcpy(d_boundary_, host_boundary.data(),
+                   host_boundary.size() * sizeof(cuda_detail::BoundaryNode),
+                   cudaMemcpyHostToDevice));
+  }
+
+  // scarica rho/u da device a grid, solo nei "save" iter
+  // no assunzioni su layout di CollisionDetection::utils::vector
+  void download_macroscopic(Lattice<2> &lattice, cudaStream_t stream) const {
+    LBM_CUDA_CHECK(cudaMemcpyAsync(lattice.rho.data(), d_rho_,
+                                   area_ * sizeof(double),
+                                   cudaMemcpyDeviceToHost, stream));
+
+    std::vector<double2> h_u(area_);
+    LBM_CUDA_CHECK(cudaMemcpyAsync(h_u.data(), d_u_, area_ * sizeof(double2),
+                                   cudaMemcpyDeviceToHost, stream));
+    LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
+
+    for (std::size_t k = 0; k < area_; ++k) {
+      lattice.u[k].dx = h_u[k].x;
+      lattice.u[k].dy = h_u[k].y;
+    }
+  }
+
+  // KERNEL 1: streaming + calc densità temporanea
+  // uso un thread per nodo, lavora su dati dello stesso "worker" (ha appena
+  // scritto le 9 direz del proprio nodo) NO DIPENDENZA CROSS-THREAD tra
+  // kernel stream e kernel density lancio un kernel in meno.
+
+  // caso sorgente fuori dal dominio -> se p - dir[i] cade fuori da griglia,
+  // lo slot fto NON viene scritto (si legge il val già presente, in openMp
+  // era continue). ogni nodo il cui vicino esce dal dominio sia registrato
+  // come nodo di bordo/ostacolo + corretto dal kernel boundary condition
+
+  static __global__ void kernel_stream_density(const double *__restrict__ ffrom,
+                                               double *__restrict__ fto, int nx,
+                                               int ny, double init_vel) {
+    const int x = blockIdx.x * blockDim.x + threadIdx.x; // offset cuda
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x > nx || y > ny) {
+      // Magari qui si potrebbe lanciare un errore.
+      // Sarebbe da vedere, perchè non so se si possa limitare la grandezza
+      // del kernel in base alla griglia (non ricordo se sia dinamico o
+      // statico).
+      return;
     }
 
-    __device__ void apply_boundary_conditions(double *fto, double *ffrom, int x,
-                                              int y, double localrho,
-                                              double init_vel) {
-      // LEFT BOUNDARY: RESTING WALL
-      if (x == 0) {
-        fto[field_index(x, y, 1, 9)] = fto[field_index(x, y, 3, 9)];
-        fto[field_index(x, y, 5, 9)] = fto[field_index(x, y, 7, 9)];
-        fto[field_index(x, y, 8, 9)] = fto[field_index(x, y, 6, 9)];
-      }
+    const std::size_t plane =
+        static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
+    const std::size_t base = static_cast<std::size_t>(nx) * y + x;
 
-      // RIGHT BOUNDARY: RESTING WALL
-      if (x == nx_ - 1) {
-        fto[field_index(x, y, 3, 9)] = fto[field_index(x, y, 1, 9)];
-        fto[field_index(x, y, 7, 9)] = fto[field_index(x, y, 5, 9)];
-        fto[field_index(x, y, 6, 9)] = fto[field_index(x, y, 8, 9)];
-      }
+    double r = 0.0;
 
-      // BOTTOM BOUNDARY: RESTING WALL
-      if (y == 0) {
-        fto[field_index(x, y, 4, 9)] = fto[field_index(x, y, 2, 9)];
-        fto[field_index(x, y, 7, 9)] = fto[field_index(x, y, 5, 9)];
-        fto[field_index(x, y, 8, 9)] = fto[field_index(x, y, 6, 9)];
-      }
-
-      // TOP BOUNDARY: MOVING WALL
-      if (y == ny_ - 1) {
-        // FIXME: Can't live with local encoding X*(((((
-        fto[field_index(x, y, 2, 9)] =
-            fto[field_index(x, y, 4, 9)] -
-            2 * wi * localrho * (subx * ux + suby * uy) * 3;
-        fto[field_index(x, y, 5, 9)] =
-            fto[field_index(x, y, 7, 9)] -
-            2 * wi * localrho * (subx * ux + suby * uy) * 3;
-        fto[field_index(x, y, 6, 9)] =
-            fto[field_index(x, y, 8, 9)] -
-            2 * wi * localrho * (subx * ux + suby * uy) * 3;
+    // fto e fdst qui dovrebbero essere o grandi
+    // quanto l'intera porzione di griglia di cui il blocco CUDA
+    // si occupa oppure si potrebbero usare dei semplici array grossi
+    // ndir
+    for (int i = 0; i < 9; ++i) {
+      const int sx = x - c_dirx[i];
+      const int sy = y - c_diry[i];
+      // Sarebbe meglio usare il calcolo vettoriale.
+      const std::size_t dst = plane * i + base;
+      if (sx >= 0 && sx < nx && sy >= 0 && sy < ny) {
+        const double fi =
+            ffrom[plane * i + static_cast<std::size_t>(nx) * sy + sx];
+        fto[dst] = fi;
+        r += fi;
+      } else {
+        // continue, se serve fa update in boundary conditions
+        r += fto[dst];
       }
     }
 
-    void write_norms(cudaStream_t stream) const {
-      std::vector<float> host_norms(area_);
-      LBM_CUDA_CHECK(cudaMemcpyAsync(host_norms.data(), d_norm_,
-                                     area_ * sizeof(float),
-                                     cudaMemcpyDeviceToHost, stream));
-      LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
+    // Dipende in questo caso rho_tmp a cosa ti serve/
+    // Nel codice nuovo rho_tmp serve solamente per applicare le condizioni al
+    // contorno. L'applicazione di queste verrà probabilmente spostata durante
+    // lo streaming. Questo rende meno problematico il caso delle condizioni
+    // al contorno.
 
-      std::vector<char> buf(host_norms.size() * sizeof(float));
-      std::memcpy(buf.data(), host_norms.data(), buf.size());
-      this->notifyListeners(std::move(buf));
+    // rho_tmp[base] = r;
+
+    // WARN: After unifying data structure Velocity Sets
+    // should be used here.
+    apply_boundary_conditions(fto, ffrom, x, y, r, init_vel);
+  }
+
+  __device__ void field_index(int x, int y, std::size_t nx, std::size_t ndir) {
+    // NOTE: More efficient memory access
+    return ndir * (nx * y + x) + i;
+  }
+
+  __device__ void apply_boundary_conditions(double *fto, double *ffrom, int x,
+                                            int y, double localrho,
+                                            double init_vel) {
+    // LEFT BOUNDARY: RESTING WALL
+    if (x == 0) {
+      fto[field_index(x, y, 1, 9)] = fto[field_index(x, y, 3, 9)];
+      fto[field_index(x, y, 5, 9)] = fto[field_index(x, y, 7, 9)];
+      fto[field_index(x, y, 8, 9)] = fto[field_index(x, y, 6, 9)];
     }
-  };
 
-} // namespace lbm
+    // RIGHT BOUNDARY: RESTING WALL
+    if (x == nx_ - 1) {
+      fto[field_index(x, y, 3, 9)] = fto[field_index(x, y, 1, 9)];
+      fto[field_index(x, y, 7, 9)] = fto[field_index(x, y, 5, 9)];
+      fto[field_index(x, y, 6, 9)] = fto[field_index(x, y, 8, 9)];
+    }
+
+    // BOTTOM BOUNDARY: RESTING WALL
+    if (y == 0) {
+      fto[field_index(x, y, 4, 9)] = fto[field_index(x, y, 2, 9)];
+      fto[field_index(x, y, 7, 9)] = fto[field_index(x, y, 5, 9)];
+      fto[field_index(x, y, 8, 9)] = fto[field_index(x, y, 6, 9)];
+    }
+
+    // TOP BOUNDARY: MOVING WALL
+    if (y == ny_ - 1) {
+      // FIXME: Can't live with local encoding X*(((((
+      fto[field_index(x, y, 2, 9)] =
+          fto[field_index(x, y, 4, 9)] -
+          2 * wi * localrho * (subx * ux + suby * uy) * 3;
+      fto[field_index(x, y, 5, 9)] =
+          fto[field_index(x, y, 7, 9)] -
+          2 * wi * localrho * (subx * ux + suby * uy) * 3;
+      fto[field_index(x, y, 6, 9)] =
+          fto[field_index(x, y, 8, 9)] -
+          2 * wi * localrho * (subx * ux + suby * uy) * 3;
+    }
+  }
+
+  // Scarica la norma della velocità (già calcolata su device dal kernel
+  // di collisione) e la inoltra agli observer registrati.
+  void write_norms_from_device(cudaStream_t stream) const {
+    std::vector<float> host_norms(area_);
+    LBM_CUDA_CHECK(cudaMemcpyAsync(host_norms.data(), d_norm_,
+                                   area_ * sizeof(float),
+                                   cudaMemcpyDeviceToHost, stream));
+    LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
+
+    std::vector<char> buf(host_norms.size() * sizeof(float));
+    std::memcpy(buf.data(), host_norms.data(), buf.size());
+    this->notifyListeners(std::move(buf));
+  }
+
+  // Override richiesto da SolverBase2D (senza CUDASolver2D resta
+  // astratta e non è istanziabile): i dati sono già sul device, la firma
+  // con "lattice" serve solo a rispettare la virtuale della base, come fa
+  // MPISolver2D::write_norms lato host tramite DataObservable.
+  void write_norms(const Lattice<2> &lattice) const override {
+    (void)lattice;
+    write_norms_from_device(current_stream());
+  }
+};
+
+} // namespace cuda_detail
 
 #endif // __LBM_SIM_SOLVER_SOLVER_2D_CUDA_CUH
