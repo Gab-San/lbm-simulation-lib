@@ -15,6 +15,14 @@ namespace lbm {
     }                                                                          \
   } while (0)
 
+namespace cuda_detail {
+
+inline unsigned int ceil_div(unsigned int a, unsigned int b) {
+  return (a + b - 1) / b;
+}
+
+} // namespace cuda_detail
+
 } // namespace lbm
 
 #endif //  __LBM_SIM_BACKEND_CUDA_UTILS_HPP

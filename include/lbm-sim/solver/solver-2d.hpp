@@ -36,9 +36,30 @@ public:
 
   virtual ~MPISolver2D() = default;
 
+  void solve(Lattice<2> &lattice, const Params<2, cm_t> &params_,
+             std::vector<double> &ffrom,
+             std::vector<double> &fto) const override {
+    const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> cs(params_);
+
+    // TODO: ADD POPULATIONS BUFFER ALLOCATION
+    //
+    // TODO: ALLOCATE VSQ AND WRITE NORMS IN HOT LOOP
+    // THEN WRITE NORMS COPIES DATA FROM VSQ.
+
+    // partono iterazioni
+    for (unsigned int iter = 0; iter < this->niters; iter++) {
+      bool save = iter % this->nskips == 0;
+      update_stream_collide(lattice, cs, ffrom, fto, save);
+      std::swap(ffrom, fto);
+      if (save)
+        write_norms(lattice);
+    }
+  }
+
+private:
   // TODO: adapt to initialization
   void init_equilibrium(const Lattice<2> &lattice,
-                        std::vector<double> &part_stream) const override {
+                        std::vector<double> &part_stream) const {
     using utils::ops::dot;
 #pragma omp parallel for shared(lattice, part_stream) schedule(static)         \
     collapse(2)
@@ -63,27 +84,6 @@ public:
     }
   };
 
-  void solve(Lattice<2> &lattice, const Params<2, cm_t> &params_,
-             std::vector<double> &ffrom,
-             std::vector<double> &fto) const override {
-    const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> cs(params_);
-
-    // TODO: ADD POPULATIONS BUFFER ALLOCATION
-    //
-    // TODO: ALLOCATE VSQ AND WRITE NORMS IN HOT LOOP
-    // THEN WRITE NORMS COPIES DATA FROM VSQ.
-
-    // partono iterazioni
-    for (unsigned int iter = 0; iter < this->niters; iter++) {
-      bool save = iter % this->nskips == 0;
-      update_stream_collide(lattice, cs, ffrom, fto, save);
-      std::swap(ffrom, fto);
-      if (save)
-        write_norms(lattice);
-    }
-  }
-
-private:
   // FIXME: Execution context ??
   void update_stream_collide(
       Lattice<2> &lattice, const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> &cs,
@@ -91,7 +91,6 @@ private:
       const ExecutionContext<OPEN_MP> &context =
           ExecutionContext<OPEN_MP>{}) const {
 
-    // STREAMING + HALFWAY COLLISION
 #pragma omp parallel for shared(ffrom, fto, cs, lattice, save)                 \
     schedule(static) collapse(2)
     for (std::size_t y = 0; y < lattice.grid.size.y; ++y) {
@@ -106,6 +105,7 @@ private:
           r_wall += ffrom[lattice.grid.field_index(p, i, D2Q9::ndir)];
         }
 
+        // STREAMING + HALFWAY COLLISION
 #pragma omp unroll full
         for (unsigned int diridx = 0; diridx < D2Q9::ndir; ++diridx) {
           const types::Coordinate<2> src = p - D2Q9::dir[diridx];
@@ -132,8 +132,6 @@ private:
 
 #pragma omp unroll full
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
-
-          // calculate macroscopic variables
           r += fp[i];
           u += D2Q9::dir[i] * fp[i];
         }
@@ -203,7 +201,7 @@ private:
     }
   }
 
-  void write_norms(const Lattice<2> &lattice) const override {
+  void write_norms(const Lattice<2> &lattice) const {
     using utils::ops::dot;
     std::vector<float> vsq(lattice.grid.getArea());
 
