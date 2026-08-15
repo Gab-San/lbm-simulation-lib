@@ -41,33 +41,6 @@ public:
 
   virtual ~MPISolver2D() = default;
 
-  // TODO: adapt to initialization
-  void init_equilibrium(const Lattice<2> &lattice,
-                        std::vector<double> &part_stream) const override {
-    using utils::ops::dot;
-#pragma omp parallel for shared(lattice, part_stream) schedule(static)         \
-    collapse(2)
-    for (unsigned int y = 0; y < lattice.grid.size.y; ++y) {
-      for (unsigned int x = 0; x < lattice.grid.size.x; ++x) {
-        const types::Coordinate<2> p(x, y);
-
-        double r = lattice.rho[lattice.grid.scalar_index(p)];
-        const utils::Vector<double, 2> u =
-            lattice.u[lattice.grid.scalar_index(p)];
-        const double u_sq = dot(u, u);
-
-#pragma omp simd
-        for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
-          double cidotu = dot(D2Q9::dir[i], u);
-
-          part_stream[lattice.grid.field_index(p, i, D2Q9::ndir)] =
-              D2Q9::wi[i] * r *
-              (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu - 1.5 * u_sq);
-        }
-      }
-    }
-  };
-
   void solve(Lattice<2> &lattice, const Params<2, cm_t> &params_,
              std::vector<double> &ffrom,
              std::vector<double> &fto) const override {
@@ -95,6 +68,33 @@ public:
   }
 
 private:
+  // TODO: adapt to initialization
+  void init_equilibrium(const Lattice<2> &lattice,
+                        std::vector<double> &part_stream) const {
+    using utils::ops::dot;
+#pragma omp parallel for shared(lattice, part_stream) schedule(static)         \
+    collapse(2)
+    for (unsigned int y = 0; y < lattice.grid.size.y; ++y) {
+      for (unsigned int x = 0; x < lattice.grid.size.x; ++x) {
+        const types::Coordinate<2> p(x, y);
+
+        double r = lattice.rho[lattice.grid.scalar_index(p)];
+        const utils::Vector<double, 2> u =
+            lattice.u[lattice.grid.scalar_index(p)];
+        const double u_sq = dot(u, u);
+
+#pragma omp simd
+        for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
+          double cidotu = dot(D2Q9::dir[i], u);
+
+          part_stream[lattice.grid.field_index(p, i, D2Q9::ndir)] =
+              D2Q9::wi[i] * r *
+              (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu - 1.5 * u_sq);
+        }
+      }
+    }
+  };
+
   // FIXME: Execution context ??
   void update_stream_collide(
       Lattice<2> &lattice, const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> &cs,
@@ -102,7 +102,6 @@ private:
       const ExecutionContext<OPEN_MP> &context =
           ExecutionContext<OPEN_MP>{}) const {
 
-    // STREAMING + HALFWAY COLLISION
 #pragma omp parallel for shared(ffrom, fto, cs, lattice, save)                 \
     schedule(static) collapse(2)
     for (std::size_t y = 0; y < lattice.grid.size.y; ++y) {
@@ -120,6 +119,7 @@ private:
           r_wall += ffrom[lattice.grid.field_index(p, i, D2Q9::ndir)];
         }
 
+        // STREAMING + HALFWAY COLLISION
 #pragma omp unroll full
         for (unsigned int diridx = 0; diridx < D2Q9::ndir; ++diridx) {
           const types::Coordinate<2> src = p - D2Q9::dir[diridx];
@@ -216,7 +216,7 @@ private:
     }
   }
 
-  void write_norms(const Lattice<2> &lattice) const override {
+  void write_norms(const Lattice<2> &lattice) const {
     using utils::ops::dot;
     std::vector<float> vsq(lattice.grid.getArea());
 

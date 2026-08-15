@@ -3,6 +3,9 @@
 
 #include "lbm-sim/solver/solver-base.hpp"
 
+#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/core/vector.hpp"
+
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
 
@@ -32,7 +35,7 @@ public:
 
   __host__ void solve(Lattice<2> &lattice,
                       const Params<2, cm_t> &params_) const override {
-    double *fto, *ffrom, &norms;
+    double *fto, *ffrom, *norms;
     std::size_t allocation_size =
         lattice.grid.getArea() * sizeof(double) * D2Q9::ndir;
 
@@ -45,8 +48,12 @@ public:
 
     // WARN: ExecutionContext is actually useless try to avoid it as much as
     // possible!!
-    const dim3 blockDim = 1;
-    const dim3 gridDim = 1;
+
+    // NOTE: Is there any way to make this dimension independent? (Maybe with an
+    // helper function)
+    const dim3 blockDim(16, 16);
+    const dim3 gridDim(cuda_detail::ceil_div(lattice.grid.size.x, blockDim.x), cuda_detail::ceil_div(lattice.grid.size.y, blockDim.y);
+
     // FIXME: Needs to be instantiated.
     const cudaStream_t stream;
 
@@ -56,8 +63,9 @@ public:
 
     for (auto iter = 0; iter < this->niters; iter++) {
       const bool save = iter % this->nskips == 0;
-      update_stream_collide << gridDim, blockDim, 0,
-          stream >> (lattice, cs, ffrom, fto, save);
+      // FIXME: Add stream (if needed SPOILER: PROBABILMENTE SI)
+      update_stream_collide<<<gridDim, blockDim>>>(lattice, cs, ffrom, fto,
+                                                   norms, save);
       LBM_CUDA_CHECK(cudaGetLastError());
       std::swap(ffrom, fto);
       // TODO: Check whether all of this is really necessary
@@ -77,10 +85,88 @@ private:
 
   // TODO: check whether static is really needed
 
+  // TODO: check whether lattice is viably passable (otherwise it might be
+  // adapted)
   static __global__ void update_stream_collide(
       Lattice<2> &lattice, const CollisionStrategy<2, D2Q9, cm_t, CUDA> &cs,
-      const double *__restrict__ ffrom, double *__restrict__ fto, int nx,
-      int ny, double init_vel) {}
+      const double *__restrict__ ffrom, double *__restrict__ fto,
+      double *__restrict__ norms, double init_vel) {
+    __shared__ double *bfto, bffrom;
+    const types::Coordinate<2> p(blockIdx.x + blockDim.x + threadIdx.x,
+                                 blockIdx.y * blockDim.y + threadIdx.y);
+
+    // NOTE: Can this be replaced by an assertion?
+    // Is this really needed?
+    if (!lattice.grid.contains(p)) {
+      return;
+    }
+
+    // FIXME: Access to shared memory is completely wrong!
+    // Shared memory is never allocated!!
+
+    // Copy on block local memory
+    // NOTE: Is this really necessary? Does it speed up computation?
+    double r_wall = 0.0;
+    for (auto diridx = 0; diridx < D2Q9::ndir; diridx++) {
+      bfto[lattice.grid.field_index(p, diridx, D2Q9::ndir)] =
+          fto[lattice.grid.field_index(p, diridx, D2Q9::ndir)];
+      bffrom[lattice.grid.field_index(p, dir, D2Q9::ndir)] =
+          ffrom[lattice.grid.field_index(p, dir, D2Q9::ndir)];
+      r_wall += bffrom[lattice.grid.field_index(p, dir, D2Q9::ndir)];
+    }
+
+    // STREAMING + HALFWAY COLLISION
+    for (auto diridx = 0; diridx < D2Q9::ndir; diridx++) {
+      const types::Coordinate<2> src = p - D2Q9::dir[diridx];
+      if (!lattice.grid.contains(src)) {
+        // if source node is external it is on a boundary node
+        apply_boundary_conditions(bfto, bffrom, p.x, p.y, r_wall,
+                                  cs.params.init_vel);
+      } else {
+        // if source node is internal stream it.
+        bfto[lattice.grid.field_index(p, dir, D2Q9::ndir)] =
+            bffrom[lattice.grid.field_index(src, diridx, D2Q9::ndir)];
+      }
+    }
+
+    // COMPUTE MACROSCOPIC VARIABLES
+    // rho = sum_i fi
+    // rho*u = sum_i fi * ci
+
+    double r = 0.0;
+    utils::Vector<double, 2> u(0, 0);
+
+    for (auto diridx = 0; diridx < D2Q9::ndir; diridx++) {
+      const double fi = bfto[lattice.grid.field_index(p, diridx, D2Q9::ndir)];
+      rho += fi;
+      u += D2Q9::dir[i] * fi;
+    }
+
+    // u = (sum_i fi * ci) / rho
+    u /= r;
+
+    // STORE computed macroscopic values
+
+    // FIXME: STORING NEED TO BE CORRECTED
+    // Lattice probably is not compatible with cuda (can it be made compatible?)
+    if (save) {
+      const unsigned int s_idx = lattice.grid.scalar_index(p);
+      // NOTE: use device buffers and then copy back on lattice?
+      lattice.rho[s_idx] = r;
+      lattice.u[s_idx] = u;
+      norms = static_cast<float>(std::sqrt(utils::ops::dot(u, u)));
+    }
+
+    // FIXME: This will not work
+    collide_node<cm_t>(f, x, y, nx, ny, rho, ux, uy,
+                       params); // def in collision-strategy-cuda
+
+    // COPY BACK ON DEVICE BUFFER
+    for (auto diridx = 0; diridx < D2Q9::ndir; diridx++) {
+      fto[lattice.grid.field_index(p, diridx, D2Q9::ndir)] =
+          bfto[lattice.grid.field_index(p, diridx, D2Q9::ndir)];
+    }
+  }
 
   static __device__ void field_index(int x, int y, std::size_t nx,
                                      std::size_t ndir) {
@@ -128,7 +214,9 @@ private:
     }
   }
 
-  // FIXME: fix
+  // FIXME: This functions do not work.
+  // They must be adapted or the code must be corrected in order to use these
+  // functions
 
   // Scarica la norma della velocità (già calcolata su device dal kernel
   // di collisione) e la inoltra agli observer registrati.
@@ -148,7 +236,7 @@ private:
   // astratta e non è istanziabile): i dati sono già sul device, la firma
   // con "lattice" serve solo a rispettare la virtuale della base, come fa
   // MPISolver2D::write_norms lato host tramite DataObservable.
-  void write_norms(const Lattice<2> &lattice) const override {
+  void write_norms(const Lattice<2> &lattice) const {
     (void)lattice;
     write_norms_from_device(current_stream());
   }
