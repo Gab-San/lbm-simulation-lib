@@ -78,9 +78,15 @@ public:
     LOG_INFO(solver_logger, "System can work with up to {} threads.",
              omp_get_max_threads());
     const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> cs(params_);
+
+    // TODO: ADD POPULATIONS BUFFER ALLOCATION
+    //
+    // TODO: ALLOCATE VSQ AND WRITE NORMS IN HOT LOOP
+    // THEN WRITE NORMS COPIES DATA FROM VSQ.
+
     // partono iterazioni
     for (unsigned int iter = 0; iter < this->niters; iter++) {
-      bool save = (iter % this->nskips == 0);
+      bool save = iter % this->nskips == 0;
       update_stream_collide(lattice, cs, ffrom, fto, save);
       std::swap(ffrom, fto);
       if (save)

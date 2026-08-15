@@ -46,11 +46,9 @@ do {
              << " : " << __LINE__;
     throw std::runtime_error(_lbm_oss.str());
   }
-}
-} // namespace lbm
-while (0)
+} while (0)
 
-  namespace cuda_detail {
+    namespace cuda_detail {
 
   inline unsigned int ceil_div(unsigned int a, unsigned int b) {
     return (a + b - 1) / b;
@@ -72,10 +70,9 @@ while (0)
   // lista è più corta del dominio completo. usa grid 1D dedicato senza scartare
   // al kernel domain wide il lavoro sui nodi che non sono di bordo
 
-  static __global__ void
-  kernel_boundary_conditions(double *__restrict__ f,
-                             const double *__restrict__ rho_tmp, int nx, int ny,
-                             double ux0, double uy0) {
+  static __global__ void kernel_boundary_conditions(
+      double *__restrict__ f, const double *__restrict__ rho_tmp, int nx,
+      int ny, double ux0, double uy0) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= n_boundary) {
       return;
@@ -166,10 +163,9 @@ while (0)
 
   // KERNEL 0: inizializzazione all'equilibrio
 
-  static __global__ void kernel_init_equilibrium(double *__restrict__ f,
-                                                 const double *__restrict__ rho,
-                                                 const double2 *__restrict__ u,
-                                                 int nx, int ny) {
+  static __global__ void kernel_init_equilibrium(
+      double *__restrict__ f, const double *__restrict__ rho,
+      const double2 *__restrict__ u, int nx, int ny) {
     const int x = blockIdx.x * blockDim.x + threadIdx.x;
     const int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x >= nx || y >= ny) {
@@ -215,7 +211,7 @@ while (0)
     LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_opp, h_opp, sizeof(h_opp)));
   }
 
-  } // namespace cuda_detail
+} // namespace cuda_detail
 
 // CUDASolver2D:
 // parallelizzazione: un thread cuda per nodo di griglia (x,y), mappato su
@@ -369,7 +365,6 @@ private:
       return; // buffer già allocati con la dim corretta
     }
 
-    free_field_buffers();
     LBM_CUDA_CHECK(cudaMalloc(&d_f_a_, fsize * sizeof(double)));
     LBM_CUDA_CHECK(cudaMalloc(&d_f_b_, fsize * sizeof(double)));
     LBM_CUDA_CHECK(cudaMalloc(&d_rho_tmp_, area_ * sizeof(double)));
@@ -577,6 +572,6 @@ private:
   }
 };
 
-} // namespace cuda_detail
+} // namespace lbm
 
 #endif // __LBM_SIM_SOLVER_SOLVER_2D_CUDA_CUH
