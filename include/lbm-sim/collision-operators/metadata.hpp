@@ -4,6 +4,8 @@
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 
+#include "lbm-sim/backend/cuda-annotations.hpp"
+
 namespace lbm {
 enum CollisionModel { BGK, TRT, MRT };
 
@@ -29,8 +31,9 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
   const double nu;
   const double tauinv, omtauinv;
 
-  Params(const double reyn_num_, const types::DimPoint<dim> num_cells_,
-         const utils::Vector<double, dim> init_vel_)
+  LBM_HD_FUNC Params(const double reyn_num_,
+                     const types::DimPoint<dim> num_cells_,
+                     const utils::Vector<double, dim> init_vel_)
       : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
         nu([&]() -> double {
           // WARN: this might need correction for different possible
@@ -64,8 +67,9 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::TRT> {
   const double tauPlus, tauMinus;
   const double s_plus, s_minus;
 
-  Params(const double reyn_num_, const types::DimPoint<dim> num_cells_,
-         const utils::Vector<double, dim> init_vel_)
+  LBM_HD_FUNC Params(const double reyn_num_,
+                     const types::DimPoint<dim> num_cells_,
+                     const utils::Vector<double, dim> init_vel_)
       : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
         nu([&]() -> double {
           // WARN: this might need correction for different possible

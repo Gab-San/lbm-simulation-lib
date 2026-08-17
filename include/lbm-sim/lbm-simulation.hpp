@@ -44,10 +44,6 @@ public:
   template <enum ExecutionBackend backend_t>
   void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver,
              const LidCavity2D &problem) {
-    std::cout << "Initializing Simulation." << std::endl;
-
-    std::vector<double> f1(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
-    std::vector<double> f2(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
 
     // FIXME: cannot be initialized like this
     // define generic initialization
@@ -60,13 +56,10 @@ public:
     // problem.init(grid, params.init_vel, seg.getPerimeter());
 
     // FIXME: check that initialization + init_equilibrium suffices
-    std::cout << "Problem Initialized." << std::endl;
-    solver.init_equilibrium(lattice, f1);
-    std::cout << "Equilibrium Initialized." << std::endl;
 
     write_header(lattice.grid);
 
-    solver.solve(lattice, params, f1, f2);
+    solver.solve(lattice, params);
 
     std::cout << "Finished Simulation." << std::endl;
   };

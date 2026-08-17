@@ -36,180 +36,165 @@
 
 namespace lbm {
 
-// Error checks for async errors
-#define LBM_CUDA_CHECK(expr)
-do {
-  const cudaError_t _lbm_err = (expr);
-  if (_lbm_err != cudaSuccess) {
-    std::ostringstream _lbm_oss;
-    _lbm_oss << "CUDA ERROR " << cudaGetErrorString(err) << " at " << __FILE__
-             << " : " << __LINE__;
-    throw std::runtime_error(_lbm_oss.str());
+namespace cuda_detail {
+
+struct BoundaryNode {
+  int x;
+  int y;
+  int is_moving;
+};
+/* boundary node serve per gestire indice appiattito, sostituisce sul device
+la struttura obstacles[] /get perimeter usata da host che dipende da
+collision-detection library. (da vedere se funzia???) costruita e caricata una
+sola volta su device, in costruzione del solver, la geom di ostacoli e pareti
+non cambia tra iter e l'altra, cambia solo la velox della parete mobile */
+
+// KERNEL 2: Boundary conditions (bounce back semplice / con correzione per
+// parete mobile) Un thread per nodo di bordo, non per nodo di griglia: la
+// lista è più corta del dominio completo. usa grid 1D dedicato senza scartare
+// al kernel domain wide il lavoro sui nodi che non sono di bordo
+
+static __global__ void
+kernel_boundary_conditions(double *__restrict__ f,
+                           const double *__restrict__ rho_tmp, int nx, int ny,
+                           double ux0, double uy0) {
+  const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= n_boundary) {
+    return;
   }
-} while (0)
 
-    namespace cuda_detail {
-
-  inline unsigned int ceil_div(unsigned int a, unsigned int b) {
-    return (a + b - 1) / b;
-  }
-
-  struct BoundaryNode {
-    int x;
-    int y;
-    int is_moving;
-  };
-  /* boundary node serve per gestire indice appiattito, sostituisce sul device
-  la struttura obstacles[] /get perimeter usata da host che dipende da
-  collision-detection library. (da vedere se funzia???) costruita e caricata una
-  sola volta su device, in costruzione del solver, la geom di ostacoli e pareti
-  non cambia tra iter e l'altra, cambia solo la velox della parete mobile */
-
-  // KERNEL 2: Boundary conditions (bounce back semplice / con correzione per
-  // parete mobile) Un thread per nodo di bordo, non per nodo di griglia: la
-  // lista è più corta del dominio completo. usa grid 1D dedicato senza scartare
-  // al kernel domain wide il lavoro sui nodi che non sono di bordo
-
-  static __global__ void kernel_boundary_conditions(
-      double *__restrict__ f, const double *__restrict__ rho_tmp, int nx,
-      int ny, double ux0, double uy0) {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= n_boundary) {
-      return;
-    }
-
-    const BoundaryNode node = boundary[idx];
-    const int x = node.x;
-    const int y = node.y;
+  const BoundaryNode node = boundary[idx];
+  const int x = node.x;
+  const int y = node.y;
 
 #if !defined(NDEBUG)
-    assert(x >= 0 && x < nx && y >= 0 && y < ny);
+  assert(x >= 0 && x < nx && y >= 0 && y < ny);
 #endif
 
-    const std::size_t plane =
-        static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
-    const std::size_t base = static_cast<std::size_t>(nx) * y + x;
-    const double r = rho_tmp[base];
+  const std::size_t plane =
+      static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
+  const std::size_t base = static_cast<std::size_t>(nx) * y + x;
+  const double r = rho_tmp[base];
 
-    // La direzione 0 (riposo) viene saltata: coincide col nodo ostacolo
-    // stesso, esattamente come nella versione host.
-    for (int i = 1; i < 9; ++i) {
-      const int tx = x + c_dirx[i];
-      const int ty = y + c_diry[i];
-      if (tx < 0 || tx >= nx || ty < 0 || ty >= ny) {
-        continue;
-      }
+  // La direzione 0 (riposo) viene saltata: coincide col nodo ostacolo
+  // stesso, esattamente come nella versione host.
+  for (int i = 1; i < 9; ++i) {
+    const int tx = x + c_dirx[i];
+    const int ty = y + c_diry[i];
+    if (tx < 0 || tx >= nx || ty < 0 || ty >= ny) {
+      continue;
+    }
 
-      const int ib = c_opp[i];
-      const std::size_t f_i = plane * i + base;
-      const std::size_t f_ib = plane * ib + base;
+    const int ib = c_opp[i];
+    const std::size_t f_i = plane * i + base;
+    const std::size_t f_ib = plane * ib + base;
 
-      if (node.is_moving) {
-        const double cidotu = c_dirx[i] * ux0 + c_diry[i] * uy0;
-        // c_s = 1/sqrt(3) => 1/c_s^2 = 3:  FIXME di prima
-        // parametro invece di una costante
-        f[f_i] = f[f_ib] - 2.0 * c_wi[i] * r * cidotu * 3.0;
-      } else {
-        f[f_i] = f[f_ib];
-      }
+    if (node.is_moving) {
+      const double cidotu = c_dirx[i] * ux0 + c_diry[i] * uy0;
+      // c_s = 1/sqrt(3) => 1/c_s^2 = 3:  FIXME di prima
+      // parametro invece di una costante
+      f[f_i] = f[f_ib] - 2.0 * c_wi[i] * r * cidotu * 3.0;
+    } else {
+      f[f_i] = f[f_ib];
     }
   }
+}
 
-  // KERNEL 3: calcolo delle quantità macroscopiche + collisione, lo stesso
-  // thread che ha appena sommato rho/u esegue subito collisione, riusando ux/uy
-  // dai registri senza ripassare da global memory!!
-  // Quando save == true, oltre a rho/u viene scritta anche la norma della
-  // velocità in norm_out (write norms)
-  // Così l'intera pipeline di calcolo resta esclusivamente su GPU e la CPU
-  // si limita a spostare su disco pochi float già pronti.
+// KERNEL 3: calcolo delle quantità macroscopiche + collisione, lo stesso
+// thread che ha appena sommato rho/u esegue subito collisione, riusando ux/uy
+// dai registri senza ripassare da global memory!!
+// Quando save == true, oltre a rho/u viene scritta anche la norma della
+// velocità in norm_out (write norms)
+// Così l'intera pipeline di calcolo resta esclusivamente su GPU e la CPU
+// si limita a spostare su disco pochi float già pronti.
 
-  template <lbm::CollisionModel cm_t>
-  static __global__ void kernel_macroscopic_and_collide(
-      double *__restrict__ f, double *__restrict__ rho_out,
-      double2 *__restrict__ u_out, float *__restrict__ norm_out, int nx, int ny,
-      bool save, CudaCollisionParams<cm_t> params) {
-    const int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (x >= nx || y >= ny) {
-      return;
-    }
-
-    const std::size_t plane =
-        static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
-    const std::size_t base = static_cast<std::size_t>(nx) * y + x;
-
-    double rho = 0.0;
-    double ux = 0.0;
-    double uy = 0.0;
-
-    for (int i = 0; i < 9; ++i) {
-      const double fi = f[plane * i + base];
-      rho += fi;
-      ux += c_dirx[i] * fi;
-      uy += c_diry[i] * fi;
-    }
-    ux /= rho;
-    uy /= rho;
-
-    if (save) {
-      rho_out[base] = rho;
-      u_out[base] = make_double2(ux, uy);
-      norm_out[base] = static_cast<float>(sqrt(ux * ux + uy * uy));
-    }
-
-    collide_node<cm_t>(f, x, y, nx, ny, rho, ux, uy,
-                       params); // def in collision-strategy-cuda
+template <lbm::CollisionModel cm_t>
+static __global__ void kernel_macroscopic_and_collide(
+    double *__restrict__ f, double *__restrict__ rho_out,
+    double2 *__restrict__ u_out, float *__restrict__ norm_out, int nx, int ny,
+    bool save, CudaCollisionParams<cm_t> params) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+  if (x >= nx || y >= ny) {
+    return;
   }
 
-  // KERNEL 0: inizializzazione all'equilibrio
+  const std::size_t plane =
+      static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
+  const std::size_t base = static_cast<std::size_t>(nx) * y + x;
 
-  static __global__ void kernel_init_equilibrium(
-      double *__restrict__ f, const double *__restrict__ rho,
-      const double2 *__restrict__ u, int nx, int ny) {
-    const int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (x >= nx || y >= ny) {
-      return;
-    }
+  double rho = 0.0;
+  double ux = 0.0;
+  double uy = 0.0;
 
-    const std::size_t plane =
-        static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
-    const std::size_t base = static_cast<std::size_t>(nx) * y + x;
+  for (int i = 0; i < 9; ++i) {
+    const double fi = f[plane * i + base];
+    rho += fi;
+    ux += c_dirx[i] * fi;
+    uy += c_diry[i] * fi;
+  }
+  ux /= rho;
+  uy /= rho;
 
-    const double r = rho[base];
-    const double2 vel = u[base];
-    const double u_sq = vel.x * vel.x + vel.y * vel.y;
-
-    for (int i = 0; i < 9; ++i) {
-      const double cidotu = c_dirx[i] * vel.x + c_diry[i] * vel.y;
-      f[plane * i + base] =
-          c_wi[i] * r *
-          (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu - 1.5 * u_sq);
-    }
+  if (save) {
+    rho_out[base] = rho;
+    u_out[base] = make_double2(ux, uy);
+    norm_out[base] = static_cast<float>(sqrt(ux * ux + uy * uy));
   }
 
-  // Copia le costanti del set di velocità D2Q9 (definite host-side in
-  // velocity-sets.hpp) nella constant memory dichiarata in
-  // collision-strategy-cuda.cuh. Va eseguita una volta per processo, prima di
-  // lanciare qualunque kernel: viene chiamata dal costruttore del solver.
-  inline void upload_lattice_constants() {
-    double h_wi[9];
-    int h_dirx[9];
-    int h_diry[9];
-    int h_opp[9];
+  collide_node<cm_t>(f, x, y, nx, ny, rho, ux, uy,
+                     params); // def in collision-strategy-cuda
+}
 
-    for (int i = 0; i < 9; ++i) {
-      h_wi[i] = D2Q9::wi[i];
-      h_dirx[i] = D2Q9::dir[i].dx;
-      h_diry[i] = D2Q9::dir[i].dy;
-      h_opp[i] = D2Q9::opp[i];
-    }
+// KERNEL 0: inizializzazione all'equilibrio
 
-    LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_wi, h_wi, sizeof(h_wi)));
-    LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_dirx, h_dirx, sizeof(h_dirx)));
-    LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_diry, h_diry, sizeof(h_diry)));
-    LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_opp, h_opp, sizeof(h_opp)));
+static __global__ void kernel_init_equilibrium(double *__restrict__ f,
+                                               const double *__restrict__ rho,
+                                               const double2 *__restrict__ u,
+                                               int nx, int ny) {
+  const int x = blockIdx.x * blockDim.x + threadIdx.x;
+  const int y = blockIdx.y * blockDim.y + threadIdx.y;
+  if (x >= nx || y >= ny) {
+    return;
   }
+
+  const std::size_t plane =
+      static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
+  const std::size_t base = static_cast<std::size_t>(nx) * y + x;
+
+  const double r = rho[base];
+  const double2 vel = u[base];
+  const double u_sq = vel.x * vel.x + vel.y * vel.y;
+
+  for (int i = 0; i < 9; ++i) {
+    const double cidotu = c_dirx[i] * vel.x + c_diry[i] * vel.y;
+    f[plane * i + base] =
+        c_wi[i] * r * (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu - 1.5 * u_sq);
+  }
+}
+
+// Copia le costanti del set di velocità D2Q9 (definite host-side in
+// velocity-sets.hpp) nella constant memory dichiarata in
+// collision-strategy-cuda.cuh. Va eseguita una volta per processo, prima di
+// lanciare qualunque kernel: viene chiamata dal costruttore del solver.
+inline void upload_lattice_constants() {
+  double h_wi[9];
+  int h_dirx[9];
+  int h_diry[9];
+  int h_opp[9];
+
+  for (int i = 0; i < 9; ++i) {
+    h_wi[i] = D2Q9::wi[i];
+    h_dirx[i] = D2Q9::dir[i].dx;
+    h_diry[i] = D2Q9::dir[i].dy;
+    h_opp[i] = D2Q9::opp[i];
+  }
+
+  LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_wi, h_wi, sizeof(h_wi)));
+  LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_dirx, h_dirx, sizeof(h_dirx)));
+  LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_diry, h_diry, sizeof(h_diry)));
+  LBM_CUDA_CHECK(cudaMemcpyToSymbol(c_opp, h_opp, sizeof(h_opp)));
+}
 
 } // namespace cuda_detail
 

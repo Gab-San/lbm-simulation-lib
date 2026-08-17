@@ -3,17 +3,20 @@
 
 #include "lbm-sim/core/types.hpp"
 
+#include "lbm-sim/backend/cuda-annotations.hpp"
+
 // C++ STANDARD LIB
 #include <cstddef>
 
 namespace lbm {
-// constexpr bool always_false = false;
+
 template <unsigned short int dim> struct Grid {
   const types::DimPoint<dim> size;
 
-  Grid(types::DimPoint<dim> grid_dim_) : size(grid_dim_) {}
+  LBM_HD_FUNC Grid(types::DimPoint<dim> grid_dim_) : size(grid_dim_) {}
 
-  inline const std::size_t scalar_index(const types::Coordinate<dim> &p) const {
+  LBM_HD_FUNC inline std::size_t
+  scalar_index(const types::Coordinate<dim> &p) const {
     if constexpr (dim == 2) {
       return size.x * p.y + p.x;
     } else {
@@ -28,8 +31,9 @@ template <unsigned short int dim> struct Grid {
   // Index position of a cell for a direction defined vector
   // This function is equal to: (Nx*Ny*dir) + (Nx*y)+x
   // making dir work as an offset.
-  inline std::size_t field_index(const types::Coordinate<dim> &p,
-                                 std::size_t dir, std::size_t ndir) const {
+  LBM_HD_FUNC inline std::size_t field_index(const types::Coordinate<dim> &p,
+                                             std::size_t dir,
+                                             std::size_t ndir) const {
     if constexpr (dim == 2) {
       // NOTE: maybe grid could be templated on velocity sets.
       return ndir * (size.x * p.y + p.x) + dir;
@@ -42,7 +46,7 @@ template <unsigned short int dim> struct Grid {
     }
   }
 
-  inline std::size_t getArea() const {
+  LBM_HD_FUNC inline std::size_t getArea() const {
     if constexpr (dim == 2) {
       return size.x * size.y;
     } else {
@@ -50,7 +54,7 @@ template <unsigned short int dim> struct Grid {
     }
   }
 
-  inline bool contains(const types::Coordinate<dim> &p) const {
+  LBM_HD_FUNC inline bool contains(const types::Coordinate<dim> &p) const {
     const bool isIn = p.x >= 0 && p.x < size.x && p.y >= 0 && p.y < size.y;
     if constexpr (dim == 2) {
       return isIn;

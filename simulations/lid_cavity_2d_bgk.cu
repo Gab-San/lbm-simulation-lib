@@ -1,7 +1,7 @@
 #include "lbm-sim/lbm-simulation.hpp"
 
-#include "lbm-sim/collision-operators/metadata.hpp"
 #include "lbm-sim/collision-operators/collision-strategy-cuda.cuh"
+#include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
@@ -9,15 +9,14 @@
 
 #include "lbm-sim/problems/problem_2d.hpp"
 
-#include "lbm-sim/solver/solver-cuda-2d.cuh"
+// #include "lbm-sim/solver/solver-cuda-2d.cuh"
+#include "lbm-sim/solver/cuda-tmp.cuh"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
 #include "lbm-sim/data/async-binary-writer.hpp"
 
-
 // C++ STD LIB
-#include <memory>
 #include <unordered_map>
 
 static constexpr unsigned short int DIM = 2;
