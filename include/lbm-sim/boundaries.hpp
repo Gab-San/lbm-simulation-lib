@@ -49,6 +49,8 @@ std::vector<uint8_t> compute_boundary_mask(
 
   types::boundary_mask_t boundary_mask(utils::ops::measure(size), Solid::NONE);
 
+  // FIXME: THIS SHOULD BE SUBSTITUTED BY .CONTAINS()
+  // AND IT SHOULD BE NAMED COMPUTE_OBSTACLE_MASK
   for (std::size_t obs_idx = 0; obs_idx < obstacles.size(); obs_idx++) {
     const CollisionDetection::CollisionArea<dim> &obstacle = obstacles[obs_idx];
     const std::vector<types::Coordinate<dim>> &perimeter =
@@ -88,25 +90,16 @@ apply_bb_moving_wall(std::array<double, VelocitySet::ndir> &fp,
                    utils::ops::dot(VelocitySet::dir[oppdir], u0) * 3;
 }
 
-// FIXME: Make dimension independent
-
-// TODO: Check implementation
 template <unsigned short int dim, typename VelocitySet>
-inline void apply_continue(std::array<double, VelocitySet::ndir> &fp,
+inline void apply_periodic(std::array<double, VelocitySet::ndir> &fp,
                            const std::vector<double> &ffrom,
-                           const std::size_t diridx, const Grid<2> &grid,
-                           const types::Coordinate<2> p,
-                           const double localrho) {
-  using Coord = types::Coordinate<2>;
-
-  const unsigned int missing = VelocitySet::opp[diridx];
-
-  const Coord raw = p + VelocitySet::dir[diridx];
-  const int size_x = static_cast<int>(grid.size.x);
-  const int wrapped_x = ((raw.x % size_x) + size_x) % size_x;
-  const Coord source(wrapped_x, raw.y);
-
-  fp[missing] = ffrom[grid.field_index(source, missing, VelocitySet::ndir)];
+                           const std::size_t diridx, const Grid<dim> &grid,
+                           const types::Coordinate<dim> p) {
+  types::Coordinate<dim> wrapped =
+      (static_cast<types::Coordinate<dim>>(grid.size) + p -
+       VelocitySet::dir[diridx]) %
+      static_cast<types::Coordinate<dim>>(grid.size);
+  fp[diridx] = ffrom[grid.field_index(wrapped, diridx, VelocitySet::ndir)];
 }
 
 // NOTE: Why is this all commented?

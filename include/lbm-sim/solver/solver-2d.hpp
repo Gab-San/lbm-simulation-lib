@@ -174,7 +174,7 @@ private:
                                            u0);
       break;
     case Solid::PERIODIC:
-      Solid::apply_continue<2, D2Q9>(fp, ffrom, diridx, grid, p, localrho);
+      Solid::apply_periodic<2, D2Q9>(fp, ffrom, diridx, grid, p);
       break;
     default:
       break;

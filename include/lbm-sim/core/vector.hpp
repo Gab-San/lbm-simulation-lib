@@ -22,7 +22,7 @@ template <typename T> struct Vector<T, 2> {
       : Vector(B_.x - A_.x, B_.y - A_.y) {}
 };
 
-// FIXME: make add correct diemsion implementation
+// FIXME: make add correct dimension implementation
 
 // WARN: template may need to be <typename T, int dim, typename K>
 
@@ -45,6 +45,13 @@ template <typename T>
 inline Vector<T, 2> operator-(const Vector<T, 2> &lhs,
                               const Vector<T, 2> &rhs) {
   return Vector<T, 2>(lhs.dx - rhs.dx, lhs.dy - rhs.dy);
+}
+
+template <typename T, typename K>
+inline Vector<std::common_type_t<T, K>, 2> operator%(const Vector<T, 2> &lhs,
+                                                     const Vector<K, 2> &rhs) {
+  using R = std::common_type_t<T, K>;
+  return Vector<R, 2>(lhs.dx % rhs.dx, lhs.dy % rhs.dy);
 }
 
 template <typename T>
