@@ -1,6 +1,10 @@
 #ifndef __LBM_SIM_BACKEND_CUDA_UTILS_HPP
 #define __LBM_SIM_BACKEND_CUDA_UTILS_HPP
 
+// C++ STD LIB
+#include <sstream>
+#include <stdexcept>
+
 namespace lbm {
 
 // Error checks for async errors

@@ -5,7 +5,6 @@
 
 #include "lbm-sim/collision-operators/metadata.hpp"
 
-#include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/operators.hpp"
 #include "lbm-sim/core/types.hpp"
 
@@ -20,9 +19,9 @@ public:
 
   CollisionStrategy(const Params<dim, cm_t> &params) : params(params) {}
 
-  void apply(const types::Coordinate<dim> p, const utils::Vector<double, dim> u,
-             const double localrho, std::array<double, VelocitySet::ndir> &fp,
-             const Grid<dim> &grid) const {
+  void apply(std::array<double, VelocitySet::ndir> &fp,
+             const types::Coordinate<dim> p, const double localrho,
+             const utils::Vector<double, dim> u) const {
     if constexpr (cm_t == CollisionModel::BGK) {
       apply_bgk(p, u, localrho, fp);
     } else if constexpr (cm_t == CollisionModel::TRT) {
@@ -45,11 +44,8 @@ private:
     // Collisione con SIMD
 #pragma omp simd
     for (unsigned int i = 0; i < VelocitySet::ndir; ++i) {
-      // calculate dot product beetwen the velocity u(x,y)
-      // and the direction vector to its neighbour
       const double cidotu = dot(VelocitySet::dir[i], u);
 
-      // calculate equilibrium
       const double feq = VelocitySet::wi[i] * localrho *
                          (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu + omusq);
 
@@ -65,7 +61,6 @@ private:
 
     const double omusq = -1.5 * dot(u, u);
 
-    // Collisione con SIMD
 #pragma omp simd
     for (unsigned int i = 0; i < VelocitySet::ndir; ++i) {
       const auto iopp = VelocitySet::opp[i];
@@ -81,11 +76,10 @@ private:
           (1.0 + 3.0 * cidotu_i + 4.5 * cidotu_i * cidotu_i + omusq);
 
       if (i == iopp) {
-        // direzione di riposo: nessuna componente antisimmetrica, un solo
-        // update
-
+        // TODO: THIS COMMENT IS SHIT ENGLISH
+        //
+        // Center Direction: no antisymmetric component.
         fp[i] = fp[i] - params.s_plus * (fp[i] - feq_i);
-
         continue;
       }
 
@@ -96,14 +90,14 @@ private:
           VelocitySet::wi[iopp] * localrho *
           (1.0 + 3.0 * cidotu_opp + 4.5 * cidotu_opp * cidotu_opp + omusq);
 
-      // calculate symmetric and antisymmetric parts of the distribution
-      // function
+      // CALCULATE SYMMETRIC AND ANTISYMMETRIC PARTS OF THE DISTRIBUTION
+      // FUNCTION
       const double fplus = 0.5 * (fp[i] + fp[iopp]);
       const double fminus = 0.5 * (fp[i] - fp[iopp]);
       const double fplus_eq = 0.5 * (feq_i + feq_opp);
       const double fminus_eq = 0.5 * (feq_i - feq_opp);
 
-      // relax to equilibrium
+      // RELAX TO EQUILIBRIUM
       fp[i] = fp[i] - params.s_plus * (fplus - fplus_eq) -
               params.s_minus * (fminus - fminus_eq);
       fp[iopp] = fp[iopp] - params.s_plus * (fplus - fplus_eq) +

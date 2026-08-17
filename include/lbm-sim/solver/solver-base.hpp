@@ -8,9 +8,6 @@
 
 #include "lbm-sim/lattice.hpp"
 
-// C++ STANDARD LIB
-#include <vector>
-
 namespace lbm {
 template <unsigned short int dim, typename VelocitySet,
           enum CollisionModel cm_t, enum ExecutionBackend backend_t>
@@ -32,9 +29,8 @@ public:
   };
 
   virtual ~SolverBase() = default;
-  virtual void solve(Lattice<dim> &lattice, const Params<dim, cm_t> &params_,
-                     std::vector<double> &ffrom,
-                     std::vector<double> &fto) const = 0;
+  virtual void solve(Lattice<dim> &lattice,
+                     const Params<dim, cm_t> &params_) const = 0;
 };
 
 template <enum CollisionModel cm_t, enum ExecutionBackend backend_t>
@@ -47,9 +43,8 @@ public:
 
   virtual ~SolverBase2D() = default;
 
-  virtual void solve(Lattice<2> &lattice, const Params<2, cm_t> &params_,
-                     std::vector<double> &ffrom,
-                     std::vector<double> &fto) const override = 0;
+  virtual void solve(Lattice<2> &lattice,
+                     const Params<2, cm_t> &params_) const override = 0;
 };
 
 } // namespace lbm

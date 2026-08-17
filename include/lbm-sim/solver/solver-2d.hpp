@@ -41,36 +41,40 @@ public:
 
   virtual ~MPISolver2D() = default;
 
-  void solve(Lattice<2> &lattice, const Params<2, cm_t> &params_,
-             std::vector<double> &ffrom,
-             std::vector<double> &fto) const override {
+  void solve(Lattice<2> &lattice,
+             const Params<2, cm_t> &params_) const override {
 
     quill::Logger *solver_logger = logging::create_or_get_logger("solver");
+
+    std::vector<double> ffrom(lattice.grid.getArea() * D2Q9::ndir, 0.0);
+    std::vector<double> fto(lattice.grid.getArea() * D2Q9::ndir, 0.0);
+    std::vector<float> usq(lattice.grid.getArea());
+
+    const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> cs(params_);
+
+    init_equilibrium(ffrom, lattice);
+
+    LOG_DEBUG(solver_logger, "Equilibrium Initialized...");
+
     LOG_INFO(solver_logger, "System has {} logical processors.",
              omp_get_num_procs());
     LOG_INFO(solver_logger, "System can work with up to {} threads.",
              omp_get_max_threads());
-    const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> cs(params_);
 
-    // TODO: ADD POPULATIONS BUFFER ALLOCATION
-    //
-    // TODO: ALLOCATE VSQ AND WRITE NORMS IN HOT LOOP
-    // THEN WRITE NORMS COPIES DATA FROM VSQ.
-
-    // partono iterazioni
     for (unsigned int iter = 0; iter < this->niters; iter++) {
       bool save = iter % this->nskips == 0;
-      update_stream_collide(lattice, cs, ffrom, fto, save);
+      update_stream_collide(ffrom, fto, usq, lattice, cs, save);
       std::swap(ffrom, fto);
-      if (save)
-        write_norms(lattice);
+      if (save) {
+        write_norms(usq);
+      }
     }
   }
 
 private:
   // TODO: adapt to initialization
-  void init_equilibrium(const Lattice<2> &lattice,
-                        std::vector<double> &part_stream) const {
+  inline void init_equilibrium(std::vector<double> &part_stream,
+                               const Lattice<2> &lattice) const {
     using utils::ops::dot;
 #pragma omp parallel for shared(lattice, part_stream) schedule(static)         \
     collapse(2)
@@ -97,10 +101,9 @@ private:
 
   // FIXME: Execution context ??
   void update_stream_collide(
-      Lattice<2> &lattice, const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> &cs,
-      const std::vector<double> &ffrom, std::vector<double> &fto, bool save,
-      const ExecutionContext<OPEN_MP> &context =
-          ExecutionContext<OPEN_MP>{}) const {
+      const std::vector<double> &ffrom, std::vector<double> &fto,
+      std::vector<float> &usq, Lattice<2> &lattice,
+      const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> &cs, bool save) const {
 
 #pragma omp parallel for shared(ffrom, fto, cs, lattice, save)                 \
     schedule(static) collapse(2)
@@ -121,14 +124,13 @@ private:
 
         // STREAMING + HALFWAY COLLISION
 #pragma omp unroll full
-        for (unsigned int diridx = 0; diridx < D2Q9::ndir; ++diridx) {
+        for (auto diridx = 0; diridx < D2Q9::ndir; ++diridx) {
           const types::Coordinate<2> src = p - D2Q9::dir[diridx];
 
           if (!lattice.grid.contains(src)) {
             // if source node is external it is on a boundary node
             apply_boundary_conditions(lattice.boundary_mask, fp, ffrom, diridx,
-                                      lattice, p, r_wall, cs.params.init_vel,
-                                      context);
+                                      lattice, p, r_wall, cs.params.init_vel);
           } else {
             // if source node is internal stream it.
             fp[diridx] =
@@ -161,10 +163,11 @@ private:
             lattice.boundary_mask[s_idx] == Solid::PRESSURE_PERIODIC_OUTLET) {
           lattice.rho[s_idx] = r;
           lattice.u[s_idx] = u;
+          usq[s_idx] = static_cast<float>(std::sqrt(utils::ops::dot(u, u)));
         }
 
         // APPLY COLLISION
-        cs.apply(p, u, r, fp, lattice.grid);
+        cs.apply(fp, p, r, u);
 
         // COPY LOCAL DENSITY TO GRID
 #pragma omp simd
@@ -175,16 +178,14 @@ private:
     }
   };
 
-  void apply_boundary_conditions(const types::boundary_mask_t &boundary_mask,
-                                 std::array<double, D2Q9::ndir> &fp,
-                                 const std::vector<double> &ffrom,
-                                 const std::size_t diridx,
-                                 const Lattice<2> &lattice,
-                                 const types::Coordinate<2> p,
-                                 const double &localrho,
-                                 const utils::Vector<double, 2> u0,
-                                 const ExecutionContext<OPEN_MP> &context =
-                                     ExecutionContext<OPEN_MP>{}) const {
+  inline void apply_boundary_conditions(
+      const types::boundary_mask_t &boundary_mask,
+      std::array<double, D2Q9::ndir> &fp, const std::vector<double> &ffrom,
+      const std::size_t diridx, const Lattice<2> &lattice,
+      const types::Coordinate<2> p, const double &localrho,
+      const utils::Vector<double, 2> u0,
+      const ExecutionContext<OPEN_MP> &context =
+          ExecutionContext<OPEN_MP>{}) const {
     (void)context;
 
     types::boundary_t b = boundary_mask[lattice.grid.scalar_index(p)];
@@ -216,23 +217,9 @@ private:
     }
   }
 
-  void write_norms(const Lattice<2> &lattice) const {
-    using utils::ops::dot;
-    std::vector<float> vsq(lattice.grid.getArea());
-
-#pragma omp parallel for shared(lattice, vsq) collapse(2)
-    for (unsigned int y = 0; y < lattice.grid.size.y; ++y) {
-      for (unsigned int x = 0; x < lattice.grid.size.x; ++x) {
-        const types::Coordinate<2> p(x, y);
-        const auto &vel = lattice.u[lattice.grid.scalar_index(p)];
-
-        vsq[lattice.grid.scalar_index(p)] =
-            static_cast<float>(std::sqrt(dot(vel, vel)));
-      }
-    }
-
-    std::vector<char> buf(vsq.size() * sizeof(float));
-    std::memcpy(buf.data(), vsq.data(), buf.size());
+  inline void write_norms(const std::vector<float> &usq) const {
+    std::vector<char> buf(usq.size() * sizeof(float));
+    std::memcpy(buf.data(), usq.data(), buf.size());
     this->notifyListeners(std::move(buf));
   }
 

@@ -56,9 +56,6 @@ public:
 
     LOG_DEBUG(simulation_logger, "Initializing Simulation...");
 
-    std::vector<double> f1(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
-    std::vector<double> f2(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
-
     // FIXME: cannot be initialized like this
     // define generic initialization
 
@@ -71,12 +68,10 @@ public:
 
     // FIXME: check that initialization + init_equilibrium suffices
     LOG_DEBUG(simulation_logger, "Lattice Initialized...");
-    solver.init_equilibrium(lattice, f1);
-    LOG_DEBUG(simulation_logger, "Equilibrium Initialized...");
 
     write_header(lattice.grid);
 
-    solver.solve(lattice, params, f1, f2);
+    solver.solve(lattice, params);
 
     LOG_DEBUG(simulation_logger, "Finished Simulation.");
   };
