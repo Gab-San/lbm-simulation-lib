@@ -1,5 +1,4 @@
 import argparse
-import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -113,7 +112,7 @@ def create_graph(parsed_results, title, xlabel, output_file=None):
 
     if output_file:
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
-        print(f"Grafico salvato in: {output_file}")
+        print(f"Plot saved in {output_file}")
 
     plt.show()
 
@@ -163,7 +162,7 @@ def parse_args():
         "--title",
         nargs="?",
         type=str,
-        default="Comparison of u-velocity profiles",
+        default="Velocity Profile",
         help="Custom title",
     )
 
@@ -171,7 +170,7 @@ def parse_args():
         "--xlabel",
         nargs="?",
         type=str,
-        default="y coordinate",
+        default="uy(x,y/2)",
         help="Custom xlabel",
     )
 
