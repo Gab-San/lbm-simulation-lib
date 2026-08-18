@@ -119,8 +119,8 @@ int main() {
   std::vector<Config<DIM>> configs{
       Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
                   /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_129_100_01_lid_cavity_openmp_trt.bin",
-                  "out/data_129_100_01_lid_cavity_openmp_trt.bin",
+                  "out/norms_lid_cavity_openmp_129_100_01_trt.bin",
+                  "out/data_lid_cavity_openmp_129_100_01_trt.bin",
                   {CollisionDetection::CollisionArea(
                        A2, {CollisionDetection::Segment(A, B),
                             CollisionDetection::Segment(A, D),

@@ -17,11 +17,6 @@
 
 namespace lbm {
 
-namespace types {
-using boundary_t = uint8_t;
-using boundary_mask_t = std::vector<boundary_t>;
-} // namespace types
-
 namespace Solid {
 
 constexpr types::boundary_t NONE = 0;
@@ -101,46 +96,6 @@ inline void apply_periodic(std::array<double, VelocitySet::ndir> &fp,
       static_cast<types::Coordinate<dim>>(grid.size);
   fp[diridx] = ffrom[grid.field_index(wrapped, diridx, VelocitySet::ndir)];
 }
-
-// NOTE: Why is this all commented?
-/*const types::Coordinate<2> x=p -VelocitySet::dir[diridx];
-using Coord = types::Coordinate<2>;
-
-if(p.x==grid.size.x-1){
-  if (p.y == grid.size.y - 1) {
-    if(diridx==5)fp[8] = fp[diridx];
-  }else if (p.y == 0) {
-    if(diridx==8)fp[5] = fp[diridx];
-  } else {
-    // left boundary
-
-    if(diridx==1)ffrom[grid.field_index(x, diridx,
-VelocitySet::ndir)]=ffrom[grid.field_index(x+Coord(grid.size.x-1,0),
-diridx,VelocitySet::ndir )]; if(diridx==5)ffrom[grid.field_index(x, diridx,
-VelocitySet::ndir)]=ffrom[grid.field_index(x+Coord(grid.size.x-1,1),
-diridx,VelocitySet::ndir )]; if(diridx==8)ffrom[grid.field_index(x, diridx,
-VelocitySet::ndir)]=ffrom[grid.field_index(x+Coord(grid.size.x-1,-1),
-diridx,VelocitySet::ndir )];
-
-  }
-}else{
-  if (p.y == grid.size.y - 1) {
-    if(diridx==6)fp[7] = fp[diridx];
-  }else if (p.y == 0) {
-    if(diridx==7)fp[6] = fp[diridx];
-  } else {
-    // left boundary
-    if(diridx==3)ffrom[grid.field_index(x, diridx,
-VelocitySet::ndir)]=ffrom[grid.field_index(x-Coord(grid.size.x-1,0),
-diridx,VelocitySet::ndir )]; if(diridx==6)ffrom[grid.field_index(x, diridx,
-VelocitySet::ndir)]=ffrom[grid.field_index(x-Coord(grid.size.x-1,1),
-diridx,VelocitySet::ndir )]; if(diridx==7)ffrom[grid.field_index(x, diridx,
-VelocitySet::ndir)]=ffrom[grid.field_index(x-Coord(grid.size.x-1,-1),
-diridx,VelocitySet::ndir )];
-  }
-}
-
-*/
 
 } // namespace Solid
 } // namespace lbm
