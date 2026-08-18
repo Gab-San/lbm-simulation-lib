@@ -46,14 +46,18 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
           }
         }()),
         tauinv(2.0 / (6.0 * nu + 1.0)), omtauinv(1.0 - tauinv) {
+#ifndef __CUDA_ARCH__
     double tau = 0.5 + 3.0 * nu;
-    if (tau <= 0.5)
+    if (tau <= 0.5) {
       throw std::runtime_error("LBM error: tau must be > 0.5");
+    }
 
-    if (tau < 0.55 || tau > 1.2)
+    if (tau < 0.55 || tau > 1.2) {
       std::cerr << "LBM warning: tau out of stability range, simulation may be "
                    "unstable."
                 << std::endl;
+    }
+#endif
   }
 };
 
@@ -90,9 +94,11 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::TRT> {
     // -----------------------------
 #endif
 
+#ifndef __CUDA_ARCH__
     if (tauPlus <= 0.5) {
       throw std::runtime_error("LBM error: tau must be > 0.5");
     }
+#endif
   }
 };
 
