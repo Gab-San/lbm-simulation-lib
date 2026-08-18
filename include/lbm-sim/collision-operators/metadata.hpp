@@ -7,8 +7,20 @@
 namespace lbm {
 enum CollisionModel { BGK, TRT, MRT };
 
+inline std::string collision_model_to_string(enum CollisionModel cm_t) {
+  switch (cm_t) {
+  case CollisionModel::BGK:
+    return "BGK";
+  case CollisionModel::TRT:
+    return "TRT";
+  case CollisionModel::MRT:
+    return "MRT";
+  }
+  return std::to_string(cm_t);
+}
+
 template <unsigned short int dim, enum CollisionModel cm_t> struct Params;
-// constexpr bool always_false = false;
+
 template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
   const utils::Vector<double, dim> init_vel;
   const types::DimPoint<dim> num_cells;
