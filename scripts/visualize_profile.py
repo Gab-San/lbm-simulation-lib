@@ -141,9 +141,9 @@ def parse_args():
 
     description = """
     ===================================================================
-                      FLUID PROFILE COMPARISON TOOL
+                      FLUID PROFILE VISUALIZATION TOOL
     ===================================================================
-    Compare a base fluid profile against one or more reference profiles.
+    Visualize a fluid profile or compare multiple fluid profiles against one another.
         """
 
     parser = argparse.ArgumentParser(
@@ -152,18 +152,11 @@ def parse_args():
     )
 
     parser.add_argument(
-        "file",
+        "files",
         type=existing_file,
-        metavar="BASE_PROFILE",
-        help="Path to primary fluid profile.",
-    )
-
-    parser.add_argument(
-        "fcomp",
+        metavar="PROFILE_DATA",
         nargs="+",
-        type=existing_file,
-        metavar="COMPARISON_PROFILE",
-        help="Reference fluid profile path(s) to compare against the BASE_PROFILE.",
+        help="Path to fluid profile.",
     )
 
     parser.add_argument(
@@ -186,15 +179,13 @@ def parse_args():
 
     args = parser.parse_args()
 
-    all_files = [args.file] + args.fcomp
-
-    return args, all_files
+    return args
 
 
 def main():
-    args, all_files = parse_args()
+    args = parse_args()
 
-    results = read_data(all_files)
+    results = read_data(args.files)
     create_graph(results, title=args.title, xlabel=args.xlabel, output_file=args.output)
 
 
