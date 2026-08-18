@@ -78,8 +78,8 @@ private:
     using utils::ops::dot;
 #pragma omp parallel for shared(lattice, part_stream) schedule(static)         \
     collapse(2)
-    for (unsigned int y = 0; y < lattice.grid.size.y; ++y) {
-      for (unsigned int x = 0; x < lattice.grid.size.x; ++x) {
+    for (auto y = 0; y < lattice.grid.size.y; ++y) {
+      for (auto x = 0; x < lattice.grid.size.x; ++x) {
         const types::Coordinate<2> p(x, y);
 
         double r = lattice.rho[lattice.grid.scalar_index(p)];
@@ -88,7 +88,7 @@ private:
         const double u_sq = dot(u, u);
 
 #pragma omp simd
-        for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
+        for (auto i = 0; i < D2Q9::ndir; ++i) {
           double cidotu = dot(D2Q9::dir[i], u);
 
           part_stream[lattice.grid.field_index(p, i, D2Q9::ndir)] =
