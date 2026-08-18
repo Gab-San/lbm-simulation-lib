@@ -121,13 +121,12 @@ struct D2Q9 {
 namespace cuda {
 
 template <unsigned short int dim, typename VelocitySet>
-static __constant__ types::VectorInt<dim> vs_dir[VelocitySet::ndir];
+__constant__ types::VectorInt<dim> vs_dir[VelocitySet::ndir];
+
+template <typename VelocitySet> __constant__ double vs_wi[VelocitySet::ndir];
 
 template <typename VelocitySet>
-static __constant__ double vs_wi[VelocitySet::ndir];
-
-template <typename VelocitySet>
-static __constant__ std::size_t
+__constant__ std::size_t
     vs_opp[VelocitySet::ndir]; // indice della direzione
                                // opposta (per il bounce-back)
 
