@@ -29,6 +29,7 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
   const double nu;
   // FIXME: Is this necessary?
   utils::Vector<double, dim> F{6.66e-7, 0.0}; // default: nessuna forzante
+  bool use_forcing = false;   // <== nuovo campo per Poiseuille
   const double tauinv, omtauinv;
 
   Params(const double reyn_num_, const types::DimPoint<dim> num_cells_,

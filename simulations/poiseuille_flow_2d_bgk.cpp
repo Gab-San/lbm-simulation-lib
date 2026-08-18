@@ -39,8 +39,12 @@ template <> struct Config<2> {
   /// Reynold number
   const double reyn_num;
 
-  /// Initial velocity of the fluid
+  /// Velocita' di riferimento, usata solo per calcolare nu/tau
+  /// NON muove piu' nessuna parete in Poiseuille!!!
   const lbm::utils::Vector<double, 2> init_vel;
+
+  /// AGGIUNTA forza di volume lungo x
+  const lbm::utils::Vector<double, 2> body_force;
 
   /// Output path for frames
   const std::string out_frames;
@@ -56,12 +60,14 @@ template <> struct Config<2> {
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
       const unsigned int c_frames, const double c_reyn_num,
       const lbm::utils::Vector<double, 2> init_vel_,
+      const lbm::utils::Vector<double, 2> body_force_,
       const std::string c_out_frames, const std::string c_out_data,
       const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles_,
       const std::unordered_map<unsigned int, uint8_t> obst_type_map_)
       : grid_size(grid_size_), iters(c_iters), frames(c_frames),
-        reyn_num(c_reyn_num), init_vel(init_vel_), out_frames(c_out_frames),
-        out_data(c_out_data), obstacles(std::move(obstacles_)),
+        reyn_num(c_reyn_num), init_vel(init_vel_), body_force(body_force_),
+        out_frames(c_out_frames), out_data(c_out_data),
+        obstacles(std::move(obstacles_)),
         obst_type_map(std::move(obst_type_map_)) {}
 };
 
@@ -78,9 +84,11 @@ int main() {
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {129, 129}, /*iters*/ 10000, /*frames*/ 150, /*reyn*/ 100.0,
-          /*init_vel*/ {0.1, 0}, "out/norms_couette_129_100_01.bin",
-          "out/data_couette_129_100_01.bin",
+          {129, 129}, /*iters*/ 10000, /*frames*/ 100, /*reyn*/ 100.0,
+          /*init_vel*/ {0.1, 0},
+          /*body_force*/ {1e-6, 0.0}, // <== forza di volume lungo x di default
+          "out/norms_poiseuille_129_100_01.bin",
+          "out/data_poiseuille_129_100_01.bin",
           {
               CollisionDetection::CollisionArea(
                   A, {CollisionDetection::Segment(A, D)}), // bottom (y=0)
@@ -92,27 +100,31 @@ int main() {
                       CollisionDetection::Segment(C - Vector<int, DIM>(0, 1),
                                                   D + Vector<int, DIM>(0, 1))}),
           },
-          {{0, Solid::BB_RIGID_WALL},
-           {1, Solid::BB_MOVING_WALL},
-           {2, Solid::PERIODIC}}),
+          {{0, Solid::BB_RIGID_WALL},   // muro sotto fisso
+           {1, Solid::BB_RIGID_WALL},   // muro sopra fisso (era MOVING_WALL in Couette)
+           {2, Solid::PERIODIC}}),      // left/right periodiche
   };
 
   constexpr auto CollisionType = CollisionModel::BGK;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
+
   const LidCavity2D problem;
 
   for (const auto &conf : configs) {
-    const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
-                 obstacles, obst_type_map] = conf;
+    const auto &[grid_size, iters, frames, reyn, init_vel, body_force,
+                 out_frames, out_data, obstacles, obst_type_map] = conf;
     types::boundary_mask_t boundary_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
 
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(conf.out_frames);
 
-    Simulation simulation(
-        grid_size, boundary_mask,
-        Params<DIM, CollisionType>(reyn, grid_size, init_vel));
+    // L'ho dovuto separare da simulation per poter attivare il forcing
+    Params<DIM, CollisionType> params(reyn, grid_size, init_vel);
+    params.use_forcing = true;
+    params.F = body_force;
+
+    Simulation simulation(grid_size, boundary_mask, params);
 
     simulation.attachListener(writer);
 
