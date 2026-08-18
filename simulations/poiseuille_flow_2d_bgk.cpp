@@ -84,25 +84,23 @@ int main() {
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {129, 129}, /*iters*/ 10000, /*frames*/ 100, /*reyn*/ 100.0,
+          {129, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
           /*init_vel*/ {0.1, 0},
           /*body_force*/ {1e-6, 0.0}, // <== forza di volume lungo x di default
           "out/norms_poiseuille_129_100_01.bin",
           "out/data_poiseuille_129_100_01.bin",
           {
               CollisionDetection::CollisionArea(
-                  A, {CollisionDetection::Segment(A, D)}), // bottom (y=0)
-              CollisionDetection::CollisionArea(
-                  A, {CollisionDetection::Segment(B, C)}), // top (y=128)
+                  A, {CollisionDetection::Segment(A, D),   // bottom (y=0)
+                      CollisionDetection::Segment(B, C)}), // top (y=128)
               CollisionDetection::CollisionArea(
                   A, {CollisionDetection::Segment(A + Vector<int, DIM>(0, 1),
                                                   B - Vector<int, DIM>(0, 1)),
                       CollisionDetection::Segment(C - Vector<int, DIM>(0, 1),
                                                   D + Vector<int, DIM>(0, 1))}),
           },
-          {{0, Solid::BB_RIGID_WALL},   // muro sotto fisso
-           {1, Solid::BB_RIGID_WALL},   // muro sopra fisso (era MOVING_WALL in Couette)
-           {2, Solid::PERIODIC}}),      // left/right periodiche
+          {{0, Solid::BB_RIGID_WALL}, // fixed top and bottom wall
+           {1, Solid::PERIODIC}}),    // right and left periodic bc
   };
 
   constexpr auto CollisionType = CollisionModel::BGK;
