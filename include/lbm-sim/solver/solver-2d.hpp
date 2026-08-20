@@ -225,41 +225,4 @@ private:
 
 } // namespace lbm
 
-/*
-// Calcola u_max dato il gradiente di pressione imposto e la viscosità
-inline double compute_u_max(double rho_in, double rho_out, double Lx, double H,
-                            double tau, double cs2 = 1.0 / 3.0) {
-  double dp_dx = (rho_in - rho_out) * cs2 / Lx;
-  double nu = cs2 * (tau - 0.5);
-  return dp_dx * H * H / (8.0 * nu);
-}
-
-// Profilo analitico di velocità in funzione di y
-inline double analytic_ux(double y, double H, double u_max) {
-  double y_c = y - H * 0.5;
-  return u_max * (1.0 - (y_c * y_c) / (H * 0.5 * H * 0.5));
-}
-
-// Inizializzazione IC coerente col profilo (riduce drasticamente
-// il transiente iniziale, come discusso)
-template <typename GridT>
-void initialize(GridT &grid, double rho0, double u_max, double H) {
-  for (std::size_t y = 0; y < grid.size.y; ++y) {
-    double ux = analytic_ux(static_cast<double>(y), H, u_max);
-    for (std::size_t x = 0; x < grid.size.x; ++x) {
-      auto p = types::Coordinate<2>(x, y);
-      auto feq = bc::equilibrium(rho0, ux, 0.0);
-      // scrivi feq nelle f del nodo (x,y)
-      for (int i = 0; i < 9; ++i) {
-        grid.f[grid.field_index(p, i, 9)] = feq[i];
-      }
-      grid.rho[grid.scalar_index(p)] = rho0;
-      grid.u[grid.scalar_index(p)] = {ux, 0.0};
-    }
-  }
-}
-
-} // namespace poiseuille
-*/
-
 #endif // __LBM_SIM_SOLVER_SOLVER_2D
