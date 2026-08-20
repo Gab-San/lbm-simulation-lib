@@ -80,8 +80,8 @@ int main() {
   std::vector<Config<2>> configs{
       Config<2>(
           {129, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
-          /*init_vel*/ {0.1, 0}, "out/norms_poiseuille_129_100_01_bgk.bin",
-          "out/data_poiseuille_129_100_01_bgk.bin",
+          /*init_vel*/ {0.1, 0}, "out/norms_poiseuille_129_100_01_trt.bin",
+          "out/data_poiseuille_129_100_01_trt.bin",
           {
               CollisionDetection::CollisionArea(
                   A, {CollisionDetection::Segment(A, D),   // bottom (y=0)
@@ -99,7 +99,7 @@ int main() {
                                                    // periodic bc
   };
 
-  constexpr auto CollisionType = CollisionModel::BGK;
+  constexpr auto CollisionType = CollisionModel::TRT;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
   const LidCavity2D problem;

@@ -23,6 +23,8 @@ constexpr types::boundary_t NONE = 0;
 constexpr types::boundary_t BB_RIGID_WALL = 1;
 constexpr types::boundary_t BB_MOVING_WALL = 2;
 constexpr types::boundary_t PERIODIC = 3;
+constexpr types::boundary_t PRESSURE_PERIODIC_INLET = 4;
+constexpr types::boundary_t PRESSURE_PERIODIC_OUTLET = 5;
 
 template <unsigned short int dim>
 std::size_t coord_to_scalar(types::Coordinate<dim> p,
@@ -95,6 +97,37 @@ inline void apply_periodic(std::array<double, VelocitySet::ndir> &fp,
        VelocitySet::dir[diridx]) %
       static_cast<types::Coordinate<dim>>(grid.size);
   fp[diridx] = ffrom[grid.field_index(wrapped, diridx, VelocitySet::ndir)];
+}
+
+template <unsigned short int dim, typename VelocitySet>
+inline void apply_periodic_with_pressure_variation(
+    double *fp, const double *ffrom, const std::size_t diridx,
+    const Grid<dim> grid, const types::Coordinate<dim> pos, const double *rho,
+    const double p, const utils::Vector<double, dim> *u) {
+  using utils::ops::dot;
+
+  types::Coordinate<dim> wrapped =
+      (static_cast<types::Coordinate<dim>>(grid.size) + pos -
+       VelocitySet::dir[diridx]) %
+      static_cast<types::Coordinate<dim>>(grid.size);
+
+  const utils::Vector<double, dim> u_wrapped = u[grid.scalar_index(wrapped)];
+  const double rho_wrapped = rho[grid.scalar_index(wrapped)];
+
+  const double omusq = -1.5 * dot(u_wrapped, u_wrapped);
+  const double cidotu = dot(VelocitySet::dir[diridx], u_wrapped);
+
+  // f_i^eq(pin/pout, uwrapped) = wi * pin/pout * f(uwrapped);
+  const double feq_loc = VelocitySet::wi[diridx] * p *
+                         (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu + omusq);
+
+  // fi*(wrapped,t)
+  const double fi = ffrom[grid.field_index(wrapped, diridx, VelocitySet::ndir)];
+  // f_i^eq(wrapped, t) = wi * rho(wrapped) * f(uwrapped);
+  const double feq_from = VelocitySet::wi[diridx] * rho_wrapped *
+                          (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu + omusq);
+
+  fp[diridx] = feq_loc + fi - feq_from;
 }
 
 } // namespace Solid

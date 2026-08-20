@@ -107,8 +107,8 @@ private:
           if (!lattice.grid.contains(src)) {
             // if source node is external it is on a boundary node
             apply_boundary_conditions(lattice.boundary_mask, fp, ffrom, diridx,
-                                      lattice.grid, p, r_wall,
-                                      cs.params.init_vel, context);
+                                      lattice, p, r_wall, cs.params.init_vel,
+                                      context);
           } else {
             // if source node is internal stream it.
             fp[diridx] =
@@ -136,8 +136,10 @@ private:
         u /= r;
 
         // STORE computed macroscopic values
-        if (save) {
-          const unsigned int s_idx = lattice.grid.scalar_index(p);
+        const auto s_idx = lattice.grid.scalar_index(p);
+        if (save ||
+            lattice.boundary_mask[s_idx] == Solid::PRESSURE_PERIODIC_INLET ||
+            lattice.boundary_mask[s_idx] == Solid::PRESSURE_PERIODIC_OUTLET) {
           lattice.rho[s_idx] = r;
           lattice.u[s_idx] = u;
         }
@@ -157,7 +159,8 @@ private:
   void apply_boundary_conditions(const types::boundary_mask_t &boundary_mask,
                                  std::array<double, D2Q9::ndir> &fp,
                                  const std::vector<double> &ffrom,
-                                 const std::size_t diridx, const Grid<2> &grid,
+                                 const std::size_t diridx,
+                                 const Lattice<2> &lattice,
                                  const types::Coordinate<2> p,
                                  const double &localrho,
                                  const utils::Vector<double, 2> u0,
@@ -165,20 +168,31 @@ private:
                                      ExecutionContext<OPEN_MP>{}) const {
     (void)context;
 
-    types::boundary_t b = boundary_mask[grid.scalar_index(p)];
+    types::boundary_t b = boundary_mask[lattice.grid.scalar_index(p)];
 
     switch (b) {
     case Solid::BB_RIGID_WALL:
-      Solid::apply_bb_rigid_wall<2, D2Q9>(fp, ffrom, diridx, grid, p);
+      Solid::apply_bb_rigid_wall<2, D2Q9>(fp, ffrom, diridx, lattice.grid, p);
       break;
     case Solid::BB_MOVING_WALL:
-      Solid::apply_bb_moving_wall<2, D2Q9>(fp, ffrom, diridx, grid, p, localrho,
-                                           u0);
+      Solid::apply_bb_moving_wall<2, D2Q9>(fp, ffrom, diridx, lattice.grid, p,
+                                           localrho, u0);
       break;
     case Solid::PERIODIC:
-      Solid::apply_periodic<2, D2Q9>(fp, ffrom, diridx, grid, p);
+      Solid::apply_periodic<2, D2Q9>(fp, ffrom, diridx, lattice.grid, p);
+      break;
+    case Solid::PRESSURE_PERIODIC_INLET:
+      Solid::apply_periodic_with_pressure_variation<2, D2Q9>(
+          fp.data(), ffrom.data(), diridx, lattice.grid, p, lattice.rho.data(),
+          lattice.pin, lattice.u.data());
+      break;
+    case Solid::PRESSURE_PERIODIC_OUTLET:
+      Solid::apply_periodic_with_pressure_variation<2, D2Q9>(
+          fp.data(), ffrom.data(), diridx, lattice.grid, p, lattice.rho.data(),
+          lattice.pout, lattice.u.data());
       break;
     default:
+      // FIXME: Should this throw an error?
       break;
     }
   }
@@ -210,42 +224,5 @@ private:
 }; // class MPISolver2D
 
 } // namespace lbm
-
-/*
-// Calcola u_max dato il gradiente di pressione imposto e la viscosità
-inline double compute_u_max(double rho_in, double rho_out, double Lx, double H,
-                            double tau, double cs2 = 1.0 / 3.0) {
-  double dp_dx = (rho_in - rho_out) * cs2 / Lx;
-  double nu = cs2 * (tau - 0.5);
-  return dp_dx * H * H / (8.0 * nu);
-}
-
-// Profilo analitico di velocità in funzione di y
-inline double analytic_ux(double y, double H, double u_max) {
-  double y_c = y - H * 0.5;
-  return u_max * (1.0 - (y_c * y_c) / (H * 0.5 * H * 0.5));
-}
-
-// Inizializzazione IC coerente col profilo (riduce drasticamente
-// il transiente iniziale, come discusso)
-template <typename GridT>
-void initialize(GridT &grid, double rho0, double u_max, double H) {
-  for (std::size_t y = 0; y < grid.size.y; ++y) {
-    double ux = analytic_ux(static_cast<double>(y), H, u_max);
-    for (std::size_t x = 0; x < grid.size.x; ++x) {
-      auto p = types::Coordinate<2>(x, y);
-      auto feq = bc::equilibrium(rho0, ux, 0.0);
-      // scrivi feq nelle f del nodo (x,y)
-      for (int i = 0; i < 9; ++i) {
-        grid.f[grid.field_index(p, i, 9)] = feq[i];
-      }
-      grid.rho[grid.scalar_index(p)] = rho0;
-      grid.u[grid.scalar_index(p)] = {ux, 0.0};
-    }
-  }
-}
-
-} // namespace poiseuille
-*/
 
 #endif // __LBM_SIM_SOLVER_SOLVER_2D
