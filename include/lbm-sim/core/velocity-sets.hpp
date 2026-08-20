@@ -27,6 +27,9 @@ struct D2Q9 {
   /// Number of directions
   static inline constexpr std::size_t ndir = 9;
 
+  /// Inverse squared lattice speed of sound: 1 / c_s^2.
+  static inline constexpr double inv_cs2 = 3.0;
+
   /// Weight in (dx,dy)=(0,0)
   static inline constexpr double w0 = 4.0 / 9.0;
 

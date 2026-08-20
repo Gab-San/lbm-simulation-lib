@@ -3,10 +3,12 @@
 
 #include "lbm-sim/solver/solver-base.hpp"
 
+#include "lbm-sim/boundaries.hpp"
+
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 
-#include "lbm-sim/collision-operators/collision-strategy.hpp"
+#include "lbm-sim/collision-operators/collision-strategy-cuda.cuh"
 #include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/backend/cuda-utils.cuh"
@@ -16,54 +18,14 @@
 #include <cuda_runtime.h>
 
 // C++ STD LIB
+#include <cmath>
+#include <cstring>
 #include <utility>
+#include <vector>
 
 namespace lbm {
 namespace cuda_detail {
 
-template <int dim, typename VelocitySet>
-__device__ void apply_boundary_conditions(double *__restrict__ fto,
-                                          const double *__restrict__ ffrom,
-                                          const Grid<dim> grid,
-                                          const types::Coordinate<dim> p,
-                                          double localrho,
-                                          const utils::Vector<double, dim> u0) {
-  // LEFT BOUNDARY: RESTING WALL
-  if (p.x == 0) {
-    fto[1] = ffrom[grid.field_index(p, 3, 9)];
-    fto[5] = ffrom[grid.field_index(p, 7, 9)];
-    fto[8] = ffrom[grid.field_index(p, 6, 9)];
-  }
-
-  // RIGHT BOUNDARY: RESTING WALL
-  if (p.x == grid.size.x - 1) {
-    fto[3] = ffrom[grid.field_index(p, 1, 9)];
-    fto[7] = ffrom[grid.field_index(p, 5, 9)];
-    fto[6] = ffrom[grid.field_index(p, 8, 9)];
-  }
-
-  // BOTTOM BOUNDARY: RESTING WALL
-  if (p.y == 0) {
-    fto[2] = ffrom[grid.field_index(p, 4, 9)];
-    fto[5] = ffrom[grid.field_index(p, 7, 9)];
-    fto[6] = ffrom[grid.field_index(p, 8, 9)];
-  }
-
-  // TOP BOUNDARY: MOVING WALL
-  if (p.y == grid.size.y - 1) {
-    fto[4] = ffrom[grid.field_index(p, 2, 9)] -
-             2 * cuda::vs_wi<VelocitySet>[2] * localrho *
-                 utils::ops::dot(cuda::vs_dir<dim, VelocitySet>[2], u0) * 3;
-    fto[7] = ffrom[grid.field_index(p, 5, 9)] -
-             2 * cuda::vs_wi<VelocitySet>[5] * localrho *
-                 utils::ops::dot(cuda::vs_dir<dim, VelocitySet>[5], u0) * 3;
-    fto[8] = ffrom[grid.field_index(p, 6, 9)] -
-             2 * cuda::vs_wi<VelocitySet>[6] * localrho *
-                 utils::ops::dot(cuda::vs_dir<dim, VelocitySet>[6], u0) * 3;
-  }
-}
-
-// TODO: check whether static is really needed
 template <types::dim_t dim, typename VelocitySet>
 __global__ void
 init_equilibrium(double *__restrict__ part_stream,
@@ -89,16 +51,13 @@ init_equilibrium(double *__restrict__ part_stream,
   }
 }
 
-// TODO: check whether static is really needed
-
-// TODO: check whether lattice is viably passable (otherwise it might be
-// adapted)
 template <types::dim_t dim, typename VelocitySet, enum CollisionModel cm_t>
 __global__ void update_stream_collide(
     const double *__restrict__ const ffrom, double *__restrict__ fto,
+    const types::boundary_t *__restrict__ boundary_mask,
     float *__restrict__ norms, double *__restrict__ lattice_rho,
     utils::Vector<double, dim> *lattice_u, const Grid<dim> grid,
-    const Params<dim, cm_t> cs, const bool save) {
+    const Params<dim, cm_t> cs, const bool store_macroscopic) {
   double fp[VelocitySet::ndir];
 
   // NOTE: Can this be dimension agnostic?
@@ -122,8 +81,8 @@ __global__ void update_stream_collide(
 
     if (!grid.contains(src)) {
       // if source node is external it is on a boundary node
-      apply_boundary_conditions<dim, VelocitySet>(fp, ffrom, grid, p, r_wall,
-                                                  cs.init_vel);
+      Solid::apply_boundary_condition<dim, VelocitySet>(
+          boundary_mask, fp, ffrom, diridx, grid, p, r_wall, cs.init_vel);
     } else {
       // if source node is internal stream it.
       fp[diridx] = ffrom[grid.field_index(src, diridx, VelocitySet::ndir)];
@@ -147,8 +106,8 @@ __global__ void update_stream_collide(
 
   // STORE computed macroscopic values
 
-  // FIXME: STORING NEED TO BE CORRECTED
-  if (save) {
+  // Store macroscopic fields for requested frames and for the final state.
+  if (store_macroscopic) {
     const unsigned int s_idx = grid.scalar_index(p);
     lattice_rho[s_idx] = r;
     lattice_u[s_idx] = u;
@@ -180,6 +139,7 @@ public:
 
     cuda::upload_lattice_constants<2, D2Q9>();
     double *fto, *ffrom, *d_rho;
+    types::boundary_t *d_boundary_mask;
     float *norms;
     utils::Vector<double, 2> *d_u;
 
@@ -191,6 +151,8 @@ public:
 
     LBM_CUDA_CHECK(cudaMalloc(&ffrom, allocation_size));
     LBM_CUDA_CHECK(cudaMalloc(&fto, allocation_size));
+    LBM_CUDA_CHECK(cudaMalloc(&d_boundary_mask,
+                              area * sizeof(types::boundary_t)));
 
     LBM_CUDA_CHECK(cudaMalloc(&norms, area * sizeof(float)));
     LBM_CUDA_CHECK(cudaMalloc(&d_rho, area * sizeof(double)));
@@ -202,14 +164,12 @@ public:
     LBM_CUDA_CHECK(cudaMemcpyAsync(d_u, lattice.u.data(),
                                    area * sizeof(utils::Vector<double, 2>),
                                    cudaMemcpyHostToDevice, stream));
+    LBM_CUDA_CHECK(cudaMemcpyAsync(
+        d_boundary_mask, lattice.boundary_mask.data(),
+        area * sizeof(types::boundary_t), cudaMemcpyHostToDevice, stream));
 
-    // FIXME: Define the correct way to calculate blocks.
-
-    // WARN: ExecutionContext is actually useless try to avoid it as much as
-    // possible!!
-
-    // NOTE: Is there any way to make this dimension independent? (Maybe with an
-    // helper function)
+    // 16x16 is a conservative 2D default. ceil_div below guarantees complete
+    // domain coverage; device-specific tuning can be added independently.
     const dim3 blockDim(16, 16);
     const dim3 gridDim(cuda_detail::ceil_div(lattice.grid.size.x, blockDim.x),
                        cuda_detail::ceil_div(lattice.grid.size.y, blockDim.y));
@@ -219,10 +179,12 @@ public:
 
     for (auto iter = 0; iter < this->niters; iter++) {
       const bool save = iter % this->nskips == 0;
+      const bool store_macroscopic = save || (iter + 1 == this->niters);
 
       cuda_detail::update_stream_collide<2, D2Q9, cm_t>
-          <<<gridDim, blockDim, 0, stream>>>(ffrom, fto, norms, d_rho, d_u,
-                                             lattice.grid, params_, save);
+          <<<gridDim, blockDim, 0, stream>>>(
+              ffrom, fto, d_boundary_mask, norms, d_rho, d_u, lattice.grid,
+              params_, store_macroscopic);
       LBM_CUDA_CHECK(cudaGetLastError());
       std::swap(ffrom, fto);
       if (save) {
@@ -232,13 +194,13 @@ public:
       }
     }
 
-    // NOTE: Technically this should be useless because on last iteration
-    // a save should occur, but I need to check this
+    // The final iteration always stores rho/u even when it is not a frame.
     download_macroscopic(d_rho, d_u, lattice, stream);
     LBM_CUDA_CHECK(cudaStreamDestroy(stream));
 
     LBM_CUDA_CHECK(cudaFree(ffrom));
     LBM_CUDA_CHECK(cudaFree(fto));
+    LBM_CUDA_CHECK(cudaFree(d_boundary_mask));
     LBM_CUDA_CHECK(cudaFree(norms));
     LBM_CUDA_CHECK(cudaFree(d_rho));
     LBM_CUDA_CHECK(cudaFree(d_u));
