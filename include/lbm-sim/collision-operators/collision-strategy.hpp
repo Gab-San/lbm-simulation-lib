@@ -55,7 +55,7 @@ private:
                          (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu + omusq);
       // relax to equilibrium
       // FIXME: Questo non va mai in poiseuille, lo leviamo?
-      //int pois = 0;
+      // int pois = 0;
       if (params.use_forcing) {
         const double cidotF = dot(VelocitySet::dir[i], params.F);
         const double udotF = dot(u, params.F);

@@ -36,8 +36,10 @@ private:
 public:
   LBMSimulation(const types::DimPoint<dim> grid_dim_,
                 types::boundary_mask_t boundary_mask_,
-                const Params<dim, cm_t> params_)
-      : lattice(grid_dim_, std::move(boundary_mask_)), params(params_) {};
+                const Params<dim, cm_t> params_, const double pin = 0,
+                const double pout = 0)
+      : lattice(grid_dim_, std::move(boundary_mask_), pin, pout),
+        params(params_) {};
 
   template <enum ExecutionBackend backend_t>
   void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver,
@@ -92,10 +94,10 @@ public:
 
     fout.write(header.data(), header.size());
 
-    std::vector<double> v_center(lattice.grid.size.x);
-    int j_center = lattice.grid.size.y / 2;
-    for (int i = 0; i < lattice.grid.size.x; ++i) {
-      v_center[i] = lattice.u[lattice.grid.size.x * j_center + i].dy;
+    std::vector<double> v_center(lattice.grid.size.y);
+    int x = lattice.grid.size.x / 2;
+    for (auto y = 0; y < lattice.grid.size.y; ++y) {
+      v_center[y] = lattice.u[lattice.grid.size.x * y + x].dx;
     }
 
     fout.write(reinterpret_cast<const char *>(v_center.data()),
