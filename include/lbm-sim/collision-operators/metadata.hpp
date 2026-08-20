@@ -1,26 +1,36 @@
 #ifndef __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP
 #define __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP
 
-#include "collision-detection/core/types.hpp"
-#include "collision-detection/core/vector.hpp"
+#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/core/vector.hpp"
 
 namespace lbm {
 enum CollisionModel { BGK, TRT, MRT };
 
-template <int dim, enum CollisionModel cm_t> struct Params;
-// constexpr bool always_false = false;
-template <int dim> struct Params<dim, CollisionModel::BGK> {
-  const CollisionDetection::utils::Vector<double, dim> init_vel;
-  const CollisionDetection::types::DimPoint<dim> num_cells;
+inline std::string collision_model_to_string(enum CollisionModel cm_t) {
+  switch (cm_t) {
+  case CollisionModel::BGK:
+    return "BGK";
+  case CollisionModel::TRT:
+    return "TRT";
+  case CollisionModel::MRT:
+    return "MRT";
+  }
+  return std::to_string(cm_t);
+}
+
+template <unsigned short int dim, enum CollisionModel cm_t> struct Params;
+
+template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
+  const utils::Vector<double, dim> init_vel;
+  const types::DimPoint<dim> num_cells;
 
   const double reyn_num;
   const double nu;
-
   const double tauinv, omtauinv;
 
-  Params(const double reyn_num_,
-         const CollisionDetection::types::DimPoint<dim> num_cells_,
-         const CollisionDetection::utils::Vector<double, dim> init_vel_)
+  Params(const double reyn_num_, const types::DimPoint<dim> num_cells_,
+         const utils::Vector<double, dim> init_vel_)
       : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
         nu([&]() -> double {
           // WARN: this might need correction for different possible
@@ -44,9 +54,9 @@ template <int dim> struct Params<dim, CollisionModel::BGK> {
   }
 };
 
-template <int dim> struct Params<dim, CollisionModel::TRT> {
-  const CollisionDetection::utils::Vector<double, dim> init_vel;
-  const CollisionDetection::types::DimPoint<dim> num_cells;
+template <unsigned short int dim> struct Params<dim, CollisionModel::TRT> {
+  const utils::Vector<double, dim> init_vel;
+  const types::DimPoint<dim> num_cells;
 
   const double reyn_num;
   const double nu;
@@ -54,9 +64,8 @@ template <int dim> struct Params<dim, CollisionModel::TRT> {
   const double tauPlus, tauMinus;
   const double s_plus, s_minus;
 
-  Params(const double reyn_num_,
-         const CollisionDetection::types::DimPoint<dim> num_cells_,
-         const CollisionDetection::utils::Vector<double, dim> init_vel_)
+  Params(const double reyn_num_, const types::DimPoint<dim> num_cells_,
+         const utils::Vector<double, dim> init_vel_)
       : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
         nu([&]() -> double {
           // WARN: this might need correction for different possible

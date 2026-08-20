@@ -1,18 +1,18 @@
 #ifndef _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 #define _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 
-// LBM SIM LIB
 #include "lbm-sim/backend/metadata.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm-sim/core/grid.hpp"
 
-// COLLISION DETECTION LIB
-#include "collision-detection/core/types.hpp"
+#include "lbm-sim/collision-operators/metadata.hpp"
+
+#include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/core/operators.hpp"
+#include "lbm-sim/core/types.hpp"
 
 namespace lbm {
 
-template <int dim, typename VelocitySet, enum CollisionModel cm_t,
-          enum ExecutionBackend backend_t>
+template <unsigned short int dim, typename VelocitySet,
+          enum CollisionModel cm_t, enum ExecutionBackend backend_t>
 class CollisionStrategy {
 public:
   const Params<dim, cm_t> params;
@@ -20,14 +20,13 @@ public:
 
   CollisionStrategy(const Params<dim, cm_t> &params) : params(params) {}
 
-  void apply(const CollisionDetection::types::Coordinate<dim> p,
-             const CollisionDetection::utils::Vector<double, dim> u,
+  void apply(const types::Coordinate<dim> p, const utils::Vector<double, dim> u,
              const double localrho, std::array<double, VelocitySet::ndir> &fp,
              const Grid<dim> &grid) const {
     if constexpr (cm_t == CollisionModel::BGK) {
-      apply_bgk(p, u, localrho, fp, grid);
+      apply_bgk(p, u, localrho, fp);
     } else if constexpr (cm_t == CollisionModel::TRT) {
-      apply_trt(p, u, localrho, fp, grid);
+      apply_trt(p, u, localrho, fp);
     } else {
       static_assert(
           cm_t == CollisionModel::MRT,
@@ -36,12 +35,10 @@ public:
   }
 
 private:
-  void apply_bgk(const CollisionDetection::types::Coordinate<dim> p,
-                 const CollisionDetection::utils::Vector<double, dim> u,
-                 const double localrho,
-                 std::array<double, VelocitySet::ndir> &fp,
-                 const Grid<dim> &grid) const {
-    using CollisionDetection::utils::dot;
+  void apply_bgk(const types::Coordinate<dim> p,
+                 const utils::Vector<double, dim> u, const double localrho,
+                 std::array<double, VelocitySet::ndir> &fp) const {
+    using utils::ops::dot;
 
     const double omusq = -1.5 * dot(u, u);
 
@@ -55,17 +52,16 @@ private:
       // calculate equilibrium
       const double feq = VelocitySet::wi[i] * localrho *
                          (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu + omusq);
+
       // relax to equilibrium
       fp[i] = params.omtauinv * fp[i] + params.tauinv * feq;
     }
   }
 
-  void apply_trt(const CollisionDetection::types::Coordinate<dim> p,
-                 const CollisionDetection::utils::Vector<double, dim> u,
-                 const double localrho,
-                 std::array<double, VelocitySet::ndir> &fp,
-                 const Grid<dim> &grid) const {
-    using CollisionDetection::utils::dot;
+  void apply_trt(const types::Coordinate<dim> p,
+                 const utils::Vector<double, dim> u, const double localrho,
+                 std::array<double, VelocitySet::ndir> &fp) const {
+    using utils::ops::dot;
 
     const double omusq = -1.5 * dot(u, u);
 

@@ -1,8 +1,8 @@
 #ifndef __LBM_SIM_LBM_SIMULATION_HPP
 #define __LBM_SIM_LBM_SIMULATION_HPP
 
-// LBM SIM LIB
 #include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/core/types.hpp"
 
 #include "lbm-sim/backend/metadata.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
@@ -10,9 +10,6 @@
 #include "lbm-sim/problems/problem_2d.hpp"
 
 #include "lbm-sim/solver/solver-base.hpp"
-
-// COLLISION DETECTION LIB
-#include "collision-detection/core/types.hpp"
 
 // C++ STANDARD LIB
 #include <filesystem>
@@ -25,7 +22,7 @@
 
 namespace lbm {
 
-template <int dim, typename VelocitySet,
+template <unsigned short int dim, typename VelocitySet,
           enum CollisionModel cm_t = CollisionModel::BGK>
 class LBMSimulation : public DataObservable {
 private:
@@ -33,40 +30,43 @@ private:
       dim == VelocitySet::dim,
       "LBMSimulation: template parameter 'dim' must match VelocitySet::dim");
 
-  Grid<dim> grid;
+  Lattice<dim> lattice;
   const Params<dim, cm_t> params;
 
 public:
-  LBMSimulation(const CollisionDetection::types::DimPoint<dim> grid_dim_,
-                const Params<dim, cm_t> params_)
-      : grid(grid_dim_), params(params_) {};
+  LBMSimulation(const types::DimPoint<dim> grid_dim_,
+                types::boundary_mask_t boundary_mask_,
+                const Params<dim, cm_t> params_, const double pin = 0,
+                const double pout = 0)
+      : lattice(grid_dim_, std::move(boundary_mask_), pin, pout),
+        params(params_) {};
 
   template <enum ExecutionBackend backend_t>
   void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver,
              const LidCavity2D &problem) {
     std::cout << "Initializing Simulation." << std::endl;
 
-    std::vector<double> f1(grid.getArea() * VelocitySet::ndir, 0.0);
-    std::vector<double> f2(grid.getArea() * VelocitySet::ndir, 0.0);
+    std::vector<double> f1(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
+    std::vector<double> f2(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
 
     // FIXME: cannot be initialized like this
     // define generic initialization
 
-    // CollisionDetection::Segment<2> seg(
-    //     CollisionDetection::types::Coordinate<2>(0, grid.size.y - 1),
-    //     CollisionDetection::types::Coordinate<2>(grid.size.x - 1,
+    // Segment<2> seg(
+    //     types::Coordinate<2>(0, grid.size.y - 1),
+    //     types::Coordinate<2>(grid.size.x - 1,
     //                                              grid.size.y - 1));
     //
     // problem.init(grid, params.init_vel, seg.getPerimeter());
 
     // FIXME: check that initialization + init_equilibrium suffices
     std::cout << "Problem Initialized." << std::endl;
-    solver.init_equilibrium(grid, f1);
+    solver.init_equilibrium(lattice, f1);
     std::cout << "Equilibrium Initialized." << std::endl;
 
-    write_header(grid);
+    write_header(lattice.grid);
 
-    solver.solve(grid, params, f1, f2);
+    solver.solve(lattice, params, f1, f2);
 
     std::cout << "Finished Simulation." << std::endl;
   };
@@ -89,10 +89,15 @@ public:
 
     std::cout << "Writing..." << std::endl;
 
-    std::vector<double> v_center(grid.size.x);
-    int j_center = grid.size.y / 2;
-    for (int i = 0; i < grid.size.x; ++i) {
-      v_center[i] = grid.u[grid.size.x * j_center + i].dy;
+    std::string header = "%%profile " + collision_model_to_string(cm_t) + " " +
+                         std::to_string(lattice.grid.size.y) + "\n";
+
+    fout.write(header.data(), header.size());
+
+    std::vector<double> v_center(lattice.grid.size.y);
+    int x = lattice.grid.size.x / 2;
+    for (auto y = 0; y < lattice.grid.size.y; ++y) {
+      v_center[y] = lattice.u[lattice.grid.size.x * y + x].dx;
     }
 
     fout.write(reinterpret_cast<const char *>(v_center.data()),

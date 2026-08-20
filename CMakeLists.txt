@@ -22,14 +22,6 @@ target_include_directories(
 )
 target_link_libraries(lib-lbm-sim INTERFACE OpenMP::OpenMP_CXX)
 
-add_subdirectory(libs/collision-detection)
-target_include_directories(
-  lib-lbm-sim
-  INTERFACE
-  "${CMAKE_CURRENT_SOURCE_DIR}/libs/collision-detection/include"
-)
-target_link_libraries(lib-lbm-sim INTERFACE lbm-collision-detection)
-
 if (${PROJECT_IS_TOP_LEVEL})
   add_subdirectory(simulations)
 endif()
