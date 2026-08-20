@@ -6,6 +6,8 @@
 
 #include "lbm-sim/backend/cuda-annotations.hpp"
 
+#include <string>
+
 namespace lbm {
 enum CollisionModel { BGK, TRT, MRT };
 

@@ -57,6 +57,15 @@ lbm_apply_quill_log_level(${LBM_LOGGING_HELPER_LIB})
 
 target_link_libraries(${LBM_SIM_LIB} INTERFACE ${LBM_LOGGING_HELPER_LIB})
 
+if(MSVC)
+    target_compile_options(lib-lbm-sim INTERFACE
+        $<$<COMPILE_LANGUAGE:CXX>:/openmp:experimental>
+        # flag di ottimizzazione per release, sostituisce
+        # il loop unrolling di OpenMP che non funziona con MSVC!!!
+        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:/O2>
+    )
+endif()
+
 if(LBM_ENABLE_CUDA)
   set(CMAKE_CUDA_STANDARD 17)
   set(CMAKE_CUDA_STANDARD_REQUIRED True)
