@@ -185,10 +185,12 @@ private:
       Solid::apply_periodic_with_pressure_variation<2, D2Q9>(
           fp.data(), ffrom.data(), diridx, lattice.grid, p, lattice.rho.data(),
           lattice.pin, lattice.u.data());
+      break;
     case Solid::PRESSURE_PERIODIC_OUTLET:
       Solid::apply_periodic_with_pressure_variation<2, D2Q9>(
           fp.data(), ffrom.data(), diridx, lattice.grid, p, lattice.rho.data(),
           lattice.pout, lattice.u.data());
+      break;
     default:
       // FIXME: Should this throw an error?
       break;

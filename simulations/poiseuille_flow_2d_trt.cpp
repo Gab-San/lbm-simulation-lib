@@ -80,8 +80,8 @@ int main() {
   std::vector<Config<2>> configs{
       Config<2>(
           {129, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
-          /*init_vel*/ {0.1, 0}, "out/norms_poiseuille_129_100_01_no_force.bin",
-          "out/data_poiseuille_129_100_01_no_force.bin",
+          /*init_vel*/ {0.1, 0}, "out/norms_poiseuille_129_100_01_trt.bin",
+          "out/data_poiseuille_129_100_01_trt.bin",
           {
               CollisionDetection::CollisionArea(
                   A, {CollisionDetection::Segment(A, D),   // bottom (y=0)
@@ -116,8 +116,8 @@ int main() {
     Params<DIM, CollisionType> params(reyn, grid_size, init_vel);
     const double pout = 1;
     const double pin =
-        (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) * 8 *
-        params.nu * params.init_vel.dx;
+        pout + (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
+                   8 * params.nu * params.init_vel.dx;
     Simulation simulation(grid_size, boundary_mask, params, pin, pout);
 
     simulation.attachListener(writer);
