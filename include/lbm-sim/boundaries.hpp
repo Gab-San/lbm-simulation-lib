@@ -54,7 +54,9 @@ std::vector<uint8_t> compute_boundary_mask(
         obstacle.getPerimeter();
 #pragma omp parallel for shared(obst_type_map, perimeter, boundary_mask)       \
     schedule(static)
-    for (std::size_t per_idx = 0; per_idx < perimeter.size(); per_idx++) {
+    // for (std::size_t per_idx = 0; per_idx < perimeter.size(); per_idx++) {
+    // meglio usare auto per_idx = 0; per_idx < perimeter.size(); per_idx++ per_idx++
+    for (auto per_idx = 0; per_idx < perimeter.size(); per_idx++) {
       const types::Coordinate<dim> &p = perimeter[per_idx];
       boundary_mask[coord_to_scalar<dim>(p, size)] = obst_type_map.at(obs_idx);
     }

@@ -118,10 +118,14 @@ int main() {
   //                                   {1, Solid::BB_MOVING_WALL},
   //                                   {2, Solid::BB_FIXED_RHO_WALL}}
   std::vector<Config<DIM>> configs{
-      Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
-                  /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_lid_cavity_cuda_129_100_01_bgk.bin",
-                  "out/data_lid_cavity_cuda_129_100_01_bgk.bin",
+      // Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
+      //             /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
+      //             "out/norms_lid_cavity_cuda_129_100_01_bgk.bin",
+      //             "out/data_lid
+      Config<DIM>({5000, 5000}, /*iters*/ 20000, /*frames*/ 200,
+                  /*reyn*/ 50000.0, /*init_vel*/ {0.1, 0},
+                  "out/norms_lid_cavity_cuda_5000_50000_01_bgk.bin",
+                  "out/data_lid_cavity_cuda_5000_50000_01_bgk.bin",
                   {CollisionDetection::CollisionArea(
                        A2, {CollisionDetection::Segment(A, B),
                             CollisionDetection::Segment(A, D),

@@ -23,6 +23,16 @@
 // OMP LIB
 #include <omp.h>
 
+// Manage loop unrolling pragmas for different compilers
+#pragma once
+#if defined(__clang__)
+    #define UNROLL_FULL _Pragma("clang loop unroll(full)")
+#elif defined(__GNUC__)
+    #define UNROLL_FULL _Pragma("GCC unroll 65534")
+#else
+    #define UNROLL_FULL
+#endif
+
 namespace lbm {
 
 template <enum CollisionModel cm_t>
@@ -92,20 +102,25 @@ private:
 
 #pragma omp parallel for shared(ffrom, fto, cs, lattice, save)                 \
     schedule(static) collapse(2)
-    for (std::size_t y = 0; y < lattice.grid.size.y; ++y) {
-      for (std::size_t x = 0; x < lattice.grid.size.x; ++x) {
+    //for (std::size_t y = 0; y < lattice.grid.size.y; ++y) {
+    //  for (std::size_t x = 0; x < lattice.grid.size.x; ++x) {
+    // meglio usare auto y = 0; y < lattice.grid.size.y; ++y; ++y
+    for (auto y = 0; y < lattice.grid.size.y; ++y) {
+      for (auto x = 0; x < lattice.grid.size.x; ++x) {
         std::array<double, D2Q9::ndir> fp;
         const utils::Point<int, 2> p(x, y);
 
         double r_wall = 0.0;
-#pragma omp unroll full
+// #pragma omp unroll full
+   UNROLL_FULL
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
           // calculate local rho on wall before boundary conditions
           r_wall += ffrom[lattice.grid.field_index(p, i, D2Q9::ndir)];
         }
 
         // STREAMING + HALFWAY COLLISION
-#pragma omp unroll full
+// #pragma omp unroll full
+    UNROLL_FULL 
         for (auto diridx = 0; diridx < D2Q9::ndir; ++diridx) {
           const types::Coordinate<2> src = p - D2Q9::dir[diridx];
 
@@ -128,7 +143,8 @@ private:
         double r = 0.0;
         utils::Vector<double, 2> u(0, 0);
 
-#pragma omp unroll full
+// #pragma omp unroll full
+    UNROLL_FULL
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
           r += fp[i];
           u += D2Q9::dir[i] * fp[i];
