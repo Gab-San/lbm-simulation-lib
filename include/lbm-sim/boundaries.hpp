@@ -1,9 +1,10 @@
 #ifndef __LBM_SIM_BOUNDARIES_HPP
 #define __LBM_SIM_BOUNDARIES_HPP
 
+#include "lbm-sim/types/common.hpp"
+
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/operators.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"

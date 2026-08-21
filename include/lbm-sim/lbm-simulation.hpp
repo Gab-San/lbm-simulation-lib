@@ -1,8 +1,9 @@
 #ifndef __LBM_SIM_LBM_SIMULATION_HPP
 #define __LBM_SIM_LBM_SIMULATION_HPP
 
+#include "lbm-sim/types/common.hpp"
+
 #include "lbm-sim/core/grid.hpp"
-#include "lbm-sim/core/types.hpp"
 
 #include "lbm-sim/backend/metadata.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"

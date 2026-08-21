@@ -1,8 +1,9 @@
 #ifndef __COLLISION_DETECTION_ALGORITHMS_COLLISION_HPP
 #define __COLLISION_DETECTION_ALGORITHMS_COLLISION_HPP
 
+#include "lbm-sim/types/common.hpp"
+
 #include "lbm-sim/core/operators.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 
 // C++ STD LIB

@@ -1,7 +1,8 @@
 #ifndef __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP
 #define __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP
 
-#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/types/common.hpp"
+
 #include "lbm-sim/core/vector.hpp"
 
 namespace lbm {

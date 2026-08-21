@@ -1,6 +1,8 @@
 #ifndef __LBM_SIM_CORE_VELOCITY_SETS_HPP
 #define __LBM_SIM_CORE_VELOCITY_SETS_HPP
 
+#include "lbm-sim/types/base.hpp"
+
 #include "lbm-sim/core/vector.hpp"
 
 // C++ STANDARD LIB
@@ -9,23 +11,23 @@
 
 namespace lbm {
 
-template <unsigned short int dim> using VectorInt = utils::Vector<int, dim>;
+template <types::dim_t dim> using VectorInt = utils::Vector<int, dim>;
 
 struct D2Q9 {
 
-  static constexpr unsigned short int dim = 2;
+  static inline constexpr types::dim_t dim = 2;
 
   /// Number of directions
-  static constexpr std::size_t ndir = 9;
+  static inline constexpr std::size_t ndir = 9;
 
   /// Weight in (dx,dy)=(0,0)
-  static constexpr double w0 = 4.0 / 9.0;
+  static inline constexpr double w0 = 4.0 / 9.0;
 
   /// Weight for adjacent points
-  static constexpr double ws = 1.0 / 9.0;
+  static inline constexpr double ws = 1.0 / 9.0;
 
   /// Diagonal weight
-  static constexpr double wd = 1.0 / 36.0;
+  static inline constexpr double wd = 1.0 / 36.0;
 
   /**
    * Direction weights map.
@@ -38,8 +40,8 @@ struct D2Q9 {
    * +\n
    * y
    */
-  static constexpr std::array<double, ndir> wi = {w0, ws, ws, ws, ws,
-                                                  wd, wd, wd, wd};
+  static inline constexpr std::array<double, ndir> wi = {w0, ws, ws, ws, ws,
+                                                         wd, wd, wd, wd};
 
   /**
    * Array of directions following the numbering scheme.
@@ -52,29 +54,80 @@ struct D2Q9 {
    * \n
    * y
    */
-  inline static const std::array<VectorInt<2>, ndir> dir = {
-      VectorInt<2>(0, 0),    VectorInt<2>({1, 0}),   VectorInt<2>({0, 1}),
-      VectorInt<2>({-1, 0}), VectorInt<2>({0, -1}),  VectorInt<2>({1, 1}),
-      VectorInt<2>({-1, 1}), VectorInt<2>({-1, -1}), VectorInt<2>({1, -1})};
+  static inline constexpr std::array<VectorInt<dim>, ndir> dir = {
+      VectorInt<dim>(0, 0),  VectorInt<dim>(1, 0),   VectorInt<dim>(0, 1),
+      VectorInt<dim>(-1, 0), VectorInt<dim>(0, -1),  VectorInt<dim>(1, 1),
+      VectorInt<dim>(-1, 1), VectorInt<dim>(-1, -1), VectorInt<dim>(1, -1)};
 
-  static constexpr std::array<std::size_t, ndir> opp = {0, 3, 4, 1, 2,
-                                                        7, 8, 5, 6};
+  static inline constexpr std::array<std::size_t, ndir> opp = {0, 3, 4, 1, 2,
+                                                               7, 8, 5, 6};
+};
+
+struct D3Q19 {
+
+  static inline constexpr types::dim_t dim = 3;
+
+  /// Number of directions
+  static inline constexpr std::size_t ndir = 19;
+
+  /// Weight in (dx,dy)=(0,0)
+  static inline constexpr double w0 = 1 / 3.0;
+
+  /// Weight for face points
+  static inline constexpr double wf = 1 / 18.0;
+
+  /// Weight for edge points
+  static inline constexpr double we = 1 / 36.0;
+
+  static inline constexpr std::array<double, ndir> wi = {
+      w0 /*0*/, wf, wf, wf, wf, wf, wf /*6*/, we, we, we,
+      we,       we, we, we, we, we, we,       we, we /*18*/};
+
+  static inline constexpr std::array<VectorInt<dim>, ndir> dir = {
+      VectorInt<dim>(0, 0, 0) /*0*/,    VectorInt<dim>(1, 0, 0),
+      VectorInt<dim>(-1, 0, 0),         VectorInt<dim>(0, 1, 0) /*3*/,
+      VectorInt<dim>(0, -1, 0),         VectorInt<dim>(0, 0, 1),
+      VectorInt<dim>(0, 0, -1) /*6*/,   VectorInt<dim>(1, 1, 0),
+      VectorInt<dim>(-1, -1, 0),        VectorInt<dim>(1, 0, 1),
+      VectorInt<dim>(-1, 0, -1) /*10*/, VectorInt<dim>(0, 1, 1),
+      VectorInt<dim>(0, -1, -1),        VectorInt<dim>(1, -1, 0),
+      VectorInt<dim>(-1, 1, 0) /*14*/,  VectorInt<dim>(1, 0, -1),
+      VectorInt<dim>(-1, 0, 1),         VectorInt<dim>(0, 1, -1),
+      VectorInt<dim>(0, -1, 1) /*18*/
+  };
+
+  static inline constexpr std::array<std::size_t, ndir> opp = {
+      0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15, 18, 17};
 };
 
 struct D3Q27 {
 
-  static constexpr unsigned short int dim = 3;
-  /// Number of directions
-  static constexpr std::size_t ndir = 27;
-  /// Weight in (dx,dy)=(0,0)
-  static constexpr double w0 = 8.0 / 27.0;
-  /// Weight for face points
-  static constexpr double wf = 2.0 / 27.0;
-  /// Weight for edge points
-  static constexpr double we = 1.0 / 54.0;
-  /// Weight for corner points
-  static constexpr double wc = 1.0 / 216.0;
+  static inline constexpr types::dim_t dim = 3;
 
+  /// Number of directions
+  static inline constexpr std::size_t ndir = 27;
+
+  /// Weight in (dx,dy)=(0,0)
+  static inline constexpr double w0 = 8.0 / 27.0;
+
+  /// Weight for face points
+  static inline constexpr double wf = 2.0 / 27.0;
+
+  /// Weight for edge points
+  static inline constexpr double we = 1.0 / 54.0;
+
+  /// Weight for corner points
+  static inline constexpr double wc = 1.0 / 216.0;
+
+  /**
+   * Direction weights map.
+   */
+  static inline constexpr std::array<double, ndir> wi =
+      {w0 /*0*/,  wf, wf, wf, wf, wf, wf /*6*/, we, we,
+       we,        we, we, we, we, we, we,       we, we,
+       we /*18*/, wc, wc, wc, wc, wc, wc,       wc, wc /*26*/};
+
+  // FIXME: FIX DOCUMENTATION
   // implemented in 3D but not used yet of directions and their opposite in 3D,
   // following the numbering scheme:(x,y,z) 1(direction)
   // --->2(opposite),3(direction) --->4(opposite),5(direction)
@@ -84,20 +137,31 @@ struct D3Q27 {
   // --->18(opposite),19(direction) --->20(opposite),21(direction)
   // --->22(opposite),23(direction) --->24(opposite),25(direction)
   // --->26(opposite)
-  static constexpr std::array<int, ndir> dirx = {
-      0,  1, -1, 0, 0, 0, 0,  1, -1, 1, -1, 1, -1, 1,
-      -1, 0, 0,  0, 0, 1, -1, 1, -1, 1, -1, 1, -1};
+  /**
+   * Array of directions for D3Q27.
+   *
+   * \htmlonly
+   * <iframe src="lbm_d3q27_directions.html" width="580" height="560"
+   * style="border:none;"></iframe>
+   * \endhtmlonly
+   */
+  static inline constexpr std::array<VectorInt<dim>, ndir> dir = {
+      VectorInt<dim>(0, 0, 0) /*0*/,     VectorInt<dim>(1, 0, 0) /*1*/,
+      VectorInt<dim>(-1, 0, 0) /*2*/,    VectorInt<dim>(0, 1, 0) /*3*/,
+      VectorInt<dim>(0, -1, 0) /*4*/,    VectorInt<dim>(0, 0, 1) /*5*/,
+      VectorInt<dim>(0, 0, -1) /*6*/,    VectorInt<dim>(1, 1, 0) /*7*/,
+      VectorInt<dim>(-1, -1, 0) /*8*/,   VectorInt<dim>(1, 0, 1) /*9*/,
+      VectorInt<dim>(-1, 0, -1) /*10*/,  VectorInt<dim>(0, 1, 1) /*11*/,
+      VectorInt<dim>(0, -1, -1) /*12*/,  VectorInt<dim>(1, -1, 0) /*13*/,
+      VectorInt<dim>(-1, 1, 0) /*14*/,   VectorInt<dim>(1, 0, -1) /*15*/,
+      VectorInt<dim>(-1, 0, 1) /*16*/,   VectorInt<dim>(0, 1, -1) /*17*/,
+      VectorInt<dim>(0, -1, 1) /*18*/,   VectorInt<dim>(1, 1, 1) /*19*/,
+      VectorInt<dim>(-1, -1, -1) /*20*/, VectorInt<dim>(1, 1, -1) /*21*/,
+      VectorInt<dim>(-1, -1, 1) /*22*/,  VectorInt<dim>(1, -1, 1) /*23*/,
+      VectorInt<dim>(-1, 1, -1) /*24*/,  VectorInt<dim>(-1, 1, 1) /*25*/,
+      VectorInt<dim>(1, -1, -1) /*26*/};
 
-  static constexpr std::array<int, ndir> diry = {
-      0, 0, 0,  1, -1, 0, 0,  1, -1, -1, 1, 0,  0, 0,
-      0, 1, -1, 1, -1, 1, -1, 1, -1, -1, 1, -1, 1};
-
-  static constexpr std::array<int, ndir> dirz = {
-      0, 0, 0,  0,  0, 1, -1, 0,  0, 0, 0,  1,  -1, -1,
-      1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1};
-
-  // FIXME: Check opposite
-  static constexpr std::array<int, ndir> opp = {
+  static inline constexpr std::array<std::size_t, ndir> opp = {
       0,  2,  1,  4,  3,  6,  5,  8,  7,  10, 9,  12, 11, 14,
       13, 16, 15, 18, 17, 20, 19, 22, 21, 24, 23, 26, 25};
 };

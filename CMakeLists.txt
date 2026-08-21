@@ -35,6 +35,10 @@ if(Doxygen_FOUND)
     ${DOXYGEN_ROOT_OUTPUT_DIRECTORY}/lbm-sim
   )
 
+  set(DOXYGEN_HTML_EXTRA_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/docs/assets/lbm_d3q27_directions.html"
+  )
+
   message(STATUS
     "Doxygen found. Documentation will be outputted to
     ${DOXYGEN_OUTPUT_DIRECTORY}"

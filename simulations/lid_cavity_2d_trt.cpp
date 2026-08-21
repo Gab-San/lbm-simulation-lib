@@ -2,7 +2,6 @@
 
 #include "lbm-sim/collision-operators/metadata.hpp"
 
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 
@@ -18,9 +17,9 @@
 #include <memory>
 #include <unordered_map>
 
-static constexpr unsigned short int DIM = 2;
+static constexpr lbm::types::dim_t DIM = 2;
 
-template <unsigned short int dim> struct Config;
+template <lbm::types::dim_t dim> struct Config;
 
 /**
  * \brief This struct represents a configuration.

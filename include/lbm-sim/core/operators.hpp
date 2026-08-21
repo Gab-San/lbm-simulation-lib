@@ -1,8 +1,9 @@
 #ifndef __CORE_OPEATORS_HPP
 #define __CORE_OPEATORS_HPP
 
+#include "lbm-sim/types/common.hpp"
+
 #include "lbm-sim/core/point.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 
 // C++ STANDARD LIB
@@ -11,58 +12,76 @@
 namespace lbm {
 namespace utils {
 
-template <typename T, typename K>
-inline Point<std::common_type_t<T, K>, 2> operator+(const Point<T, 2> &lhs,
-                                                    const Vector<K, 2> &rhs) {
+template <typename T, typename K, types::dim_t dim>
+inline Point<std::common_type_t<T, K>, dim>
+operator+(const Point<T, dim> &lhs, const Vector<K, dim> &rhs) {
   using R = std::common_type_t<T, K>;
-  return Point<R, 2>(lhs.x + rhs.dx, lhs.y + rhs.dy);
+  if constexpr (dim == 2) {
+    return Point<R, dim>(lhs.x + rhs.dx, lhs.y + rhs.dy);
+  } else {
+    return Point<R, dim>(lhs.x + rhs.dx, lhs.y + rhs.dy, lhs.z + rhs.dz);
+  }
 }
 
-template <typename T, typename K>
-inline Point<std::common_type_t<T, K>, 2> operator+(const Vector<T, 2> &lhs,
-                                                    const Point<K, 2> &rhs) {
+template <typename T, typename K, types::dim_t dim>
+inline Point<std::common_type_t<T, K>, dim>
+operator+(const Vector<T, dim> &lhs, const Point<K, dim> &rhs) {
   using R = std::common_type_t<T, K>;
-  return Point<R, 2>(lhs.dx + rhs.x, lhs.dy + rhs.y);
+  if constexpr (dim == 2) {
+    return Point<R, dim>(lhs.dx + rhs.x, lhs.dy + rhs.y);
+  } else {
+    return Point<R, dim>(lhs.dx + rhs.x, lhs.dy + rhs.y, lhs.dz + rhs.z);
+  }
 }
 
-template <typename T, typename K>
-inline Point<std::common_type_t<T, K>, 2> operator-(const Point<T, 2> &lhs,
-                                                    const Vector<K, 2> &rhs) {
+template <typename T, typename K, types::dim_t dim>
+inline Point<std::common_type_t<T, K>, dim>
+operator-(const Point<T, dim> &lhs, const Vector<K, dim> &rhs) {
   using R = std::common_type_t<T, K>;
-  return Point<R, 2>(lhs.x - rhs.dx, lhs.y - rhs.dy);
+  if constexpr (dim == 2) {
+    return Point<R, dim>(lhs.x - rhs.dx, lhs.y - rhs.dy);
+  } else {
+    return Point<R, dim>(lhs.x - rhs.dx, lhs.y - rhs.dy, lhs.z - rhs.dz);
+  }
 }
 
-template <typename T, typename K>
-inline Point<std::common_type_t<T, K>, 2> operator-(const Vector<T, 2> &lhs,
-                                                    const Point<K, 2> &rhs) {
+template <typename T, typename K, types::dim_t dim>
+inline Point<std::common_type_t<T, K>, dim>
+operator-(const Vector<T, dim> &lhs, const Point<K, dim> &rhs) {
   using R = std::common_type_t<T, K>;
-  return Point<R, 2>(lhs.dx - rhs.x, lhs.dy - rhs.y);
+  if constexpr (dim == 2) {
+    return Point<R, dim>(lhs.dx - rhs.x, lhs.dy - rhs.y);
+  } else {
+    return Point<R, dim>(lhs.dx - rhs.x, lhs.dy - rhs.y, lhs.dz - rhs.z);
+  }
 }
 
 namespace ops {
-template <typename T, typename K, unsigned short int dim>
+template <typename T, typename K, types::dim_t dim>
 inline std::common_type_t<T, K> dot(const Vector<T, dim> &lhs,
                                     const Vector<K, dim> &rhs) {
   if constexpr (dim == 2) {
     return lhs.dx * rhs.dx + lhs.dy * rhs.dy;
   } else {
-    static_assert(assertion::always_false<dim>,
-                  "dot() : operator not yet implemented for 3D");
+    return lhs.dx * rhs.dx + lhs.dy * rhs.dy + lhs.dz * rhs.dz;
   }
 }
 
-template <typename T, typename K, unsigned short int dim>
-inline std::common_type_t<T, K> cross(const Vector<T, dim> &lhs,
-                                      const Vector<K, dim> &rhs) {
-  if constexpr (dim == 2) {
-    return lhs.dx * rhs.dy - lhs.dy * rhs.dx;
-  } else {
-    static_assert(assertion::always_false<dim>,
-                  "cross() : operator not yet implemented for 3D");
-  }
+template <typename T, typename K>
+inline std::common_type_t<T, K> cross(const Vector<T, 2> &lhs,
+                                      const Vector<K, 2> &rhs) {
+  return lhs.dx * rhs.dy - lhs.dy * rhs.dx;
+}
+template <typename T, typename K>
+inline Vector<std::common_type_t<T, K>, 3> cross(const Vector<T, 3> &lhs,
+                                                 const Vector<K, 3> &rhs) {
+  using R = std::common_type_t<T, K>;
+  return Vector(lhs.dy * rhs.dz - lhs.dz * rhs.dy,
+                lhs.dz * rhs.dx - lhs.dx * rhs.dz,
+                lhs.dx * rhs.dy - lhs.dy * rhs.dx);
 }
 
-template <unsigned short int dim>
+template <types::dim_t dim>
 inline std::size_t measure(const types::DimPoint<dim> p) {
   if constexpr (dim == 2) {
     return p.x * p.y;

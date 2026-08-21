@@ -8,7 +8,6 @@
 
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/operators.hpp"
-#include "lbm-sim/core/types.hpp"
 
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
