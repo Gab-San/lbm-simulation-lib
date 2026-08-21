@@ -56,8 +56,7 @@ template <> struct Config<2> {
   const std::unordered_map<unsigned int, uint8_t> obst_type_map;
 
   /// Quale soluzione analitica usare per compute_error() a fine run.
-  const lbm::analysis::FlowType flow_type = lbm::analysis::FlowType::Poiseuille;
-
+  
   Config(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
       const unsigned int c_frames, const double c_reyn_num,
@@ -111,7 +110,7 @@ int main() {
 
   for (const auto &conf : configs) {
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
-                 obstacles, obst_type_map, flow_type] = conf;
+                 obstacles, obst_type_map] = conf;
     types::boundary_mask_t boundary_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
 
@@ -132,9 +131,7 @@ int main() {
 
     simulation.solve(solver, problem);
     simulation.output(out_data.c_str());
-
-    // ATTENZIONE: stessa assunzione della versione BGK, vedi commento li'
-    // (Umax = init_vel.dx, da verificare contro la derivazione di pin).
+    const lbm::analysis::FlowType flow_type = lbm::analysis::FlowType::Poiseuille;
     const double H = static_cast<double>(grid_size.y - 1);
     const auto exact_solution =
         analysis::make_exact_solution(flow_type, H, init_vel.dx);

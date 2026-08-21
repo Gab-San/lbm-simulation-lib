@@ -24,7 +24,7 @@ public:
       : H(channel_height), Umax(max_velocity) {}
 
   utils::Vector<double, 2>
-  value(const types::ValuePoint<2> &p) const override {
+  value(const types::Coordinate<2> &p) const override {
     // p.y rappresenta la coordinata verticale[cite: 3]
     double ux = Umax * (p.y / H);
     return utils::Vector<double, 2>{ux, 0.0};
@@ -46,7 +46,7 @@ public:
       : H(channel_height), Umax(max_center_velocity) {}
 
   utils::Vector<double, 2>
-  value(const types::ValuePoint<2> &p) const override {
+  value(const types::Coordinate<2> &p) const override {
     double y_norm = p.y / H;
     double ux = 4.0 * Umax * y_norm * (1.0 - y_norm);
     return utils::Vector<double, 2>{ux, 0.0};

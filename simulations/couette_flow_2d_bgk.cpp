@@ -56,7 +56,7 @@ template <> struct Config<2> {
 
   /// Quale soluzione analitica usare per compute_error() a fine run.
   /// Fissato qui una volta sola: niente H/Umax duplicati altrove.
-  const lbm::analysis::FlowType flow_type = lbm::analysis::FlowType::Couette;
+  
 
   Config(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
@@ -109,7 +109,7 @@ int main() {
 
   for (const auto &conf : configs) {
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
-                 obstacles, obst_type_map, flow_type] = conf;
+                 obstacles, obst_type_map] = conf;
     types::boundary_mask_t boundary_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
 
@@ -124,10 +124,10 @@ int main() {
 
     MPISolver2D<CollisionType> solver(iters, frames);
     solver.attachListener(writer);
-
+    
     simulation.solve(solver, problem);
     simulation.output(out_data.c_str());
-
+    const lbm::analysis::FlowType flow_type = lbm::analysis::FlowType::Couette;
     // H = altezza canale (parete inferiore a y=0, superiore a y=grid_size.y-1);
     // Umax = velocita' di riferimento (parete mobile per Couette).
     // Stessi valori gia' usati per costruire la simulazione: nessuna

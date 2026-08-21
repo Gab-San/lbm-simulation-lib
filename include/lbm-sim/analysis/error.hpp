@@ -36,10 +36,6 @@ inline const char *to_string(NormType t) {
   return "unknown";
 }
 
-struct ErrorResult {
-  double l2_relative;
-  double linf_absolute;
-};
 
 /**
  * Risultato di un confronto con una soluzione analitica generica
@@ -57,7 +53,7 @@ public:
 
   // Restituisce la velocità vettoriale esatta nel punto continuo P
   virtual utils::Vector<double, dim>
-  value(const types::ValuePoint<dim> &p) const = 0;
+  value(const types::Coordinate<dim> &p) const = 0;
 };
 
 template <unsigned short int dim> class ErrorEvaluator {
@@ -75,10 +71,7 @@ public:
           types::Coordinate<dim> coord{x, y};
           std::size_t idx = grid.scalar_index(coord);
 
-          types::ValuePoint<dim> phys_point{static_cast<double>(x),
-                                            static_cast<double>(y)};
-
-          utils::Vector<double, dim> u_exact = exact_solution.value(phys_point);
+          utils::Vector<double, dim> u_exact = exact_solution.value(coord);
           utils::Vector<double, dim> u_sim = sim_u[idx];
 
           utils::Vector<double, dim> diff = u_sim - u_exact;
@@ -92,37 +85,6 @@ public:
     }
 
     return error_per_cell;
-  }
-
-  // Come sopra, ma per la magnitudine della sola soluzione esatta:
-  // serve come termine di normalizzazione in compute_error(), con
-  // la stessa norma usata per l'errore (altrimenti il rapporto
-  // relativo non ha senso).
-  static std::vector<double> evaluate_exact_magnitude(
-      const Grid<dim> &grid, const Function<dim> &exact_solution) {
-
-    std::vector<double> exact_per_cell(grid.getArea(), 0.0);
-
-    if constexpr (dim == 2) {
-      for (int y = 0; y < static_cast<int>(grid.size.y); ++y) {
-        for (int x = 0; x < static_cast<int>(grid.size.x); ++x) {
-          types::Coordinate<dim> coord{x, y};
-          std::size_t idx = grid.scalar_index(coord);
-
-          types::ValuePoint<dim> phys_point{static_cast<double>(x),
-                                            static_cast<double>(y)};
-
-          utils::Vector<double, dim> u_exact = exact_solution.value(phys_point);
-          exact_per_cell[idx] =
-              std::sqrt(u_exact.dx * u_exact.dx + u_exact.dy * u_exact.dy);
-        }
-      }
-    } else {
-      static_assert(assertion::always_false<dim>,
-                    "ErrorEvaluator::evaluate_exact_magnitude() non ancora implementato per dim > 2!");
-    }
-
-    return exact_per_cell;
   }
 
   static double compute_global_error(const std::vector<double> &error_per_cell,
@@ -160,41 +122,6 @@ public:
   }
 };
 
-/**
- * Errore globale rispetto a una soluzione analitica generica, con
- * norma scelta dal chiamante (default L2). Riusa ErrorEvaluator sia
- * per l'errore che per il termine di normalizzazione, così relative
- * = ||u_sim - u_exact|| / ||u_exact|| è calcolato con la stessa norma
- * su entrambi i lati.
- *
- * NOTA sulla semantica di L2_squared: il rapporto relative in quel
- * caso è tra somme di quadrati, non tra norme -- resta adimensionale
- * e monotono, ma non è confrontabile numericamente con un relative
- * calcolato in L2, L1 o Linfty.
- */
-template <unsigned short int dim>
-inline NormErrorResult compute_error(
-    const Grid<dim> &grid,
-    const std::vector<utils::Vector<double, dim>> &sim_u,
-    const Function<dim> &exact_solution,
-    NormType norm_type = NormType::L2) {
-
-  const auto error_per_cell =
-      ErrorEvaluator<dim>::integrate_difference(grid, sim_u, exact_solution);
-  const auto exact_per_cell =
-      ErrorEvaluator<dim>::evaluate_exact_magnitude(grid, exact_solution);
-
-  const double abs_err =
-      ErrorEvaluator<dim>::compute_global_error(error_per_cell, norm_type);
-  const double ref_norm =
-      ErrorEvaluator<dim>::compute_global_error(exact_per_cell, norm_type);
-
-  if (ref_norm == 0.0)
-    throw std::runtime_error(
-        "compute_error(): reference norm is zero, cannot normalize");
-
-  return NormErrorResult{abs_err / ref_norm, abs_err, norm_type};
-}
 
 } // namespace analysis
 } // namespace lbm
