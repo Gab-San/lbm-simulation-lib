@@ -56,8 +56,9 @@ __global__ void update_stream_collide(
     const double *__restrict__ const ffrom, double *__restrict__ fto,
     const types::boundary_t *__restrict__ boundary_mask,
     float *__restrict__ norms, double *__restrict__ lattice_rho,
-    utils::Vector<double, dim> *lattice_u, const Grid<dim> grid,
-    const Params<dim, cm_t> cs, const bool store_macroscopic) {
+    utils::Vector<double, dim> *__restrict__ lattice_u, const Grid<dim> grid,
+    const Params<dim, cm_t> cs, const double pin, const double pout,
+    const bool store_macroscopic) {
   double fp[VelocitySet::ndir];
 
   // NOTE: Can this be dimension agnostic?
@@ -82,7 +83,8 @@ __global__ void update_stream_collide(
     if (!grid.contains(src)) {
       // if source node is external it is on a boundary node
       Solid::apply_boundary_condition<dim, VelocitySet>(
-          boundary_mask, fp, ffrom, diridx, grid, p, r_wall, cs.init_vel);
+          fp, ffrom, diridx, grid, boundary_mask, lattice_rho, lattice_u, p,
+          r_wall, cs.init_vel, pin, pout);
     } else {
       // if source node is internal stream it.
       fp[diridx] = ffrom[grid.field_index(src, diridx, VelocitySet::ndir)];
@@ -151,8 +153,8 @@ public:
 
     LBM_CUDA_CHECK(cudaMalloc(&ffrom, allocation_size));
     LBM_CUDA_CHECK(cudaMalloc(&fto, allocation_size));
-    LBM_CUDA_CHECK(cudaMalloc(&d_boundary_mask,
-                              area * sizeof(types::boundary_t)));
+    LBM_CUDA_CHECK(
+        cudaMalloc(&d_boundary_mask, area * sizeof(types::boundary_t)));
 
     LBM_CUDA_CHECK(cudaMalloc(&norms, area * sizeof(float)));
     LBM_CUDA_CHECK(cudaMalloc(&d_rho, area * sizeof(double)));
@@ -184,7 +186,7 @@ public:
       cuda_detail::update_stream_collide<2, D2Q9, cm_t>
           <<<gridDim, blockDim, 0, stream>>>(
               ffrom, fto, d_boundary_mask, norms, d_rho, d_u, lattice.grid,
-              params_, store_macroscopic);
+              params_, lattice.pin, lattice.pout, store_macroscopic);
       LBM_CUDA_CHECK(cudaGetLastError());
       std::swap(ffrom, fto);
       if (save) {

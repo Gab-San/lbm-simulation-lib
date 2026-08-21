@@ -8,7 +8,7 @@
 
 #include "lbm-sim/problems/problem_2d.hpp"
 
-#include "lbm-sim/solver/solver-2d.hpp"
+#include "lbm-sim/solver/omp-solver.hpp"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 

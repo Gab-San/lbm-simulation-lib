@@ -23,7 +23,7 @@ template <typename T> struct Vector<T, 2> {
   LBM_HD_FUNC constexpr Vector(const Point<T, 2> &A_, const Point<T, 2> &B_)
       : Vector(B_.x - A_.x, B_.y - A_.y) {}
 
-  LBM_HD_FUNC ~Vector() = default;
+  ~Vector() = default;
 };
 
 // FIXME: make add correct dimension implementation
