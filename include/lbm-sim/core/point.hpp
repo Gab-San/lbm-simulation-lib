@@ -23,7 +23,7 @@ template <typename T> struct Point<T, 2> {
   template <typename U>
   LBM_HD_FUNC explicit Point(const Point<U, 2> &other)
       : x(static_cast<T>(other.x)), y(static_cast<T>(other.y)) {}
-  LBM_HD_FUNC ~Point() = default;
+  ~Point() = default;
 };
 
 template <typename T> struct Point<T, 3> {
@@ -36,7 +36,7 @@ template <typename T> struct Point<T, 3> {
       : x(static_cast<T>(other.x)), y(static_cast<T>(other.y)),
         z(static_cast<T>(other.z)) {}
 
-  LBM_HD_FUNC ~Point() = default;
+  ~Point() = default;
 };
 
 // ---- OPERATOR OVERLOADING ----

@@ -9,8 +9,7 @@
 
 #include "lbm-sim/problems/problem_2d.hpp"
 
-// #include "lbm-sim/solver/solver-cuda-2d.cuh"
-#include "lbm-sim/solver/cuda-tmp.cuh"
+#include "lbm-sim/solver/cuda-solver.cuh"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
