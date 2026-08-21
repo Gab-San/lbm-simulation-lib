@@ -78,7 +78,7 @@ int main() {
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {129, 129}, /*iters*/ 100000, /*frames*/ 1000, /*reyn*/ 100.0,
+          {129, 129}, /*iters*/ 100000, /*frames*/ 300, /*reyn*/ 100.0,
           /*init_vel*/ {0.1, 0}, "out/norms_couette_129_100_01.bin",
           "out/data_couette_129_100_01.bin",
           {
