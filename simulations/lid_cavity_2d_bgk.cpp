@@ -14,6 +14,11 @@
 
 #include "lbm-sim/data/async-binary-writer.hpp"
 
+#include "lbm/logging.hpp"
+
+// QUILL LIB
+#include "quill/LogMacros.h"
+
 // C++ STD LIB
 #include <memory>
 #include <unordered_map>
@@ -136,9 +141,22 @@ int main() {
 
   const LidCavity2D problem;
 
-  for (const auto &conf : configs) {
+  logging::setup_quill();
+  quill::Logger *main_logger = logging::create_or_get_logger("main");
+
+  LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
+
+  for (auto confidx = 0; confidx < configs.size(); confidx++) {
+    const auto conf = configs[confidx];
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obst_type_map] = conf;
+
+    LOG_INFO(
+        main_logger,
+        "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
+        "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
+        "frames: {}\n",
+        confidx, grid_size, reyn, init_vel, iters, frames);
 
     types::boundary_mask_t obstacle_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);

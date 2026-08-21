@@ -14,13 +14,42 @@ file(
   "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm-sim/*.hpp"
 )
 
-add_library(lib-lbm-sim INTERFACE ${LBM_CORE_HEADERS})
+set(LBM_SIM_LIB lbm-sim)
+
+add_library(${LBM_SIM_LIB} INTERFACE ${LBM_CORE_HEADERS})
 target_include_directories(
-  lib-lbm-sim
+  ${LBM_SIM_LIB}
   INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
-target_link_libraries(lib-lbm-sim INTERFACE OpenMP::OpenMP_CXX)
+target_link_libraries(${LBM_SIM_LIB} INTERFACE OpenMP::OpenMP_CXX)
+
+include(FetchContent)
+FetchContent_Declare(
+  quill
+  GIT_REPOSITORY https://github.com/odygrd/quill
+  GIT_TAG v12.1.0
+)
+FetchContent_MakeAvailable(quill)
+
+set(LBM_LOGGING_HELPER_LIB lbm-logging)
+
+file(
+  GLOB_RECURSE
+  LBM_LOGGING_FILES
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm/*.hpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/lbm/*.cpp"
+)
+
+add_library(${LBM_LOGGING_HELPER_LIB} STATIC ${LBM_LOGGING_FILES})
+target_include_directories(
+  ${LBM_LOGGING_HELPER_LIB}
+  PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+target_link_libraries(${LBM_LOGGING_HELPER_LIB} PUBLIC quill::quill)
+
+target_link_libraries(${LBM_SIM_LIB} INTERFACE ${LBM_LOGGING_HELPER_LIB})
 
 if (${PROJECT_IS_TOP_LEVEL})
   add_subdirectory(simulations)
