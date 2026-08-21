@@ -2,6 +2,7 @@
 #define __CORE_VECTOR_HPP
 
 #include "lbm-sim/core/point.hpp"
+#include "lbm-sim/types/base.hpp"
 
 // C++ STANDARD LIB
 #include <iostream>
@@ -11,66 +12,105 @@
 namespace lbm {
 namespace utils {
 
-template <typename T, unsigned short int dim> struct Vector;
+template <typename T, types::dim_t dim> struct Vector;
 
 template <typename T> struct Vector<T, 2> {
   T dx, dy;
 
-  Vector() : dx(0), dy(0) {}
-  Vector(const T &x, const T &y) : dx(x), dy(y) {}
-  Vector(const Point<T, 2> &A_, const Point<T, 2> &B_)
+  constexpr Vector(const T &x, const T &y) : dx(x), dy(y) {}
+
+  constexpr Vector() : Vector(0, 0) {}
+  constexpr Vector(const Point<T, 2> &A_, const Point<T, 2> &B_)
       : Vector(B_.x - A_.x, B_.y - A_.y) {}
+
+  ~Vector() = default;
 };
 
-// FIXME: make add correct dimension implementation
+template <typename T> struct Vector<T, 3> {
+  T dx, dy, dz;
 
-// WARN: template may need to be <typename T, int dim, typename K>
+  constexpr Vector(const T &x, const T &y, const T &z) : dx(x), dy(y), dz(z) {}
+
+  constexpr Vector() : Vector(0, 0, 0) {}
+  constexpr Vector(const Point<T, 3> &A_, const Point<T, 3> &B_)
+      : Vector(B_.x - A_.x, B_.y - A_.y, B_.z - A_.z) {}
+
+  ~Vector() = default;
+};
 
 // ---- OPERATOR OVERLOADING ----
-template <typename T, typename K>
-inline Vector<std::common_type_t<T, K>, 2> operator+(const Vector<T, 2> &lhs,
-                                                     const Vector<K, 2> &rhs) {
+template <typename T, typename K, types::dim_t dim>
+inline Vector<std::common_type_t<T, K>, dim>
+operator+(const Vector<T, dim> &lhs, const Vector<K, dim> &rhs) {
   using R = std::common_type_t<T, K>;
-  return Vector<R, 2>(lhs.dx + rhs.dx, lhs.dy + rhs.dy);
+  if constexpr (dim == 2) {
+    return Vector<R, 2>(lhs.dx + rhs.dx, lhs.dy + rhs.dy);
+  } else {
+    return Vector<R, 3>(lhs.dx + rhs.dx, lhs.dy + rhs.dy, lhs.dz + rhs.dz);
+  }
 }
 
-template <typename T, typename K>
-inline Vector<T, 2> &operator+=(Vector<T, 2> &lhs, const Vector<K, 2> &rhs) {
+template <typename T, typename K, types::dim_t dim>
+inline Vector<T, dim> &operator+=(Vector<T, dim> &lhs,
+                                  const Vector<K, dim> &rhs) {
   lhs.dx += rhs.dx;
   lhs.dy += rhs.dy;
+  if constexpr (dim == 3) {
+    lhs.dz += rhs.dz;
+  }
   return lhs;
 }
 
-template <typename T>
-inline Vector<T, 2> operator-(const Vector<T, 2> &lhs,
-                              const Vector<T, 2> &rhs) {
-  return Vector<T, 2>(lhs.dx - rhs.dx, lhs.dy - rhs.dy);
-}
-
-template <typename T, typename K>
-inline Vector<std::common_type_t<T, K>, 2> operator%(const Vector<T, 2> &lhs,
-                                                     const Vector<K, 2> &rhs) {
+template <typename T, typename K, types::dim_t dim>
+inline Vector<std::common_type<T, K>, dim>
+operator-(const Vector<T, dim> &lhs, const Vector<K, dim> &rhs) {
   using R = std::common_type_t<T, K>;
-  return Vector<R, 2>(lhs.dx % rhs.dx, lhs.dy % rhs.dy);
+  if constexpr (dim == 2) {
+    return Vector<R, 2>(lhs.dx - rhs.dx, lhs.dy - rhs.dy);
+  } else {
+    return Vector<R, 3>(lhs.dx - rhs.dx, lhs.dy - rhs.dy, lhs.dz - rhs.dz);
+  }
 }
 
-template <typename T>
-inline std::ostream &operator<<(std::ostream &out, const Vector<T, 2> &v) {
-  return out << "Vector(" << v.dx << "," << v.dy << ")";
+template <typename T, typename K, types::dim_t dim>
+inline Vector<std::common_type_t<T, K>, dim>
+operator%(const Vector<T, dim> &lhs, const Vector<K, dim> &rhs) {
+  using R = std::common_type_t<T, K>;
+  if constexpr (dim == 2) {
+    return Vector<R, 2>(lhs.dx % rhs.dx, lhs.dy % rhs.dy);
+  } else {
+    return Vector<R, 3>(lhs.dx % rhs.dx, lhs.dy % rhs.dy, lhs.dz % rhs.dz);
+  }
+}
+
+template <typename T, types::dim_t dim>
+inline std::ostream &operator<<(std::ostream &out, const Vector<T, dim> &v) {
+  if constexpr (dim == 2) {
+    return out << "Vector(" << v.dx << "," << v.dy << ")";
+  } else {
+    return out << "Vector(" << v.dx << "," << v.dy << v.dz << ")";
+  }
 }
 
 // ---- OPERATION BY SCALAR ----
-template <typename T, typename K>
-inline Vector<std::common_type_t<T, K>, 2> operator*(const Vector<T, 2> &lhs,
-                                                     const K &scalar) {
+template <typename T, typename K, types::dim_t dim>
+inline Vector<std::common_type_t<T, K>, dim>
+operator*(const Vector<T, dim> &lhs, const K &scalar) {
   using R = std::common_type_t<T, K>;
-  return Vector<R, 2>(lhs.dx * scalar, lhs.dy * scalar);
+  if constexpr (dim == 2) {
+    return Vector<R, 2>(lhs.dx * scalar, lhs.dy * scalar);
+  } else {
+    return Vector<R, 3>(lhs.dx * scalar, lhs.dy * scalar, lhs.dz * scalar);
+  }
 }
 
-template <typename T, typename K>
-inline Vector<T, 2> &operator/=(Vector<T, 2> &lhs, const K &scalar) {
+template <typename T, typename K, types::dim_t dim>
+inline Vector<T, dim> &operator/=(Vector<T, dim> &lhs, const K &scalar) {
   lhs.dx /= scalar;
   lhs.dy /= scalar;
+  if constexpr (dim == 3) {
+    lhs.dz /= scalar;
+  }
   return lhs;
 }
 

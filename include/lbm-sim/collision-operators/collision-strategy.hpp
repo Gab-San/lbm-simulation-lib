@@ -7,12 +7,11 @@
 
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/operators.hpp"
-#include "lbm-sim/core/types.hpp"
 
 namespace lbm {
 
-template <unsigned short int dim, typename VelocitySet,
-          enum CollisionModel cm_t, enum ExecutionBackend backend_t>
+template <types::dim_t dim, typename VelocitySet, enum CollisionModel cm_t,
+          enum ExecutionBackend backend_t>
 class CollisionStrategy {
 public:
   const Params<dim, cm_t> params;

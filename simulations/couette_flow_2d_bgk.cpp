@@ -1,7 +1,6 @@
 // LBM SIM LIB
 #include "lbm-sim/collision-operators/metadata.hpp"
 
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 
 #include "lbm-sim/data/async-binary-writer.hpp"
@@ -20,9 +19,9 @@
 #include <unordered_map>
 #include <vector>
 
-static constexpr unsigned short int DIM = 2;
+static constexpr lbm::types::dim_t DIM = 2;
 
-template <unsigned short int dim> struct Config;
+template <lbm::types::dim_t dim> struct Config;
 template <> struct Config<2> {
 
   const lbm::types::DimPoint<2> grid_size;

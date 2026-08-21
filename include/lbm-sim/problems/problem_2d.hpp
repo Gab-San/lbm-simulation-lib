@@ -3,8 +3,9 @@
 #include "lbm-sim/lattice.hpp"
 
 #include "lbm-sim/core/grid.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
+
+#include "lbm-sim/types/common.hpp"
 
 #include <omp.h>
 

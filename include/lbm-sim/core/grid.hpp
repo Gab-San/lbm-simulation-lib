@@ -1,14 +1,14 @@
 #ifndef __LBM_SIM_CORE_GRID_HPP
 #define __LBM_SIM_CORE_GRID_HPP
 
-#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/types/common.hpp"
 
 // C++ STANDARD LIB
 #include <cstddef>
 
 namespace lbm {
-// constexpr bool always_false = false;
-template <unsigned short int dim> struct Grid {
+
+template <types::dim_t dim> struct Grid {
   const types::DimPoint<dim> size;
 
   Grid(types::DimPoint<dim> grid_dim_) : size(grid_dim_) {}
