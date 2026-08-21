@@ -69,6 +69,7 @@ public:
     // FIXME: check that initialization + init_equilibrium suffices
     LOG_DEBUG(simulation_logger, "Lattice Initialized...");
 
+    std::cout << "Initialized Simulation." << std::endl;
     write_header(lattice.grid);
 
     solver.solve(lattice, params);
