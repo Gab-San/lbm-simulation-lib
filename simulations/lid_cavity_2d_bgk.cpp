@@ -76,7 +76,7 @@ template <> struct Config<2> {
 
   const std::unordered_map<unsigned int, uint8_t> obst_type_map;
 
-  Config<2>(
+  Config(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
       const unsigned int c_frames, const double c_reyn_num,
       const lbm::utils::Vector<double, 2> init_vel_,
@@ -158,6 +158,17 @@ int main() {
     simulation.solve(solver /*, preconditioner*/, problem);
 
     simulation.output(out_data.c_str());
+
+    // Confronto con Ghia et al. (1982): lid_velocity = init_vel.dx, la
+    // velocita' della parete mobile usata anche per normalizzare i dati
+    // tabulati. Richiede reyn in {100, 400, 1000}. Norma scelta qui: L2.
+    const auto ghia_re = analysis::ghia_reynolds_from_value(reyn);
+    const auto ghia_norm = analysis::NormType::L2;
+    const auto ghia = simulation.compute_ghia_error(ghia_re, init_vel.dx, ghia_norm);
+    std::cout << "Ghia (" << analysis::to_string(ghia_norm) << ") u: rel="
+              << ghia.u_error.relative << " abs=" << ghia.u_error.absolute
+              << " | v: rel=" << ghia.v_error.relative
+              << " abs=" << ghia.v_error.absolute << std::endl;
 
     simulation.detachListener(writer);
     solver.detachListener(writer);
