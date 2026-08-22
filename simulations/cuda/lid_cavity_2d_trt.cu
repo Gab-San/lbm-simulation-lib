@@ -1,6 +1,5 @@
 #include "lbm-sim/lbm-simulation.hpp"
 
-#include "lbm-sim/collision-operators/collision-strategy-cuda.cuh"
 #include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/core/types.hpp"
@@ -94,59 +93,77 @@ int main() {
   using types::Coordinate;
   using types::DimPoint;
 
-  const Coordinate<2> A(0, 0);
-  const Coordinate<2> B(0, 128);
-  const Coordinate<2> C(128, 128);
-  const Coordinate<2> D(128, 0);
+  const Coordinate<2> ZERO(0, 0);
 
-  const Coordinate<2> A2(0, 0);
-  const Coordinate<2> B2(0, 199);
-  const Coordinate<2> C2(199, 199);
-  const Coordinate<2> D2(199, 0);
+  const Coordinate<2> B200(0, 199);
+  const Coordinate<2> C200(199, 199);
+  const Coordinate<2> D200(199, 0);
 
-  const Coordinate<2> B_ = B2 - Coordinate<2>(0, 1);
-  const Coordinate<2> C_ = C2 - Coordinate<2>(0, 1);
-
-  // Ogni ostacolo viene associato a un tipo di parete tramite la mappa `strt`.
-  // Qui, l'ostacolo 0 diventa una parete rigida ferma e l'ostacolo 1 diventa
-  // il lato mobile della cavità (moving lid).
-  // Per cambiare il tipo di parete, modifica solo questa mappa.
-  // Esempio: due pareti rigide = {{0, Solid::BB_RIGID_WALL}, {1,
-  // Solid::BB_RIGID_WALL}} Esempio con terzo tipo fisso-rho = {{0,
-  // Solid::BB_RIGID_WALL},
-  //                                   {1, Solid::BB_MOVING_WALL},
-  //                                   {2, Solid::BB_FIXED_RHO_WALL}}
   std::vector<Config<DIM>> configs{
-      // Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
-      //             /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
-      //             "out/norms_lid_cavity_cuda_129_100_01_bgk.bin",
-      //             "out/data_lid
-      Config<DIM>({5000, 5000}, /*iters*/ 20000, /*frames*/ 200,
-                  /*reyn*/ 50000.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_lid_cavity_cuda_5000_50000_01_bgk.bin",
-                  "out/data_lid_cavity_cuda_5000_50000_01_bgk.bin",
-                  {CollisionDetection::CollisionArea(
-                       A2, {CollisionDetection::Segment(A, B),
-                            CollisionDetection::Segment(A, D),
-                            CollisionDetection::Segment(D, C)}),
-                   CollisionDetection::CollisionArea(
-                       A2, {CollisionDetection::Segment(B, C)})},
-                  {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
+      Config<DIM>(
+          {129, 129}, /*iters*/ 10000, /*frames*/ 100,
+          /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
+          "out/norms_lid_cavity_cuda_129_100_01_trt.bin",
+          "out/data_lid_cavity_cuda_129_100_trt.bin",
+          {CollisionDetection::CollisionArea(
+               ZERO,
+               {CollisionDetection::Segment(ZERO, Coordinate<DIM>(0, 128)),
+                CollisionDetection::Segment(ZERO, Coordinate<DIM>(128, 0)),
+                CollisionDetection::Segment(Coordinate<DIM>(128, 0),
+                                            Coordinate<DIM>(128, 128))}),
+           CollisionDetection::CollisionArea(
+               ZERO, {CollisionDetection::Segment(Coordinate<DIM>(0, 128),
+                                                  Coordinate<DIM>(128, 128))})},
+          {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
 
       Config<DIM>({200, 200}, /*iters*/ 30000, /*frames*/ 100,
                   /*reyn*/ 1000.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_lid_cavity_cuda_200_1000_01_bgk.bin",
-                  "out/data_lid_cavity_cuda_200_1000_01_bgk.bin",
+                  "out/norms_lid_cavity_cuda_200_1000_01_trt.bin",
+                  "out/data_lid_cavity_cuda_200_1000_01_trt.bin",
                   {CollisionDetection::CollisionArea(
-                       A2, {CollisionDetection::Segment(A2, B2),
-                            CollisionDetection::Segment(A2, D2),
-                            CollisionDetection::Segment(D2, C2)}),
+                       ZERO, {CollisionDetection::Segment(ZERO, B200),
+                              CollisionDetection::Segment(ZERO, D200),
+                              CollisionDetection::Segment(D200, C200)}),
                    CollisionDetection::CollisionArea(
-                       A2, {CollisionDetection::Segment(B2, C2)})},
+                       ZERO, {CollisionDetection::Segment(B200, C200)})},
                   {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
+
+      Config<DIM>(
+          {2000, 2000}, /*iters*/ 50000, /*frames*/ 200, /*reyn*/ 7500,
+          /*init_vel*/ {0.2, 0},
+          "out/norms_lid_cavity_cuda_2000_7500_02_trt.bin",
+          "out/data_lid_cavity_cuda_2000_7500_02_trt.bin",
+          {CollisionDetection::CollisionArea(
+               ZERO,
+               {CollisionDetection::Segment(ZERO, Coordinate<DIM>(0, 1999)),
+                CollisionDetection::Segment(ZERO, Coordinate<DIM>(1999, 0)),
+                CollisionDetection::Segment(Coordinate<DIM>(1999, 0),
+                                            Coordinate<DIM>(1999, 1999))}),
+           CollisionDetection::CollisionArea(
+               ZERO,
+               {CollisionDetection::Segment(Coordinate<DIM>(0, 1999),
+                                            Coordinate<DIM>(1999, 1999))})},
+          {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
+
+      Config<DIM>(
+          {5000, 5000}, /*iters*/ 100000, /*frames*/ 250,
+          /*reyn*/ 50000.0, /*init_vel*/ {0.1, 0},
+          "out/norms_lid_cavity_cuda_5000_50000_01_trt.bin",
+          "out/data_lid_cavity_cuda_5000_50000_01_trt.bin",
+          {CollisionDetection::CollisionArea(
+               ZERO,
+               {CollisionDetection::Segment(ZERO, Coordinate<DIM>(0, 4999)),
+                CollisionDetection::Segment(ZERO, Coordinate<DIM>(4999, 0)),
+                CollisionDetection::Segment(Coordinate<DIM>(4999, 0),
+                                            Coordinate<DIM>(4999, 4999))}),
+           CollisionDetection::CollisionArea(
+               ZERO,
+               {CollisionDetection::Segment(Coordinate<DIM>(0, 4999),
+                                            Coordinate<DIM>(4999, 4999))})},
+          {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
   };
 
-  constexpr auto CollisionType = CollisionModel::BGK;
+  constexpr auto CollisionType = CollisionModel::TRT;
 
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
@@ -164,7 +181,7 @@ int main() {
 
     Simulation simulation(
         grid_size, obstacle_mask,
-        CollisionParams<DIM, CollisionType>(reyn, grid_size, init_vel));
+        Params<DIM, CollisionType>(reyn, grid_size, init_vel));
 
     simulation.attachListener(writer);
 
