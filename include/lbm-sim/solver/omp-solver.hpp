@@ -101,6 +101,9 @@ private:
         std::array<double, D2Q9::ndir> fp;
         const utils::Point<int, 2> p(x, y);
 
+        // leggi il tipo di boundary del nodo corrente UNA volta
+        const types::boundary_t p_boundary = lattice.boundary_mask[lattice.grid.scalar_index(p)];
+
         double r_wall = 0.0;
         UNROLL_FULL
         for (auto i = 0; i < D2Q9::ndir; ++i) {
@@ -113,15 +116,15 @@ private:
         for (auto diridx = 0; diridx < D2Q9::ndir; ++diridx) {
           const types::Coordinate<2> src = p - D2Q9::dir[diridx];
 
-          if (!lattice.grid.contains(src)) {
-            // if source node is external it is on a boundary node
+          // applica boundary condition anche se il nodo p 
+          // è marcato come ostacolo, non solo se src è fuori griglia
+          if (!lattice.grid.contains(src) || p_boundary != Solid::NONE) {
             Solid::apply_boundary_condition<2, D2Q9>(
                 fp.data(), ffrom.data(), diridx, lattice.grid,
                 lattice.boundary_mask.data(), lattice.rho.data(),
                 lattice.u.data(), p, r_wall, cs.params.init_vel, lattice.pin,
                 lattice.pout);
           } else {
-            // if source node is internal stream it.
             fp[diridx] =
                 ffrom[lattice.grid.field_index(src, diridx, D2Q9::ndir)];
           }
@@ -155,7 +158,10 @@ private:
         }
 
         // APPLY COLLISION
-        cs.apply(fp, p, r, u);
+        if (p_boundary != Solid::BB_OBSTACLE){}
+          cs.apply(fp, p, r, u);
+        }
+        //cs.apply(fp, p, r, u);
 
         // COPY LOCAL DENSITY TO GRID
 #pragma omp simd

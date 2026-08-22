@@ -27,6 +27,7 @@ constexpr types::boundary_t BB_MOVING_WALL = 2;
 constexpr types::boundary_t PERIODIC = 3;
 constexpr types::boundary_t PRESSURE_PERIODIC_INLET = 4;
 constexpr types::boundary_t PRESSURE_PERIODIC_OUTLET = 5;
+constexpr types::boundary_t BB_OBSTACLE = 6; // corpo solido immerso, no collisione
 
 namespace detail { // using cuda or openmp
 
@@ -164,6 +165,9 @@ LBM_HD_FUNC inline void apply_boundary_condition(
 
   switch (boundary) {
   case BB_RIGID_WALL:
+    apply_bb_rigid_wall<dim, VelocitySet>(fp, ffrom, diridx, grid, pos);
+    break;
+  case BB_OBSTACLE:
     apply_bb_rigid_wall<dim, VelocitySet>(fp, ffrom, diridx, grid, pos);
     break;
   case BB_MOVING_WALL:

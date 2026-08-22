@@ -16,7 +16,7 @@ namespace CollisionDetection {
 
 template <unsigned short int dim>
 using CollisionShapesT =
-    std::variant<Segment<dim>, Circle<dim>, Parallelogram<dim>>;
+    std::variant<Segment<dim>, Circle<dim>, Parallelogram<dim>, Airfoil<dim>>;
 
 template <unsigned short int dim> class CollisionArea {
 
