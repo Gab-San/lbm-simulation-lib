@@ -11,7 +11,7 @@
 
 #include "lbm-sim/problems/problem_2d.hpp"
 
-#include "lbm-sim/solver/solver-2d.hpp"
+#include "lbm-sim/solver/omp-solver.hpp"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
@@ -78,7 +78,7 @@ int main() {
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {129, 129}, /*iters*/ 100000, /*frames*/ 1000, /*reyn*/ 100.0,
+          {129, 129}, /*iters*/ 100000, /*frames*/ 300, /*reyn*/ 100.0,
           /*init_vel*/ {0.1, 0}, "out/norms_couette_129_100_01.bin",
           "out/data_couette_129_100_01.bin",
           {
@@ -112,7 +112,7 @@ int main() {
 
     Simulation simulation(
         grid_size, boundary_mask,
-        Params<DIM, CollisionType>(reyn, grid_size, init_vel));
+        CollisionParams<DIM, CollisionType>(reyn, grid_size, init_vel));
 
     simulation.attachListener(writer);
 

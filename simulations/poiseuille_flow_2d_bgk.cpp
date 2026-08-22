@@ -11,7 +11,7 @@
 
 #include "lbm-sim/problems/problem_2d.hpp"
 
-#include "lbm-sim/solver/solver-2d.hpp"
+#include "lbm-sim/solver/omp-solver.hpp"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
@@ -113,7 +113,7 @@ int main() {
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(conf.out_frames);
 
-    Params<DIM, CollisionType> params(reyn, grid_size, init_vel);
+    const CollisionParams<DIM, CollisionType> params(reyn, grid_size, init_vel);
     const double pout = 1;
     const double pin =
         pout + (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *

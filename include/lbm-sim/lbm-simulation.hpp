@@ -4,7 +4,7 @@
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/types.hpp"
 
-#include "lbm-sim/backend/metadata.hpp"
+#include "lbm-sim/backend.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/problems/problem_2d.hpp"
@@ -31,12 +31,12 @@ private:
       "LBMSimulation: template parameter 'dim' must match VelocitySet::dim");
 
   Lattice<dim> lattice;
-  const Params<dim, cm_t> params;
+  const CollisionParams<dim, cm_t> params;
 
 public:
   LBMSimulation(const types::DimPoint<dim> grid_dim_,
                 types::boundary_mask_t boundary_mask_,
-                const Params<dim, cm_t> params_, const double pin = 0,
+                const CollisionParams<dim, cm_t> params_, const double pin = 0,
                 const double pout = 0)
       : lattice(grid_dim_, std::move(boundary_mask_), pin, pout),
         params(params_) {};
@@ -44,10 +44,6 @@ public:
   template <enum ExecutionBackend backend_t>
   void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver,
              const LidCavity2D &problem) {
-    std::cout << "Initializing Simulation." << std::endl;
-
-    std::vector<double> f1(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
-    std::vector<double> f2(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
 
     // FIXME: cannot be initialized like this
     // define generic initialization
@@ -60,13 +56,11 @@ public:
     // problem.init(grid, params.init_vel, seg.getPerimeter());
 
     // FIXME: check that initialization + init_equilibrium suffices
-    std::cout << "Problem Initialized." << std::endl;
-    solver.init_equilibrium(lattice, f1);
-    std::cout << "Equilibrium Initialized." << std::endl;
 
+    std::cout << "Initialized Simulation." << std::endl;
     write_header(lattice.grid);
 
-    solver.solve(lattice, params, f1, f2);
+    solver.solve(lattice, params);
 
     std::cout << "Finished Simulation." << std::endl;
   };

@@ -1,16 +1,15 @@
 #pragma once
 
 // LIB SIM LIB
-#include "lbm-sim/backend/metadata.hpp"
+#include "lbm-sim/backend.hpp"
+
 #include "lbm-sim/collision-operators/metadata.hpp"
+
 #include "lbm-sim/core/velocity-sets.hpp"
+
 #include "lbm-sim/data/data-observable.hpp"
 
-#include "lbm-sim/boundaries.hpp"
 #include "lbm-sim/lattice.hpp"
-
-// C++ STANDARD LIB
-#include <vector>
 
 namespace lbm {
 template <unsigned short int dim, typename VelocitySet,
@@ -33,15 +32,8 @@ public:
   };
 
   virtual ~SolverBase() = default;
-
-  virtual void init_equilibrium(const Lattice<dim> &lattice,
-                                std::vector<double> &part_stream) const = 0;
-  virtual void solve(Lattice<dim> &lattice, const Params<dim, cm_t> &params_,
-                     std::vector<double> &ffrom,
-                     std::vector<double> &fto) const = 0;
-
-protected:
-  virtual void write_norms(const Lattice<dim> &lattice) const = 0;
+  virtual void solve(Lattice<dim> &lattice,
+                     const CollisionParams<dim, cm_t> &params_) const = 0;
 };
 
 template <enum CollisionModel cm_t, enum ExecutionBackend backend_t>
@@ -53,16 +45,10 @@ public:
       : Base(num_iters_, num_frames_) {}
 
   virtual ~SolverBase2D() = default;
+
   virtual void
-  init_equilibrium(const Lattice<2> &lattice,
-                   std::vector<double> &part_stream) const override = 0;
-
-  virtual void solve(Lattice<2> &lattice, const Params<2, cm_t> &params_,
-                     std::vector<double> &ffrom,
-                     std::vector<double> &fto) const override = 0;
-
-protected:
-  virtual void write_norms(const Lattice<2> &grid) const override = 0;
+  solve(Lattice<2> &lattice,
+        const CollisionParams<2, cm_t> &params_) const override = 0;
 };
 
 } // namespace lbm

@@ -4,6 +4,10 @@
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 
+#include "lbm-sim/cuda/annotations.hpp"
+
+#include <string>
+
 namespace lbm {
 enum CollisionModel { BGK, TRT, MRT };
 
@@ -19,9 +23,11 @@ inline std::string collision_model_to_string(enum CollisionModel cm_t) {
   return std::to_string(cm_t);
 }
 
-template <unsigned short int dim, enum CollisionModel cm_t> struct Params;
+template <unsigned short int dim, enum CollisionModel cm_t>
+struct CollisionParams;
 
-template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
+template <unsigned short int dim>
+struct CollisionParams<dim, CollisionModel::BGK> {
   const utils::Vector<double, dim> init_vel;
   const types::DimPoint<dim> num_cells;
 
@@ -29,8 +35,9 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
   const double nu;
   const double tauinv, omtauinv;
 
-  Params(const double reyn_num_, const types::DimPoint<dim> num_cells_,
-         const utils::Vector<double, dim> init_vel_)
+  LBM_HD_FUNC CollisionParams(const double reyn_num_,
+                              const types::DimPoint<dim> num_cells_,
+                              const utils::Vector<double, dim> init_vel_)
       : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
         nu([&]() -> double {
           // WARN: this might need correction for different possible
@@ -43,18 +50,23 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
           }
         }()),
         tauinv(2.0 / (6.0 * nu + 1.0)), omtauinv(1.0 - tauinv) {
+#ifndef __CUDA_ARCH__
     double tau = 0.5 + 3.0 * nu;
-    if (tau <= 0.5)
+    if (tau <= 0.5) {
       throw std::runtime_error("LBM error: tau must be > 0.5");
+    }
 
-    if (tau < 0.55 || tau > 1.2)
+    if (tau < 0.55 || tau > 1.2) {
       std::cerr << "LBM warning: tau out of stability range, simulation may be "
                    "unstable."
                 << std::endl;
+    }
+#endif
   }
 };
 
-template <unsigned short int dim> struct Params<dim, CollisionModel::TRT> {
+template <unsigned short int dim>
+struct CollisionParams<dim, CollisionModel::TRT> {
   const utils::Vector<double, dim> init_vel;
   const types::DimPoint<dim> num_cells;
 
@@ -64,8 +76,9 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::TRT> {
   const double tauPlus, tauMinus;
   const double s_plus, s_minus;
 
-  Params(const double reyn_num_, const types::DimPoint<dim> num_cells_,
-         const utils::Vector<double, dim> init_vel_)
+  LBM_HD_FUNC CollisionParams(const double reyn_num_,
+                              const types::DimPoint<dim> num_cells_,
+                              const utils::Vector<double, dim> init_vel_)
       : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
         nu([&]() -> double {
           // WARN: this might need correction for different possible
@@ -86,9 +99,11 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::TRT> {
     // -----------------------------
 #endif
 
+#ifndef __CUDA_ARCH__
     if (tauPlus <= 0.5) {
       throw std::runtime_error("LBM error: tau must be > 0.5");
     }
+#endif
   }
 };
 

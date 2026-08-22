@@ -1,5 +1,6 @@
 #include "lbm-sim/lbm-simulation.hpp"
 
+#include "lbm-sim/collision-operators/collision-strategy-cuda.cuh"
 #include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/core/types.hpp"
@@ -8,14 +9,13 @@
 
 #include "lbm-sim/problems/problem_2d.hpp"
 
-#include "lbm-sim/solver/omp-solver.hpp"
+#include "lbm-sim/solver/cuda-solver.cuh"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
 #include "lbm-sim/data/async-binary-writer.hpp"
 
 // C++ STD LIB
-#include <memory>
 #include <unordered_map>
 
 static constexpr unsigned short int DIM = 2;
@@ -117,10 +117,14 @@ int main() {
   //                                   {1, Solid::BB_MOVING_WALL},
   //                                   {2, Solid::BB_FIXED_RHO_WALL}}
   std::vector<Config<DIM>> configs{
-      Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
-                  /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_lid_cavity_openmp_129_100_01_trt.bin",
-                  "out/data_lid_cavity_openmp_129_100_01_trt.bin",
+      // Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
+      //             /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
+      //             "out/norms_lid_cavity_cuda_129_100_01_bgk.bin",
+      //             "out/data_lid
+      Config<DIM>({5000, 5000}, /*iters*/ 20000, /*frames*/ 200,
+                  /*reyn*/ 50000.0, /*init_vel*/ {0.1, 0},
+                  "out/norms_lid_cavity_cuda_5000_50000_01_bgk.bin",
+                  "out/data_lid_cavity_cuda_5000_50000_01_bgk.bin",
                   {CollisionDetection::CollisionArea(
                        A2, {CollisionDetection::Segment(A, B),
                             CollisionDetection::Segment(A, D),
@@ -131,8 +135,8 @@ int main() {
 
       Config<DIM>({200, 200}, /*iters*/ 30000, /*frames*/ 100,
                   /*reyn*/ 1000.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_200_1000_01_lid_cavity_openmp_trt.bin",
-                  "out/data_200_1000_01_lid_cavity_openmp_trt.bin",
+                  "out/norms_lid_cavity_cuda_200_1000_01_bgk.bin",
+                  "out/data_lid_cavity_cuda_200_1000_01_bgk.bin",
                   {CollisionDetection::CollisionArea(
                        A2, {CollisionDetection::Segment(A2, B2),
                             CollisionDetection::Segment(A2, D2),
@@ -142,7 +146,7 @@ int main() {
                   {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
   };
 
-  constexpr auto CollisionType = CollisionModel::TRT;
+  constexpr auto CollisionType = CollisionModel::BGK;
 
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
@@ -164,7 +168,7 @@ int main() {
 
     simulation.attachListener(writer);
 
-    MPISolver2D<CollisionType> solver(iters, frames);
+    CUDASolver2D<CollisionType> solver(iters, frames);
     solver.attachListener(writer);
 
     simulation.solve(solver /*, preconditioner*/, problem);

@@ -1,8 +1,17 @@
-# Auto-compile all generated simulation files in this directory
-file(GLOB SOURCES "*.cpp")
+file(GLOB CPP_SOURCES "*.cpp")
 
-foreach(SOURCE ${SOURCES})
+foreach(SOURCE ${CPP_SOURCES})
   get_filename_component(TARGET_NAME ${SOURCE} NAME_WE)
   add_executable(${TARGET_NAME} ${SOURCE})
   target_link_libraries(${TARGET_NAME} PRIVATE lib-lbm-sim)
 endforeach()
+
+if(LBM_ENABLE_CUDA)
+  file(GLOB CU_SOURCES "*.cu")
+  foreach(SOURCE ${CU_SOURCES})
+    get_filename_component(TARGET_NAME ${SOURCE} NAME_WE)
+    set(TARGET_NAME "cuda_${TARGET_NAME}")
+    add_executable(${TARGET_NAME} ${SOURCE})
+    target_link_libraries(${TARGET_NAME} PRIVATE lib-lbm-sim-cuda)
+  endforeach()
+endif()

@@ -8,7 +8,7 @@
 
 #include "lbm-sim/problems/problem_2d.hpp"
 
-#include "lbm-sim/solver/solver-2d.hpp"
+#include "lbm-sim/solver/omp-solver.hpp"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
@@ -148,7 +148,7 @@ int main() {
 
     Simulation simulation(
         grid_size, obstacle_mask,
-        Params<DIM, CollisionType>(reyn, grid_size, init_vel));
+        CollisionParams<DIM, CollisionType>(reyn, grid_size, init_vel));
 
     simulation.attachListener(writer);
 
