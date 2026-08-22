@@ -16,7 +16,6 @@
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
 // C++ STD LIB
-#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -114,7 +113,7 @@ int main() {
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(conf.out_frames);
 
-    Params<DIM, CollisionType> params(reyn, grid_size, init_vel);
+    CollisionParams<DIM, CollisionType> params(reyn, grid_size, init_vel);
     const double pout = 1;
     const double pin =
         pout + (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
