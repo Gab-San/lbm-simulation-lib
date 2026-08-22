@@ -1,13 +1,14 @@
 #ifndef __LBM_SIM_BOUNDARIES_HPP
 #define __LBM_SIM_BOUNDARIES_HPP
 
-#include "lbm-sim/backend/cuda-annotations.hpp"
+#include "lbm-sim/cuda/annotations.hpp"
 
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/operators.hpp"
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
-#include "lbm-sim/core/velocity-sets.hpp"
+
+#include "lbm-sim/backend.hpp"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
@@ -27,37 +28,6 @@ constexpr types::boundary_t BB_MOVING_WALL = 2;
 constexpr types::boundary_t PERIODIC = 3;
 constexpr types::boundary_t PRESSURE_PERIODIC_INLET = 4;
 constexpr types::boundary_t PRESSURE_PERIODIC_OUTLET = 5;
-
-namespace detail { // using cuda or openmp
-
-template <unsigned short int dim, typename VelocitySet>
-LBM_HD_FUNC inline types::VectorInt<dim> direction(const std::size_t diridx) {
-#if defined(__CUDA_ARCH__)
-  return cuda::vs_dir<dim, VelocitySet>[diridx];
-#else
-  return VelocitySet::dir[diridx];
-#endif
-}
-
-template <typename VelocitySet>
-LBM_HD_FUNC inline double weight(const std::size_t diridx) {
-#if defined(__CUDA_ARCH__)
-  return cuda::vs_wi<VelocitySet>[diridx];
-#else
-  return VelocitySet::wi[diridx];
-#endif
-}
-
-template <typename VelocitySet>
-LBM_HD_FUNC inline std::size_t opposite(const std::size_t diridx) {
-#if defined(__CUDA_ARCH__)
-  return cuda::vs_opp<VelocitySet>[diridx];
-#else
-  return VelocitySet::opp[diridx];
-#endif
-}
-
-} // namespace detail
 
 template <unsigned short int dim>
 std::vector<uint8_t> compute_boundary_mask(
@@ -152,7 +122,6 @@ LBM_HD_FUNC inline void apply_periodic_with_pressure_variation(
   fp[diridx] = feq_loc + fi - feq_from;
 }
 
-// cuda or openmp implem
 template <unsigned short int dim, typename VelocitySet>
 LBM_HD_FUNC inline void apply_boundary_condition(
     double *fp, const double *ffrom, const std::size_t diridx,

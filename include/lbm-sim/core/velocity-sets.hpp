@@ -4,8 +4,7 @@
 #include "lbm-sim/core/vector.hpp"
 
 #ifdef __CUDACC__
-#include "lbm-sim/backend/cuda-annotations.hpp"
-#include "lbm-sim/backend/cuda-utils.cuh"
+#include "lbm-sim/cuda/utils.cuh"
 
 #include <cuda_runtime.h>
 #endif

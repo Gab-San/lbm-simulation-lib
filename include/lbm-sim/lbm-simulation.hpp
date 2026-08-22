@@ -4,7 +4,7 @@
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/types.hpp"
 
-#include "lbm-sim/backend/metadata.hpp"
+#include "lbm-sim/backend.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/problems/problem_2d.hpp"
@@ -31,12 +31,12 @@ private:
       "LBMSimulation: template parameter 'dim' must match VelocitySet::dim");
 
   Lattice<dim> lattice;
-  const Params<dim, cm_t> params;
+  const CollisionParams<dim, cm_t> params;
 
 public:
   LBMSimulation(const types::DimPoint<dim> grid_dim_,
                 types::boundary_mask_t boundary_mask_,
-                const Params<dim, cm_t> params_, const double pin = 0,
+                const CollisionParams<dim, cm_t> params_, const double pin = 0,
                 const double pout = 0)
       : lattice(grid_dim_, std::move(boundary_mask_), pin, pout),
         params(params_) {};

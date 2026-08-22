@@ -1,9 +1,12 @@
 #pragma once
 
 // LIB SIM LIB
-#include "lbm-sim/backend/metadata.hpp"
+#include "lbm-sim/backend.hpp"
+
 #include "lbm-sim/collision-operators/metadata.hpp"
+
 #include "lbm-sim/core/velocity-sets.hpp"
+
 #include "lbm-sim/data/data-observable.hpp"
 
 #include "lbm-sim/lattice.hpp"
@@ -30,7 +33,7 @@ public:
 
   virtual ~SolverBase() = default;
   virtual void solve(Lattice<dim> &lattice,
-                     const Params<dim, cm_t> &params_) const = 0;
+                     const CollisionParams<dim, cm_t> &params_) const = 0;
 };
 
 template <enum CollisionModel cm_t, enum ExecutionBackend backend_t>
@@ -43,8 +46,9 @@ public:
 
   virtual ~SolverBase2D() = default;
 
-  virtual void solve(Lattice<2> &lattice,
-                     const Params<2, cm_t> &params_) const override = 0;
+  virtual void
+  solve(Lattice<2> &lattice,
+        const CollisionParams<2, cm_t> &params_) const override = 0;
 };
 
 } // namespace lbm

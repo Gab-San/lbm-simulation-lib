@@ -29,7 +29,7 @@ target_include_directories(
 target_link_libraries(lib-lbm-sim INTERFACE OpenMP::OpenMP_CXX)
 
 if(MSVC)
-    target_compile_options(lib-lbm-sim INTERFACE
+  target_compile_options(lib-lbm-sim INTERFACE
         $<$<COMPILE_LANGUAGE:CXX>:/openmp:experimental>
         # flag di ottimizzazione per release, sostituisce
         # il loop unrolling di OpenMP che non funziona con MSVC!!!
@@ -41,7 +41,6 @@ if(LBM_ENABLE_CUDA)
   set(CMAKE_CUDA_STANDARD 17)
   set(CMAKE_CUDA_STANDARD_REQUIRED True)
 
-  # TODO: understand this!
   if(NOT CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES 75)   # adjust to your target GPU(s)
   endif()

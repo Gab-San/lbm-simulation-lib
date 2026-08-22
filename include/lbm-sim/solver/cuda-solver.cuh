@@ -8,11 +8,11 @@
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 
-#include "lbm-sim/collision-operators/collision-strategy-cuda.cuh"
+#include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
 
-#include "lbm-sim/backend/cuda-utils.cuh"
-#include "lbm-sim/backend/metadata.hpp"
+#include "lbm-sim/backend.hpp"
+#include "lbm-sim/cuda/utils.cuh"
 
 // CUDA LIB
 #include <cuda_runtime.h>
@@ -57,8 +57,8 @@ __global__ void update_stream_collide(
     const types::boundary_t *__restrict__ boundary_mask,
     float *__restrict__ norms, double *__restrict__ lattice_rho,
     utils::Vector<double, dim> *__restrict__ lattice_u, const Grid<dim> grid,
-    const Params<dim, cm_t> cs, const double pin, const double pout,
-    const bool store_macroscopic) {
+    const CollisionStrategy<dim, VelocitySet, cm_t> cs, const double pin,
+    const double pout, const bool store_macroscopic) {
   double fp[VelocitySet::ndir];
 
   // NOTE: Can this be dimension agnostic?
@@ -84,7 +84,7 @@ __global__ void update_stream_collide(
       // if source node is external it is on a boundary node
       Solid::apply_boundary_condition<dim, VelocitySet>(
           fp, ffrom, diridx, grid, boundary_mask, lattice_rho, lattice_u, p,
-          r_wall, cs.init_vel, pin, pout);
+          r_wall, cs.params.init_vel, pin, pout);
     } else {
       // if source node is internal stream it.
       fp[diridx] = ffrom[grid.field_index(src, diridx, VelocitySet::ndir)];
@@ -109,14 +109,19 @@ __global__ void update_stream_collide(
   // STORE computed macroscopic values
 
   // Store macroscopic fields for requested frames and for the final state.
-  if (store_macroscopic) {
-    const unsigned int s_idx = grid.scalar_index(p);
+  const auto s_idx = grid.scalar_index(p);
+  if (store_macroscopic ||
+      boundary_mask[s_idx] == Solid::PRESSURE_PERIODIC_INLET ||
+      boundary_mask[s_idx] == Solid::PRESSURE_PERIODIC_OUTLET) {
     lattice_rho[s_idx] = r;
     lattice_u[s_idx] = u;
+  }
+
+  if (store_macroscopic) {
     norms[s_idx] = static_cast<float>(std::sqrt(utils::ops::dot(u, u)));
   }
 
-  cuda::collide_node<dim, VelocitySet, cm_t>(fp, p, r, u, cs);
+  cs.apply(fp, p, r, u);
 
   // COPY BACK ON DEVICE BUFFER
   for (auto diridx = 0; diridx < VelocitySet::ndir; diridx++) {
@@ -137,7 +142,7 @@ public:
   ~CUDASolver2D() = default;
 
   __host__ void solve(Lattice<2> &lattice,
-                      const Params<2, cm_t> &params_) const override {
+                      const CollisionParams<2, cm_t> &params_) const override {
 
     cuda::upload_lattice_constants<2, D2Q9>();
     double *fto, *ffrom, *d_rho;
@@ -186,9 +191,12 @@ public:
       cuda_detail::update_stream_collide<2, D2Q9, cm_t>
           <<<gridDim, blockDim, 0, stream>>>(
               ffrom, fto, d_boundary_mask, norms, d_rho, d_u, lattice.grid,
-              params_, lattice.pin, lattice.pout, store_macroscopic);
+              CollisionStrategy<2, D2Q9, cm_t>(params_), lattice.pin,
+              lattice.pout, store_macroscopic);
+
       LBM_CUDA_CHECK(cudaGetLastError());
       std::swap(ffrom, fto);
+
       if (save) {
         LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
         download_macroscopic(d_rho, d_u, lattice, stream);
