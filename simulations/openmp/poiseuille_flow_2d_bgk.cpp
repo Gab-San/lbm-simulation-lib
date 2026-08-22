@@ -39,7 +39,8 @@ template <> struct Config<2> {
   /// Reynold number
   const double reyn_num;
 
-  /// Initial velocity of the fluid
+  /// Velocita' di riferimento, usata solo per calcolare nu/tau
+  /// NON muove piu' nessuna parete in Poiseuille!!!
   const lbm::utils::Vector<double, 2> init_vel;
 
   /// Output path for frames
@@ -78,27 +79,30 @@ int main() {
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {129, 129}, /*iters*/ 100000, /*frames*/ 300, /*reyn*/ 100.0,
-          /*init_vel*/ {0.1, 0}, "out/norms_couette_129_100_01.bin",
-          "out/data_couette_129_100_01.bin",
+          {129, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
+          /*init_vel*/ {0.1, 0},
+          "out/norms_poiseuille_openmp_129_100_01_bgk.bin",
+          "out/data_poiseuille_openmp_129_100_01_bgk.bin",
           {
               CollisionDetection::CollisionArea(
-                  A, {CollisionDetection::Segment(A, D)}), // bottom (y=0)
-              CollisionDetection::CollisionArea(
-                  A, {CollisionDetection::Segment(B, C)}), // top (y=128)
-              CollisionDetection::CollisionArea(
+                  A, {CollisionDetection::Segment(A, D),   // bottom (y=0)
+                      CollisionDetection::Segment(B, C)}), // top (y=128)
+              CollisionDetection::CollisionArea(           // LEFT WALL
                   A, {CollisionDetection::Segment(A + Vector<int, DIM>(0, 1),
-                                                  B - Vector<int, DIM>(0, 1)),
-                      CollisionDetection::Segment(C - Vector<int, DIM>(0, 1),
+                                                  B - Vector<int, DIM>(0, 1))}),
+              CollisionDetection::CollisionArea( // RIGHT WALL
+                  A, {CollisionDetection::Segment(C - Vector<int, DIM>(0, 1),
                                                   D + Vector<int, DIM>(0, 1))}),
           },
-          {{0, Solid::BB_RIGID_WALL},
-           {1, Solid::BB_MOVING_WALL},
-           {2, Solid::PERIODIC}}),
+          {{0, Solid::BB_RIGID_WALL}, // fixed top and bottom wall
+           {1, Solid::PRESSURE_PERIODIC_INLET},
+           {2, Solid::PRESSURE_PERIODIC_OUTLET}}), // right and left
+                                                   // periodic bc
   };
 
   constexpr auto CollisionType = CollisionModel::BGK;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
+
   const LidCavity2D problem;
 
   for (const auto &conf : configs) {
@@ -110,9 +114,12 @@ int main() {
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(conf.out_frames);
 
-    Simulation simulation(
-        grid_size, boundary_mask,
-        CollisionParams<DIM, CollisionType>(reyn, grid_size, init_vel));
+    const CollisionParams<DIM, CollisionType> params(reyn, grid_size, init_vel);
+    const double pout = 1;
+    const double pin =
+        pout + (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
+                   8 * params.nu * params.init_vel.dx;
+    Simulation simulation(grid_size, boundary_mask, params, pin, pout);
 
     simulation.attachListener(writer);
 
