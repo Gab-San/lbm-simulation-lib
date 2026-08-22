@@ -3,7 +3,7 @@
 
 #include "lbm-sim/core/point.hpp"
 
-#include "lbm-sim/backend/cuda-annotations.hpp"
+#include "lbm-sim/cuda/annotations.hpp"
 
 // C++ STANDARD LIB
 #include <iostream>

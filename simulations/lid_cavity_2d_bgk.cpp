@@ -167,7 +167,7 @@ int main() {
 
     Simulation simulation(
         grid_size, obstacle_mask,
-        Params<DIM, CollisionType>(reyn, grid_size, init_vel));
+        CollisionParams<DIM, CollisionType>(reyn, grid_size, init_vel));
 
     simulation.attachListener(writer);
 

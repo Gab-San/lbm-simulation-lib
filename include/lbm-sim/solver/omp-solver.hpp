@@ -3,8 +3,8 @@
 
 #include "lbm-sim/solver/solver-base.hpp"
 
-#include "lbm-sim/backend/metadata.hpp"
-#include "lbm-sim/backend/omp-annotions.hpp"
+#include "lbm-sim/backend.hpp"
+#include "lbm-sim/omp/annotations.hpp"
 
 #include "lbm-sim/boundaries.hpp"
 
@@ -44,15 +44,14 @@ public:
   virtual ~MPISolver2D() = default;
 
   void solve(Lattice<2> &lattice,
-             const Params<2, cm_t> &params_) const override {
-
+             const CollisionParams<2, cm_t> &params_) const override {
     quill::Logger *solver_logger = logging::create_or_get_logger("solver");
 
     std::vector<double> ffrom(lattice.grid.getArea() * D2Q9::ndir, 0.0);
     std::vector<double> fto(lattice.grid.getArea() * D2Q9::ndir, 0.0);
     std::vector<float> usq(lattice.grid.getArea());
 
-    const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> cs(params_);
+    const CollisionStrategy<2, D2Q9, cm_t> cs(params_);
 
     init_equilibrium(ffrom, lattice);
 
@@ -101,12 +100,11 @@ private:
     }
   };
 
-  void
-  update_stream_collide(const std::vector<double> &ffrom,
-                        std::vector<double> &fto, std::vector<float> &usq,
-                        Lattice<2> &lattice,
-                        const CollisionStrategy<2, D2Q9, cm_t, OPEN_MP> &cs,
-                        const bool store_macroscopic) const {
+  void update_stream_collide(const std::vector<double> &ffrom,
+                             std::vector<double> &fto, std::vector<float> &usq,
+                             Lattice<2> &lattice,
+                             const CollisionStrategy<2, D2Q9, cm_t> &cs,
+                             const bool store_macroscopic) const {
 
 #pragma omp parallel for shared(ffrom, fto, cs, lattice, store_macroscopic)    \
     schedule(static) collapse(2)
@@ -168,11 +166,14 @@ private:
             lattice.boundary_mask[s_idx] == Solid::PRESSURE_PERIODIC_OUTLET) {
           lattice.rho[s_idx] = r;
           lattice.u[s_idx] = u;
+        }
+
+        if (store_macroscopic) {
           usq[s_idx] = static_cast<float>(std::sqrt(utils::ops::dot(u, u)));
         }
 
         // APPLY COLLISION
-        cs.apply(fp, p, r, u);
+        cs.apply(fp.data(), p, r, u);
 
         // COPY LOCAL DENSITY TO GRID
 #pragma omp simd
