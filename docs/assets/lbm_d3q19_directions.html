@@ -16,21 +16,19 @@
 <div class="legend">
   <div class="leg"><div class="dot" style="background:#fff"></div> 0: rest</div>
   <div class="leg"><div class="dot" style="background:#4fc3f7"></div> 1-6: face</div>
-  <div class="leg"><div class="dot" style="background:#ffd54f"></div> 7-14: edge (xy/xz)</div>
-  <div class="leg"><div class="dot" style="background:#ef5350"></div> 15-26: corner/edge (yz/xyz)</div>
+  <div class="leg"><div class="dot" style="background:#ffd54f"></div> 7-18: edge</div>
 </div>
 <div class="info">Trascina per ruotare</div>
 <script>
-const dirx = [0, 1,-1,0,0,0,0, 1,-1,1,-1,1,-1,1,-1, 0,0,0,0, 1,-1,1,-1,1,-1,1,-1];
-const diry = [0, 0,0,1,-1,0,0, 1,-1,-1,1,0,0,0,0, 1,-1,1,-1, 1,-1,1,-1,-1,1,-1,1];
-const dirz = [0, 0,0,0,0,1,-1, 0,0,0,0,1,-1,-1,1, 1,-1,-1,1, 1,-1,-1,1,1,-1,-1,1];
+const dirx = [0, 1,-1,0,0,0,0, 1,-1,1,-1,0,0,1,-1,1,-1,0,0];
+const diry = [0, 0,0,1,-1,0,0, 1,-1,0,0,1,-1,-1,1,0,0,1,-1];
+const dirz = [0, 0,0,0,0,1,-1, 0,0,1,-1,1,-1,0,0,-1,1,-1,1];
 
 const colors = [
   '#ffffff',
   '#4fc3f7','#4fc3f7','#4fc3f7','#4fc3f7','#4fc3f7','#4fc3f7',
-  '#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f',
-  '#ef5350','#ef5350','#ef5350','#ef5350',
-  '#ce93d8','#ce93d8','#ce93d8','#ce93d8','#ce93d8','#ce93d8','#ce93d8','#ce93d8',
+  '#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f',
+  '#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f',
 ];
 
 const canvas = document.getElementById('c');
@@ -51,10 +49,8 @@ canvas.addEventListener('mousemove', e => {
 });
 
 function project(x, y, z) {
-  // Rotate Y
   let x1 = x * Math.cos(rotY) + z * Math.sin(rotY);
   let z1 = -x * Math.sin(rotY) + z * Math.cos(rotY);
-  // Rotate X
   let y1 = y * Math.cos(rotX) - z1 * Math.sin(rotX);
   let z2 = y * Math.sin(rotX) + z1 * Math.cos(rotX);
   const scale = 120;
@@ -65,7 +61,6 @@ function project(x, y, z) {
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
-  // Draw cube edges
   const corners = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];
   const edges = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
   ctx.strokeStyle = 'rgba(0,0,0,0.6)';
@@ -76,7 +71,6 @@ function draw() {
     ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
   }
 
-  // Draw axes
   const axisColors = ['#ff6b6b','#6bff6b','#6b9fff'];
   const axisLabels = ['x','y','z'];
   const axisDirs = [[1,0,0],[0,1,0],[0,0,1]];
@@ -94,12 +88,10 @@ function draw() {
     ctx.fillText(axisLabels[i], ex + 4, ey + 4);
   }
 
-  // Collect all points with depth
   const pts = dirx.map((_, i) => {
     const [px, py, pz] = project(dirx[i], diry[i], dirz[i]);
     return { i, px, py, pz, x: dirx[i], y: diry[i], z: dirz[i] };
   });
-  // Sort back-to-front
   pts.sort((a, b) => a.pz - b.pz);
 
   for (const pt of pts) {
@@ -107,7 +99,6 @@ function draw() {
     const isRest = i === 0;
     const r = isRest ? 10 : 7;
 
-    // Draw line from center to node
     if (!isRest) {
       const [ox, oy] = project(0, 0, 0);
       ctx.strokeStyle = colors[i] + '55';
@@ -115,7 +106,6 @@ function draw() {
       ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(px, py); ctx.stroke();
     }
 
-    // Node circle
     ctx.beginPath();
     ctx.arc(px, py, r, 0, Math.PI * 2);
     ctx.fillStyle = colors[i];
@@ -124,14 +114,12 @@ function draw() {
     ctx.lineWidth = isRest ? 2 : 1;
     ctx.stroke();
 
-    // Index label
     ctx.fillStyle = '#000';
     ctx.font = `bold ${isRest ? 11 : 9}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(i, px, py);
 
-    // Coordinate tooltip near node
     ctx.font = '9px monospace';
     ctx.textAlign = 'left';
     ctx.lineWidth = 3;

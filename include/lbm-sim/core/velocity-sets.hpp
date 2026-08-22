@@ -83,6 +83,14 @@ struct D3Q19 {
       w0 /*0*/, wf, wf, wf, wf, wf, wf /*6*/, we, we, we,
       we,       we, we, we, we, we, we,       we, we /*18*/};
 
+  /**
+   * Array of directions for D3Q19.
+   *
+   * \htmlonly
+   * <iframe src="lbm_d3q19_directions.html" width="580" height="560"
+   * style="border:none;"></iframe>
+   * \endhtmlonly
+   */
   static inline constexpr std::array<VectorInt<dim>, ndir> dir = {
       VectorInt<dim>(0, 0, 0) /*0*/,    VectorInt<dim>(1, 0, 0),
       VectorInt<dim>(-1, 0, 0),         VectorInt<dim>(0, 1, 0) /*3*/,
