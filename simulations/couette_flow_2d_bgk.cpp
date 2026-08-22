@@ -15,6 +15,8 @@
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
+#include "lbm-sim/analysis/exact-solution.hpp"
+
 // C++ STD LIB
 #include <memory>
 #include <unordered_map>
@@ -52,7 +54,11 @@ template <> struct Config<2> {
 
   const std::unordered_map<unsigned int, uint8_t> obst_type_map;
 
-  Config<2>(
+  /// Quale soluzione analitica usare per compute_error() a fine run.
+  /// Fissato qui una volta sola: niente H/Umax duplicati altrove.
+  
+
+  Config(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
       const unsigned int c_frames, const double c_reyn_num,
       const lbm::utils::Vector<double, 2> init_vel_,
@@ -118,9 +124,20 @@ int main() {
 
     MPISolver2D<CollisionType> solver(iters, frames);
     solver.attachListener(writer);
-
+    
     simulation.solve(solver, problem);
     simulation.output(out_data.c_str());
+    const lbm::analysis::FlowType flow_type = lbm::analysis::FlowType::Couette;
+    // H = altezza canale (parete inferiore a y=0, superiore a y=grid_size.y-1);
+    // Umax = velocita' di riferimento (parete mobile per Couette).
+    // Stessi valori gia' usati per costruire la simulazione: nessuna
+    // duplicazione, flow_type sceglie la Function<2> corretta.
+    const double H = static_cast<double>(grid_size.y - 1);
+    const auto exact_solution =
+        analysis::make_exact_solution(flow_type, H, init_vel.dx);
+    const double err_l2 =
+        simulation.compute_error(analysis::NormType::L2, *exact_solution);
+    std::cout << "Errore L2 vs soluzione analitica: " << err_l2 << std::endl;
 
     simulation.detachListener(writer);
     solver.detachListener(writer);
