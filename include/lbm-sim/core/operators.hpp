@@ -39,6 +39,34 @@ inline Point<std::common_type_t<T, K>, 2> operator-(const Vector<T, 2> &lhs,
   return Point<R, 2>(lhs.dx - rhs.x, lhs.dy - rhs.y);
 }
 
+template <typename T, typename K>
+inline Point<std::common_type_t<T, K>, 3> operator+(const Point<T, 3> &lhs,
+                                                    const Vector<K, 3> &rhs) {
+  using R = std::common_type_t<T, K>;
+  return Point<R, 3>(lhs.x + rhs.dx, lhs.y + rhs.dy, lhs.z + rhs.dz);
+}
+
+template <typename T, typename K>
+inline Point<std::common_type_t<T, K>, 3> operator+(const Vector<T, 3> &lhs,
+                                                    const Point<K, 3> &rhs) {
+  using R = std::common_type_t<T, K>;
+  return Point<R, 3>(lhs.dx + rhs.x, lhs.dy + rhs.y, lhs.dz + rhs.z);
+}
+
+template <typename T, typename K>
+inline Point<std::common_type_t<T, K>, 3> operator-(const Point<T, 3> &lhs,
+                                                    const Vector<K, 3> &rhs) {
+  using R = std::common_type_t<T, K>;
+  return Point<R, 3>(lhs.x - rhs.dx, lhs.y - rhs.dy, lhs.z - rhs.dz);
+}
+
+template <typename T, typename K>
+inline Point<std::common_type_t<T, K>, 3> operator-(const Vector<T, 3> &lhs,
+                                                    const Point<K, 3> &rhs) {
+  using R = std::common_type_t<T, K>;
+  return Point<R, 3>(lhs.dx - rhs.x, lhs.dy - rhs.y, lhs.dz - rhs.z);
+}
+
 namespace ops {
 template <typename T, typename K, unsigned short int dim>
 inline std::common_type_t<T, K> dot(const Vector<T, dim> &lhs,
@@ -46,8 +74,7 @@ inline std::common_type_t<T, K> dot(const Vector<T, dim> &lhs,
   if constexpr (dim == 2) {
     return lhs.dx * rhs.dx + lhs.dy * rhs.dy;
   } else {
-    static_assert(assertion::always_false<dim>,
-                  "dot() : operator not yet implemented for 3D");
+    return lhs.dx * rhs.dx + lhs.dy * rhs.dy + lhs.dz * rhs.dz;
   }
 }
 
@@ -58,7 +85,8 @@ inline std::common_type_t<T, K> cross(const Vector<T, dim> &lhs,
     return lhs.dx * rhs.dy - lhs.dy * rhs.dx;
   } else {
     static_assert(assertion::always_false<dim>,
-                  "cross() : operator not yet implemented for 3D");
+                  "cross() : 3D cross product returns a Vector, not a "
+                  "scalar - not applicable here");
   }
 }
 

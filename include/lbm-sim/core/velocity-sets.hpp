@@ -96,10 +96,83 @@ struct D3Q27 {
       0, 0, 0,  0,  0, 1, -1, 0,  0, 0, 0,  1,  -1, -1,
       1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1};
 
-  // FIXME: Check opposite
-  static constexpr std::array<int, ndir> opp = {
+  static constexpr std::array<std::size_t, ndir> opp = {
       0,  2,  1,  4,  3,  6,  5,  8,  7,  10, 9,  12, 11, 14,
       13, 16, 15, 18, 17, 20, 19, 22, 21, 24, 23, 26, 25};
+
+  /**
+   * Direction weights, nello stesso ordine di dirx/diry/dirz:
+   * indice 0 -> riposo (w0), indici 1-6 -> vicini di faccia (wf),
+   * indici 7-18 -> vicini di spigolo (we), indici 19-26 -> vicini
+   * di vertice (wc).
+   */
+  static constexpr std::array<double, ndir> wi = {
+      w0, wf, wf, wf, wf, wf, wf, we, we, we, we, we, we, we,
+      we, we, we, we, we, wc, wc, wc, wc, wc, wc, wc, wc};
+
+  /**
+   * Array di direzioni nello stesso formato usato da D2Q9 (dir[i] e'
+   * un VectorInt<3>), costruito a partire da dirx/diry/dirz cosi' che
+   * il codice generico templato su VelocitySet (CollisionStrategy,
+   * boundaries.hpp, ...) possa usare VelocitySet::dir[i] tanto per
+   * D2Q9 quanto per D3Q27.
+   */
+  inline static const std::array<VectorInt<3>, ndir> dir = [] {
+    std::array<VectorInt<3>, ndir> d{};
+    for (std::size_t i = 0; i < ndir; ++i) {
+      d[i] = VectorInt<3>(dirx[i], diry[i], dirz[i]);
+    }
+    return d;
+  }();
+};
+
+struct D3Q19 {
+
+  static constexpr unsigned short int dim = 3;
+  /// Number of directions
+  static constexpr std::size_t ndir = 19;
+  /// Weight in (0,0,0)
+  static constexpr double w0 = 1.0 / 3.0;
+  /// Weight for face points
+  static constexpr double wf = 1.0 / 18.0;
+  /// Weight for edge points
+  static constexpr double we = 1.0 / 36.0;
+  // NOTE: D3Q19 non ha vicini di vertice (i corner di D3Q27, wc), solo
+  // riposo + facce + spigoli: 1 + 6 + 12 = 19.
+
+  // Stessa numerazione/ordine di D3Q27 (vedi sopra), troncata ai primi
+  // 19 elementi: indici 0-6 = riposo+facce, indici 7-18 = spigoli.
+  static constexpr std::array<int, ndir> dirx = {0,  1, -1, 0, 0, 0, 0,  1,
+                                                 -1, 1, -1, 1, -1, 1, -1,
+                                                 0,  0, 0,  0};
+
+  static constexpr std::array<int, ndir> diry = {0, 0, 0,  1, -1, 0, 0,  1,
+                                                 -1, -1, 1, 0,  0, 0, 0,
+                                                 1,  -1, 1, -1};
+
+  static constexpr std::array<int, ndir> dirz = {0, 0, 0,  0,  0, 1, -1, 0,
+                                                 0, 0, 0,  1,  -1, -1, 1,
+                                                 1, 1, -1, -1};
+
+  static constexpr std::array<std::size_t, ndir> opp = {
+      0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15, 18, 17};
+
+  /**
+   * Pesi nello stesso ordine di dirx/diry/dirz: indice 0 -> riposo (w0),
+   * indici 1-6 -> vicini di faccia (wf), indici 7-18 -> vicini di
+   * spigolo (we). Verifica: w0 + 6*wf + 12*we = 1/3+1/3+1/3 = 1.
+   */
+  static constexpr std::array<double, ndir> wi = {
+      w0, wf, wf, wf, wf, wf, wf, we, we, we, we, we, we, we, we, we, we, we, we};
+
+  /// dir[i] nello stesso formato di D2Q9/D3Q27 (VectorInt<3>).
+  inline static const std::array<VectorInt<3>, ndir> dir = [] {
+    std::array<VectorInt<3>, ndir> d{};
+    for (std::size_t i = 0; i < ndir; ++i) {
+      d[i] = VectorInt<3>(dirx[i], diry[i], dirz[i]);
+    }
+    return d;
+  }();
 };
 
 } // namespace lbm

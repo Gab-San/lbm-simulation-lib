@@ -8,6 +8,9 @@
 #include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/problems/problem_2d.hpp"
+#include "lbm-sim/problems/problem_3d.hpp"
+
+#include "lbm-sim/collision-detection/shape.hpp"
 
 #include "lbm-sim/solver/solver-base.hpp"
 
@@ -44,25 +47,38 @@ public:
       : lattice(grid_dim_, std::move(boundary_mask_), pin, pout),
         params(params_) {};
 
-  template <enum ExecutionBackend backend_t>
+  // Templato anche su Problem (invece di essere fissato a LidCavity2D):
+  // per dim==2 si passa una LidCavity2D, per dim==3 una LidCavity3D
+  // (problems/problem_3d.hpp). Il tipo giusto e' comunque vincolato da
+  // dim, quindi non e' possibile passare una LidCavity2D a una
+  // LBMSimulation<3, ...> senza un errore di compilazione a valle,
+  // nella chiamata a problem.init(lattice, ...) che il chiamante
+  // eventualmente fa a parte (vedi main_lidcavity_3d.cpp).
+  template <enum ExecutionBackend backend_t, typename Problem>
   void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver,
-             const LidCavity2D &problem) {
+             const Problem &problem) {
     std::cout << "Initializing Simulation." << std::endl;
 
     std::vector<double> f1(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
     std::vector<double> f2(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
 
-    // FIXME: cannot be initialized like this
-    // define generic initialization
+    // Inizializzazione del problema: imposta la velocita' del lid sui
+    // nodi della parete mobile. In 2D i nodi vengono generati con
+    // Segment<2> (top row, y = Ny-1); in 3D la faccia superiore la
+    // fornisce direttamente LidCavity3D::lid_points(), perche' il
+    // modulo collision-detection non e' ancora esteso a 3D (vedi
+    // problems/problem_3d.hpp).
+    if constexpr (dim == 2) {
+      CollisionDetection::Segment<2> seg(
+          types::Coordinate<2>(0, lattice.grid.size.y - 1),
+          types::Coordinate<2>(lattice.grid.size.x - 1,
+                               lattice.grid.size.y - 1));
+      problem.init(lattice, params.init_vel, seg.getPerimeter());
+    } else if constexpr (dim == 3) {
+      problem.init(lattice, params.init_vel,
+                   Problem::lid_points(lattice.grid.size));
+    }
 
-    // Segment<2> seg(
-    //     types::Coordinate<2>(0, grid.size.y - 1),
-    //     types::Coordinate<2>(grid.size.x - 1,
-    //                                              grid.size.y - 1));
-    //
-    // problem.init(grid, params.init_vel, seg.getPerimeter());
-
-    // FIXME: check that initialization + init_equilibrium suffices
     std::cout << "Problem Initialized." << std::endl;
     solver.init_equilibrium(lattice, f1);
     std::cout << "Equilibrium Initialized." << std::endl;

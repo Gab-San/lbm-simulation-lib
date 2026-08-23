@@ -35,12 +35,11 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::BGK> {
         nu([&]() -> double {
           // WARN: this might need correction for different possible
           // configurations of velocity and cells
-          if constexpr (dim == 2) {
-            return init_vel_.dx * num_cells_.y / reyn_num_;
-          } else {
-            static_assert(dim != dim, "BGK : 3D not implemented yet!");
-            // throw std::runtime_error("BGK: 3D not implemented yet!");
-          }
+          //
+          // Convenzione valida sia in 2D che in 3D: la parete mobile
+          // (lid) si muove lungo x, e la lunghezza caratteristica per
+          // Re = U*L/nu e' num_cells.y (altezza della cavita').
+          return init_vel_.dx * num_cells_.y / reyn_num_;
         }()),
         tauinv(2.0 / (6.0 * nu + 1.0)), omtauinv(1.0 - tauinv) {
     double tau = 0.5 + 3.0 * nu;
@@ -70,12 +69,7 @@ template <unsigned short int dim> struct Params<dim, CollisionModel::TRT> {
         nu([&]() -> double {
           // WARN: this might need correction for different possible
           // configurations of velocity and cells
-          if constexpr (dim == 2) {
-            return init_vel_.dx * num_cells_.y / reyn_num_;
-          } else {
-            static_assert(dim != dim, "TRT : 3D not implemented yet!");
-            // throw std::runtime_error("TRT: 3D not implemented yet!");
-          }
+          return init_vel_.dx * num_cells_.y / reyn_num_;
         }()),
         tauPlus(3.0 * nu + 0.5), tauMinus(0.5 + (0.25) / (tauPlus - 0.5)),
         s_plus(1.0 / tauPlus), s_minus(1.0 / tauMinus) {

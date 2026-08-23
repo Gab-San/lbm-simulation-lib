@@ -73,6 +73,13 @@ inline Point<std::common_type_t<T, K>, 2> operator%(const Point<T, 2> &lhs,
   return Point<R, 2>(lhs.x % rhs.x, lhs.y % rhs.y);
 }
 
+template <typename T, typename K>
+inline Point<std::common_type_t<T, K>, 3> operator%(const Point<T, 3> &lhs,
+                                                    const Point<K, 3> &rhs) {
+  using R = std::common_type_t<T, K>;
+  return Point<R, 3>(lhs.x % rhs.x, lhs.y % rhs.y, lhs.z % rhs.z);
+}
+
 template <typename T, unsigned short int dim>
 inline std::ostream &operator<<(std::ostream &out, const Point<T, dim> &p) {
   if constexpr (dim == 2) {

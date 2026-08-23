@@ -33,8 +33,7 @@ std::size_t coord_to_scalar(types::Coordinate<dim> p,
   if constexpr (dim == 2) {
     return size.x * p.y + p.x;
   } else {
-    static_assert(assertion::always_false<dim>,
-                  "Solid::coord_to_scalar(): 3D Implementation Missing!");
+    return size.x * (size.y * p.z + p.y) + p.x;
   }
 }
 

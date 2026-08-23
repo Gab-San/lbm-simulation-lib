@@ -12,6 +12,7 @@
 // C++ STANDARD LIB
 #include <vector>
 
+
 namespace lbm {
 template <unsigned short int dim, typename VelocitySet,
           enum CollisionModel cm_t, enum ExecutionBackend backend_t>
@@ -63,6 +64,34 @@ public:
 
 protected:
   virtual void write_norms(const Lattice<2> &grid) const override = 0;
+};
+
+// Templata anche su VelocitySet (a differenza di SolverBase2D, che resta
+// fissata a D2Q9 perche' e' l'unico set 2D presente): in 3D esistono sia
+// D3Q27 sia D3Q19, quindi la classe base deve poterli accettare entrambi.
+template <typename VelocitySet, enum CollisionModel cm_t,
+          enum ExecutionBackend backend_t>
+class SolverBase3D : public SolverBase<3, VelocitySet, cm_t, backend_t> {
+  static_assert(VelocitySet::dim == 3,
+               "SolverBase3D richiede un VelocitySet con dim == 3 "
+               "(es. D3Q27, D3Q19)");
+  using Base = SolverBase<3, VelocitySet, cm_t, backend_t>;
+
+public:
+  SolverBase3D(const unsigned int num_iters_, const unsigned int num_frames_)
+      : Base(num_iters_, num_frames_) {}
+
+  virtual ~SolverBase3D() = default;
+  virtual void
+  init_equilibrium(const Lattice<3> &lattice,
+                   std::vector<double> &part_stream) const override = 0;
+
+  virtual void solve(Lattice<3> &lattice, const Params<3, cm_t> &params_,
+                     std::vector<double> &ffrom,
+                     std::vector<double> &fto) const override = 0;
+
+protected:
+  virtual void write_norms(const Lattice<3> &grid) const override = 0;
 };
 
 } // namespace lbm

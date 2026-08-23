@@ -17,11 +17,8 @@ template <unsigned short int dim> struct Grid {
     if constexpr (dim == 2) {
       return size.x * p.y + p.x;
     } else {
-      static_assert(assertion::always_false<dim>,
-                    "Grid<3>::scalar_index() : 3D not implemented yet!");
-      // TODO: Check implementation
-      //
-      // return Nx * (Ny * z + y) + x;
+      // z-major layout: cella (x,y,z) -> x + Nx*(y + Ny*z)
+      return size.x * (size.y * p.z + p.y) + p.x;
     }
   }
 
@@ -34,11 +31,9 @@ template <unsigned short int dim> struct Grid {
       // NOTE: maybe grid could be templated on velocity sets.
       return ndir * (size.x * p.y + p.x) + dir;
     } else {
-      static_assert(assertion::always_false<dim>,
-                    "Grid<3>::field_index() : 3D not implemented yet!");
-      // TODO: Check implementation
-      //
-      // return Nx * (Ny * (Nz * dir + z) + y) + x;
+      // stesso layout AoS "dir-minor" del caso 2D: per ogni nodo, le
+      // ndir componenti della popolazione sono contigue in memoria.
+      return ndir * scalar_index(p) + dir;
     }
   }
 
