@@ -1,4 +1,4 @@
-%%benchmark ghia
+%%benchmark ghia x 100
 1.0000    1.00000
 0.9766    0.84123
 0.9688    0.78871

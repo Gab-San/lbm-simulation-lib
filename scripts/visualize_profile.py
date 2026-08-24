@@ -26,6 +26,7 @@ def read_ghia_data(f):
         ghia_data.append((float(x), float(y)))
 
     # Normalizzo i dati di Ghia rispetto al massimo valore in modulo
+    # NOTE: Aren't values already normalized??
     max_value_ghia = max([abs(y) for _, y in ghia_data])
     if max_value_ghia > 0:
         ghia_data = [(x, y / max_value_ghia) for x, y in ghia_data]

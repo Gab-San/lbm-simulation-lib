@@ -11,6 +11,9 @@
 
 #include "lbm-sim/solver/solver-base.hpp"
 
+#include "lbm-sim/analysis/benchmarks.hpp"
+#include "lbm-sim/analysis/error.hpp"
+
 // C++ STANDARD LIB
 #include <filesystem>
 #include <fstream>
@@ -70,6 +73,58 @@ public:
 
     std::cout << "Finished Simulation." << std::endl;
   };
+
+  /**
+   * Errore rispetto a una soluzione analitica, sullo stile di
+   * dealii::VectorTools: si passa la exact_solution (una Function<dim>,
+   * es. CouetteSolution2D / PoiseuilleSolution2D, o una qualunque classe
+   * derivata definita dall'utente) e il tipo di norma; il campo
+   * approssimato (lattice.u) e la griglia sono presi internamente dalla
+   * simulazione, non vanno passati dal chiamante.
+   *
+   * Equivalente di:
+   *   VectorTools::integrate_difference(..., solution, exact_solution,
+   *                                     error_per_cell, ..., norm_type);
+   *   VectorTools::compute_global_error(mesh, error_per_cell, norm_type);
+   *
+   * Ritorna l'errore globale assoluto (non normalizzato) nella norma
+   * richiesta. Per l'errore relativo rispetto alla soluzione esatta,
+   * vedi analysis::compute_error() in analysis/error.hpp.
+   */
+  double compute_error(const analysis::NormType &norm_type,
+                       const analysis::Function<dim> &exact_solution) const {
+    const auto error_per_cell =
+        analysis::ErrorEvaluator<dim>::integrate_difference(
+            lattice.grid, lattice.u, exact_solution);
+
+    const double error = analysis::ErrorEvaluator<dim>::compute_global_error(
+        error_per_cell, norm_type);
+
+    return error;
+  }
+
+  /**
+   * Errore rispetto al benchmark di Ghia et al. (1982), solo per la lid
+   * cavity 2D: confronta lattice.u lungo le due centerline con le tabelle
+   * di riferimento. lid_velocity e' la velocita' della parete mobile
+   * (params.init_vel.dx), usata da Ghia per normalizzare i suoi dati.
+   * norm_type sceglie la norma per ridurre i 17 punti tabulati a uno
+   * scalare (default L2), stessa semantica di compute_error().
+   *
+   * Disponibile solo per dim == 2 -- la lid cavity di Ghia non ha un
+   * equivalente 3D tabulato in questa libreria.
+   */
+  analysis::NormErrorResult compute_ghia_error(
+      const std::string &filepath_in,
+      const analysis::NormType norm_type = analysis::NormType::L2) const {
+    if constexpr (dim == 2) {
+      return analysis::compute_ghia_error(filepath_in, lattice, params.reyn_num,
+                                          params.init_vel.dx);
+    } else {
+      static_assert(assertion::always_false<dim>,
+                    "compute_ghia_error() is only defined for dim == 2");
+    }
+  }
 
   void output(const char *filepath) {
     using namespace std::filesystem;

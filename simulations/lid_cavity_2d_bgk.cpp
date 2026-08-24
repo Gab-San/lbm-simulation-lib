@@ -76,7 +76,7 @@ template <> struct Config<2> {
 
   const std::unordered_map<unsigned int, uint8_t> obst_type_map;
 
-  Config<2>(
+  Config(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
       const unsigned int c_frames, const double c_reyn_num,
       const lbm::utils::Vector<double, 2> init_vel_,
@@ -136,6 +136,8 @@ int main() {
 
   const LidCavity2D problem;
 
+  std::string path_to_benchmark("benchmarks/ghia/");
+
   for (const auto &conf : configs) {
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obst_type_map] = conf;
@@ -158,6 +160,19 @@ int main() {
     simulation.solve(solver /*, preconditioner*/, problem);
 
     simulation.output(out_data.c_str());
+
+    // Confronto con Ghia et al. (1982): Norma scelta qui: L2.
+    const auto ghia_y = simulation.compute_ghia_error(
+        path_to_benchmark + "data_y_" + formatting::format_reyn(reyn) + ".txt");
+    std::cout << "Ghia (" << analysis::to_string(analysis::NormType::L2)
+              << ") uy(x/2): rel=" << ghia_y.relative
+              << " abs=" << ghia_y.absolute << std::endl;
+
+    const auto ghia_x = simulation.compute_ghia_error(
+        path_to_benchmark + "data_x_" + formatting::format_reyn(reyn) + ".txt");
+    std::cout << "Ghia (" << analysis::to_string(analysis::NormType::L2)
+              << " | ux(y/2): rel=" << ghia_x.relative
+              << " abs=" << ghia_x.absolute << std::endl;
 
     simulation.detachListener(writer);
     solver.detachListener(writer);
