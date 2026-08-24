@@ -54,7 +54,7 @@ public:
     quill::Logger *simulation_logger =
         logging::create_or_get_logger("simulation");
 
-    LOG_INFO(simulation_logger, "Initializing Simulation...");
+    LOG_DEBUG(simulation_logger, "Initializing Simulation...");
 
     std::vector<double> f1(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
     std::vector<double> f2(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
@@ -70,15 +70,15 @@ public:
     // problem.init(grid, params.init_vel, seg.getPerimeter());
 
     // FIXME: check that initialization + init_equilibrium suffices
-    LOG_INFO(simulation_logger, "Lattice Initialized...");
+    LOG_DEBUG(simulation_logger, "Lattice Initialized...");
     solver.init_equilibrium(lattice, f1);
-    LOG_INFO(simulation_logger, "Equilibrium Initialized...");
+    LOG_DEBUG(simulation_logger, "Equilibrium Initialized...");
 
     write_header(lattice.grid);
 
     solver.solve(lattice, params, f1, f2);
 
-    LOG_INFO(simulation_logger, "Finished Simulation.");
+    LOG_DEBUG(simulation_logger, "Finished Simulation.");
   };
 
   /**
@@ -153,9 +153,7 @@ public:
       return;
     }
 
-    LOG_INFO(data_logger, "Writing header to file {}", filepath);
-
-    // FIXME: FORMAT HEADER WRITING
+    LOG_DEBUG(data_logger, "Writing header to file {}", filepath);
 
     std::string header = "%%profile " + collision_model_to_string(cm_t) + " " +
                          std::to_string(lattice.grid.size.y) + "\n";
@@ -193,6 +191,9 @@ private:
       std::memcpy(buf.data() + sizeof(int32_t), &ny32, sizeof(int32_t));
       std::memcpy(buf.data() + 2 * sizeof(int32_t), &nz32, sizeof(int32_t));
     }
+
+    LOG_DEBUG(logging::create_or_get_logger("data_log"),
+              "Writing norms header...");
 
     this->notifyListeners(std::move(buf));
   }

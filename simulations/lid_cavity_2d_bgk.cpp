@@ -135,16 +135,15 @@ int main() {
                   {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
   };
 
-  constexpr auto CollisionType = CollisionModel::BGK;
+  logging::setup_quill();
+  quill::Logger *main_logger = logging::create_or_get_logger("main");
 
+  constexpr auto CollisionType = CollisionModel::BGK;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
   const LidCavity2D problem;
 
   std::string path_to_benchmark("benchmarks/ghia/");
-
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
 
   LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
 
@@ -157,7 +156,7 @@ int main() {
         main_logger,
         "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
         "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
-        "frames: {}\n",
+        "frames: {}",
         confidx, grid_size, reyn, init_vel, iters, frames);
 
     types::boundary_mask_t obstacle_mask =
@@ -182,15 +181,17 @@ int main() {
     // Confronto con Ghia et al. (1982): Norma scelta qui: L2.
     const auto ghia_y = simulation.compute_ghia_error(
         path_to_benchmark + "data_y_" + formatting::format_reyn(reyn) + ".txt");
-    std::cout << "Ghia (" << analysis::to_string(analysis::NormType::L2)
-              << ") uy(x/2): rel=" << ghia_y.relative
-              << " abs=" << ghia_y.absolute << std::endl;
+
+    LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
+               analysis::to_string(analysis::NormType::L2), ghia_y.relative,
+               ghia_y.absolute);
 
     const auto ghia_x = simulation.compute_ghia_error(
         path_to_benchmark + "data_x_" + formatting::format_reyn(reyn) + ".txt");
-    std::cout << "Ghia (" << analysis::to_string(analysis::NormType::L2)
-              << " | ux(y/2): rel=" << ghia_x.relative
-              << " abs=" << ghia_x.absolute << std::endl;
+
+    LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
+               analysis::to_string(analysis::NormType::L2), ghia_x.relative,
+               ghia_x.absolute);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

@@ -29,6 +29,7 @@
 
 namespace lbm {
 
+// FIXME: CHANGE NAME TO OpenMPSolver2D
 template <enum CollisionModel cm_t>
 class MPISolver2D : public SolverBase2D<cm_t, ExecutionBackend::OPEN_MP> {
   using Base = SolverBase2D<cm_t, ExecutionBackend::OPEN_MP>;
@@ -103,6 +104,9 @@ private:
         std::array<double, D2Q9::ndir> fp;
         const utils::Point<int, 2> p(x, y);
 
+        LOG_TRACE_L3(logging::create_or_get_logger("openmp-iteration"),
+                     "Running simulation on {}", p);
+
         double r_wall = 0.0;
 #pragma omp unroll full
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
@@ -136,7 +140,6 @@ private:
 
 #pragma omp unroll full
         for (unsigned int i = 0; i < D2Q9::ndir; ++i) {
-
           // calculate macroscopic variables
           r += fp[i];
           u += D2Q9::dir[i] * fp[i];

@@ -28,16 +28,16 @@ class AsyncBinaryWriter : public IDataListener {
   const std::string path;
 
 public:
-  // FIXME: fix this.
+  // FIXME: Decide whether to throw an error or what.
   AsyncBinaryWriter(const std::string &path) : path(path), stop_(false) {
     quill::Logger *writer_logger = logging::create_or_get_logger("writer");
     file_.open(path, std::ios::out | std::ios::binary);
     if (!file_.is_open()) {
-      LOG_ERROR(writer_logger, "Cannot open {} for writing", path);
+      LOG_CRITICAL(writer_logger, "Cannot open {} for writing", path);
       throw std::runtime_error("");
     }
     worker_ = std::thread(&AsyncBinaryWriter::run, this);
-    LOG_INFO(writer_logger, "File {} opened for binary writing", path);
+    LOG_DEBUG(writer_logger, "File {} opened for binary writing", path);
   }
 
   ~AsyncBinaryWriter() override {
@@ -66,6 +66,9 @@ public:
 
 private:
   void run() {
+    size_t writes_since_flush = 0;
+    constexpr size_t flush_interval = 32;
+
     while (true) {
       std::vector<char> chunk;
       {
@@ -83,10 +86,14 @@ private:
 
       // Scrivi i dati su disco
       if (file_.is_open()) {
-        file_.write(chunk.data(), chunk.size());
-        file_.flush(); // Forziamo la scrittura fisica su disco ad ogni frame
         LOG_TRACE_L3(logging::create_or_get_logger("writer"),
-                     "Writing to file {}", path);
+                     "Writing data to file {}", path);
+        file_.write(chunk.data(), chunk.size());
+
+        if (++writes_since_flush >= flush_interval) {
+          file_.flush();
+          writes_since_flush = 0;
+        }
       }
     }
   }

@@ -17,6 +17,11 @@
 
 #include "lbm-sim/analysis/exact-solution.hpp"
 
+#include "lbm/logging.hpp"
+
+// QUILL LIB
+#include "quill/LogMacros.h"
+
 // C++ STD LIB
 #include <memory>
 #include <unordered_map>
@@ -102,13 +107,27 @@ int main() {
            {2, Solid::PERIODIC}}),
   };
 
+  logging::setup_quill();
+  quill::Logger *main_logger = logging::create_or_get_logger("main");
+
   constexpr auto CollisionType = CollisionModel::BGK;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
   const LidCavity2D problem;
 
-  for (const auto &conf : configs) {
+  LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
+
+  for (auto confidx = 0; confidx < configs.size(); confidx++) {
+    const auto conf = configs[confidx];
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obst_type_map] = conf;
+
+    LOG_INFO(
+        main_logger,
+        "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
+        "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
+        "frames: {}\n",
+        confidx, grid_size, reyn, init_vel, iters, frames);
+
     types::boundary_mask_t boundary_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
 
@@ -126,6 +145,7 @@ int main() {
 
     simulation.solve(solver, problem);
     simulation.output(out_data.c_str());
+
     // H = altezza canale (parete inferiore a y=0, superiore a y=grid_size.y-1);
     // Umax = velocita' di riferimento (parete mobile per Couette).
     // Stessi valori gia' usati per costruire la simulazione: nessuna
@@ -134,7 +154,9 @@ int main() {
     const auto exact_solution = analysis::CouetteSolution2D(H, init_vel.dx);
     const double err_l2 =
         simulation.compute_error(analysis::NormType::L2, exact_solution);
-    std::cout << "Errore L2 vs soluzione analitica: " << err_l2 << std::endl;
+
+    LOG_NOTICE(main_logger, "{} error: {}",
+               analysis::to_string(analysis::NormType::L2), err_l2);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

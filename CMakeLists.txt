@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
-find_package(OpenMP REQUIRED)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(Quill)
 
 file(
   GLOB_RECURSE
@@ -17,20 +18,16 @@ file(
 set(LBM_SIM_LIB lbm-sim)
 
 add_library(${LBM_SIM_LIB} INTERFACE ${LBM_CORE_HEADERS})
+
 target_include_directories(
   ${LBM_SIM_LIB}
   INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
-target_link_libraries(${LBM_SIM_LIB} INTERFACE OpenMP::OpenMP_CXX)
 
-include(FetchContent)
-FetchContent_Declare(
-  quill
-  GIT_REPOSITORY https://github.com/odygrd/quill
-  GIT_TAG v12.1.0
-)
-FetchContent_MakeAvailable(quill)
+find_package(OpenMP REQUIRED)
+
+target_link_libraries(${LBM_SIM_LIB} INTERFACE OpenMP::OpenMP_CXX)
 
 set(LBM_LOGGING_HELPER_LIB lbm-logging)
 
@@ -48,6 +45,7 @@ target_include_directories(
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 target_link_libraries(${LBM_LOGGING_HELPER_LIB} PUBLIC quill::quill)
+lbm_apply_quill_log_level(${LBM_LOGGING_HELPER_LIB})
 
 target_link_libraries(${LBM_SIM_LIB} INTERFACE ${LBM_LOGGING_HELPER_LIB})
 

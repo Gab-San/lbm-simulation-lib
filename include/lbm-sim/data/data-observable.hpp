@@ -17,6 +17,11 @@ namespace lbm {
 // Nota: non gestisce l'ownership dei listener, solo puntatori non
 // proprietari — chi crea il listener (tipicamente LBMSimulation) resta
 // responsabile della sua vita.
+
+/// Attach/detach and notify are NOT thread-safe with respect to each other.
+// Contract: all attachListener()/detachListener() calls must happen
+// before dispatch begins and after it has fully stopped for a given
+// simulation run — never concurrently with notifyListeners().
 class DataObservable {
 public:
   virtual ~DataObservable() = default;
