@@ -56,7 +56,7 @@ template <> struct Config<2> {
   const std::unordered_map<unsigned int, uint8_t> obst_type_map;
 
   /// Quale soluzione analitica usare per compute_error() a fine run.
-  
+
   Config(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
       const unsigned int c_frames, const double c_reyn_num,
@@ -131,12 +131,10 @@ int main() {
 
     simulation.solve(solver, problem);
     simulation.output(out_data.c_str());
-    const lbm::analysis::FlowType flow_type = lbm::analysis::FlowType::Poiseuille;
     const double H = static_cast<double>(grid_size.y - 1);
-    const auto exact_solution =
-        analysis::make_exact_solution(flow_type, H, init_vel.dx);
+    const auto exact_solution = analysis::PoiseuilleSolution2D(H, init_vel.dx);
     const double err_l2 =
-        simulation.compute_error(analysis::NormType::L2, *exact_solution);
+        simulation.compute_error(analysis::NormType::L2, exact_solution);
     std::cout << "Errore L2 vs soluzione analitica: " << err_l2 << std::endl;
 
     simulation.detachListener(writer);

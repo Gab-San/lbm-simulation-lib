@@ -11,8 +11,8 @@
 
 #include "lbm-sim/solver/solver-base.hpp"
 
+#include "lbm-sim/analysis/benchmarks.hpp"
 #include "lbm-sim/analysis/error.hpp"
-#include "lbm-sim/analysis/ghia_benchmark.hpp"
 
 // C++ STANDARD LIB
 #include <filesystem>
@@ -93,12 +93,12 @@ public:
    */
   double compute_error(const analysis::NormType &norm_type,
                        const analysis::Function<dim> &exact_solution) const {
-    const auto error_per_cell = analysis::ErrorEvaluator<dim>::integrate_difference(
-        lattice.grid, lattice.u, exact_solution);
+    const auto error_per_cell =
+        analysis::ErrorEvaluator<dim>::integrate_difference(
+            lattice.grid, lattice.u, exact_solution);
 
-    const double error =
-        analysis::ErrorEvaluator<dim>::compute_global_error(error_per_cell,
-                                                             norm_type);
+    const double error = analysis::ErrorEvaluator<dim>::compute_global_error(
+        error_per_cell, norm_type);
 
     return error;
   }
@@ -114,11 +114,12 @@ public:
    * Disponibile solo per dim == 2 -- la lid cavity di Ghia non ha un
    * equivalente 3D tabulato in questa libreria.
    */
-  analysis::GhiaComparisonResult
-  compute_ghia_error(analysis::GhiaReynolds re, double lid_velocity,
-                     analysis::NormType norm_type = analysis::NormType::L2) const {
+  analysis::NormErrorResult compute_ghia_error(
+      const std::string &filepath_in,
+      const analysis::NormType norm_type = analysis::NormType::L2) const {
     if constexpr (dim == 2) {
-      return analysis::compute_ghia_error(lattice, re, lid_velocity, norm_type);
+      return analysis::compute_ghia_error(filepath_in, lattice, params.reyn_num,
+                                          params.init_vel.dx);
     } else {
       static_assert(assertion::always_false<dim>,
                     "compute_ghia_error() is only defined for dim == 2");

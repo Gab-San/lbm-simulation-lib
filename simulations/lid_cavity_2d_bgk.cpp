@@ -136,6 +136,8 @@ int main() {
 
   const LidCavity2D problem;
 
+  std::string path_to_benchmark("benchmarks/ghia/");
+
   for (const auto &conf : configs) {
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obst_type_map] = conf;
@@ -159,16 +161,18 @@ int main() {
 
     simulation.output(out_data.c_str());
 
-    // Confronto con Ghia et al. (1982): lid_velocity = init_vel.dx, la
-    // velocita' della parete mobile usata anche per normalizzare i dati
-    // tabulati. Richiede reyn in {100, 400, 1000}. Norma scelta qui: L2.
-    const auto ghia_re = analysis::ghia_reynolds_from_value(reyn);
-    const auto ghia_norm = analysis::NormType::L2;
-    const auto ghia = simulation.compute_ghia_error(ghia_re, init_vel.dx, ghia_norm);
-    std::cout << "Ghia (" << analysis::to_string(ghia_norm) << ") u: rel="
-              << ghia.u_error.relative << " abs=" << ghia.u_error.absolute
-              << " | v: rel=" << ghia.v_error.relative
-              << " abs=" << ghia.v_error.absolute << std::endl;
+    // Confronto con Ghia et al. (1982): Norma scelta qui: L2.
+    const auto ghia_y = simulation.compute_ghia_error(
+        path_to_benchmark + "data_y_" + formatting::format_reyn(reyn) + ".txt");
+    std::cout << "Ghia (" << analysis::to_string(analysis::NormType::L2)
+              << ") uy(x/2): rel=" << ghia_y.relative
+              << " abs=" << ghia_y.absolute << std::endl;
+
+    const auto ghia_x = simulation.compute_ghia_error(
+        path_to_benchmark + "data_x_" + formatting::format_reyn(reyn) + ".txt");
+    std::cout << "Ghia (" << analysis::to_string(analysis::NormType::L2)
+              << " | ux(y/2): rel=" << ghia_x.relative
+              << " abs=" << ghia_x.absolute << std::endl;
 
     simulation.detachListener(writer);
     solver.detachListener(writer);
