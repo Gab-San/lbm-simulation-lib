@@ -3,11 +3,16 @@
 
 #include "lbm-sim/data/data-listener.hpp"
 
+#include "lbm/logging.hpp"
+
+#include "quill/LogMacros.h"
+
 #include <condition_variable>
 #include <fstream>
 #include <iostream>
 #include <mutex>
 #include <queue>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -20,14 +25,19 @@ namespace lbm {
 // i produttori (solver, LBMSimulation) non devono conoscere il formato
 // del file, solo accodare byte grezzi tramite enqueueData.
 class AsyncBinaryWriter : public IDataListener {
+  const std::string path;
+
 public:
-  AsyncBinaryWriter(const std::string &path) : stop_(false) {
+  // FIXME: Decide whether to throw an error or what.
+  AsyncBinaryWriter(const std::string &path) : path(path), stop_(false) {
+    quill::Logger *writer_logger = logging::create_or_get_logger("writer");
     file_.open(path, std::ios::out | std::ios::binary);
     if (!file_.is_open()) {
-      std::cerr << "[ERROR] Impossibile aprire il file per la scrittura: "
-                << path << std::endl;
+      LOG_CRITICAL(writer_logger, "Cannot open {} for writing", path);
+      throw std::runtime_error("");
     }
     worker_ = std::thread(&AsyncBinaryWriter::run, this);
+    LOG_DEBUG(writer_logger, "File {} opened for binary writing", path);
   }
 
   ~AsyncBinaryWriter() override {
@@ -56,6 +66,9 @@ public:
 
 private:
   void run() {
+    size_t writes_since_flush = 0;
+    constexpr size_t flush_interval = 32;
+
     while (true) {
       std::vector<char> chunk;
       {
@@ -73,8 +86,14 @@ private:
 
       // Scrivi i dati su disco
       if (file_.is_open()) {
+        LOG_TRACE_L3(logging::create_or_get_logger("writer"),
+                     "Writing data to file {}", path);
         file_.write(chunk.data(), chunk.size());
-        file_.flush(); // Forziamo la scrittura fisica su disco ad ogni frame
+
+        if (++writes_since_flush >= flush_interval) {
+          file_.flush();
+          writes_since_flush = 0;
+        }
       }
     }
   }
