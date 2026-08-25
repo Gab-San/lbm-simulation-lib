@@ -74,8 +74,8 @@ int main() {
   std::vector<Config<2>> configs{
       Config<2>(
           {129, 129}, /*iters*/ 130000, /*frames*/ 300, /*reyn*/ 100.0,
-          /*init_vel*/ {0.1, 0}, "out/norms_couette_openmp_129_100_01.bin",
-          "out/data_couette_cuda_129_100_01.bin",
+          /*init_vel*/ {0.1, 0}, "out/norms_couette_cuda_129_100_01_bgk.bin",
+          "out/data_couette_cuda_129_100_01_bgk.bin",
           {
               CollisionDetection::CollisionArea(
                   ZERO,

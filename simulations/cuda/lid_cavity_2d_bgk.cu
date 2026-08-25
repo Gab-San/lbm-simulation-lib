@@ -123,6 +123,7 @@ int main() {
                        ZERO, {CollisionDetection::Segment(B200, C200)})},
                   {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
 
+#if 0
       Config<DIM>(
           {2000, 2000}, /*iters*/ 50000, /*frames*/ 200, /*reyn*/ 7500,
           /*init_vel*/ {0.2, 0},
@@ -156,6 +157,7 @@ int main() {
                {CollisionDetection::Segment(Coordinate<DIM>(0, 4999),
                                             Coordinate<DIM>(4999, 4999))})},
           {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
+#endif
   };
 
   constexpr auto CollisionType = CollisionModel::BGK;
