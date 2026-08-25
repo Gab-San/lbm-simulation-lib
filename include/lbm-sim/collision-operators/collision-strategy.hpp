@@ -1,32 +1,32 @@
 #ifndef _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 #define _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 
-#include "lbm-sim/backend/metadata.hpp"
-
 #include "lbm-sim/collision-operators/metadata.hpp"
 
-#include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/operators.hpp"
 #include "lbm-sim/core/types.hpp"
 
+#include "lbm-sim/backend.hpp"
+
 namespace lbm {
 
-template <unsigned short int dim, typename VelocitySet,
-          enum CollisionModel cm_t, enum ExecutionBackend backend_t>
+template <types::dim_t dim, typename VelocitySet, enum CollisionModel cm_t>
 class CollisionStrategy {
 public:
-  const Params<dim, cm_t> params;
+  const CollisionParams<dim, cm_t> params;
   static constexpr CollisionModel type = cm_t;
 
-  CollisionStrategy(const Params<dim, cm_t> &params) : params(params) {}
+  LBM_HD_FUNC CollisionStrategy(const CollisionParams<dim, cm_t> &params)
+      : params(params) {}
 
-  void apply(const types::Coordinate<dim> p, const utils::Vector<double, dim> u,
-             const double localrho, std::array<double, VelocitySet::ndir> &fp,
-             const Grid<dim> &grid) const {
+  LBM_HD_FUNC inline void apply(double *__restrict__ fp,
+                                const types::Coordinate<dim> p,
+                                const double localrho,
+                                const utils::Vector<double, dim> u) const {
     if constexpr (cm_t == CollisionModel::BGK) {
-      apply_bgk(p, u, localrho, fp);
+      apply_bgk(fp, p, u, localrho);
     } else if constexpr (cm_t == CollisionModel::TRT) {
-      apply_trt(p, u, localrho, fp);
+      apply_trt(fp, p, u, localrho);
     } else {
       static_assert(
           cm_t == CollisionModel::MRT,
@@ -35,75 +35,73 @@ public:
   }
 
 private:
-  void apply_bgk(const types::Coordinate<dim> p,
-                 const utils::Vector<double, dim> u, const double localrho,
-                 std::array<double, VelocitySet::ndir> &fp) const {
+  LBM_HD_FUNC inline void apply_bgk(double *__restrict__ fp,
+                                    const types::Coordinate<dim> p,
+                                    const utils::Vector<double, dim> u,
+                                    const double localrho) const {
     using utils::ops::dot;
-
     const double omusq = -1.5 * dot(u, u);
 
-    // Collisione con SIMD
+#ifndef __CUDA_ARCH__
 #pragma omp simd
-    for (unsigned int i = 0; i < VelocitySet::ndir; ++i) {
-      // calculate dot product beetwen the velocity u(x,y)
-      // and the direction vector to its neighbour
-      const double cidotu = dot(VelocitySet::dir[i], u);
-
-      // calculate equilibrium
-      const double feq = VelocitySet::wi[i] * localrho *
+#endif
+    for (auto diridx = 0; diridx < VelocitySet::ndir; ++diridx) {
+      const double cidotu = dot(detail::direction<dim, VelocitySet>(diridx), u);
+      const double feq = detail::weight<VelocitySet>(diridx) * localrho *
                          (1.0 + 3.0 * cidotu + 4.5 * cidotu * cidotu + omusq);
 
-      // relax to equilibrium
-      fp[i] = params.omtauinv * fp[i] + params.tauinv * feq;
+      // RELAX TO EQUILIBRIUM
+      fp[diridx] = params.omtauinv * fp[diridx] + params.tauinv * feq;
     }
   }
 
-  void apply_trt(const types::Coordinate<dim> p,
-                 const utils::Vector<double, dim> u, const double localrho,
-                 std::array<double, VelocitySet::ndir> &fp) const {
+  LBM_HD_FUNC inline void apply_trt(double *__restrict__ fp,
+                                    const types::Coordinate<dim> p,
+                                    const utils::Vector<double, dim> u,
+                                    const double localrho) const {
     using utils::ops::dot;
-
     const double omusq = -1.5 * dot(u, u);
 
-    // Collisione con SIMD
+#ifndef __CUDA_ARCH__
 #pragma omp simd
+#endif
     for (unsigned int i = 0; i < VelocitySet::ndir; ++i) {
-      const auto iopp = VelocitySet::opp[i];
+      const auto iopp = detail::opposite<VelocitySet>(i);
 
       // NOTE: WHY THIS CHECK?
       if (i > iopp) {
         continue;
       }
 
-      const double cidotu_i = dot(VelocitySet::dir[i], u);
+      const double cidotu_i = dot(detail::direction<dim, VelocitySet>(i), u);
       const double feq_i =
-          VelocitySet::wi[i] * localrho *
+          detail::weight<VelocitySet>(i) * localrho *
           (1.0 + 3.0 * cidotu_i + 4.5 * cidotu_i * cidotu_i + omusq);
 
       if (i == iopp) {
-        // direzione di riposo: nessuna componente antisimmetrica, un solo
-        // update
-
+        // TODO: THIS COMMENT IS SHIT ENGLISH
+        //
+        // Center Direction: no antisymmetric component.
         fp[i] = fp[i] - params.s_plus * (fp[i] - feq_i);
-
         continue;
       }
 
-      const double cidotu_opp = dot(VelocitySet::dir[iopp], u);
+      const double cidotu_opp =
+          dot(detail::direction<dim, VelocitySet>(iopp), u);
 
       // calculate equilibrium
       const double feq_opp =
-          VelocitySet::wi[iopp] * localrho *
+          detail::weight<VelocitySet>(iopp) * localrho *
           (1.0 + 3.0 * cidotu_opp + 4.5 * cidotu_opp * cidotu_opp + omusq);
 
-      // calculate symmetric and antisymmetric parts of the distribution
-      // function
+      // CALCULATE SYMMETRIC AND ANTISYMMETRIC PARTS OF THE DISTRIBUTION
+      // FUNCTION
       const double fplus = 0.5 * (fp[i] + fp[iopp]);
       const double fminus = 0.5 * (fp[i] - fp[iopp]);
       const double fplus_eq = 0.5 * (feq_i + feq_opp);
       const double fminus_eq = 0.5 * (feq_i - feq_opp);
 
-      // relax to equilibrium
+      // RELAX TO EQUILIBRIUM
       fp[i] = fp[i] - params.s_plus * (fplus - fplus_eq) -
               params.s_minus * (fminus - fminus_eq);
       fp[iopp] = fp[iopp] - params.s_plus * (fplus - fplus_eq) +

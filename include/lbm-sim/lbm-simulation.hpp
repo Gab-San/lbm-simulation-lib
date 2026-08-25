@@ -4,7 +4,7 @@
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/types.hpp"
 
-#include "lbm-sim/backend/metadata.hpp"
+#include "lbm-sim/backend.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/problems/problem_2d.hpp"
@@ -18,12 +18,12 @@
 #include "quill/LogMacros.h"
 
 // C++ STANDARD LIB
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <iostream>
 #include <vector>
 
 namespace lbm {
@@ -37,12 +37,12 @@ private:
       "LBMSimulation: template parameter 'dim' must match VelocitySet::dim");
 
   Lattice<dim> lattice;
-  const Params<dim, cm_t> params;
+  const CollisionParams<dim, cm_t> params;
 
 public:
   LBMSimulation(const types::DimPoint<dim> grid_dim_,
                 types::boundary_mask_t boundary_mask_,
-                const Params<dim, cm_t> params_, const double pin = 0,
+                const CollisionParams<dim, cm_t> params_, const double pin = 0,
                 const double pout = 0)
       : lattice(grid_dim_, std::move(boundary_mask_), pin, pout),
         params(params_) {};
@@ -56,9 +56,6 @@ public:
 
     LOG_DEBUG(simulation_logger, "Initializing Simulation...");
 
-    std::vector<double> f1(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
-    std::vector<double> f2(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
-
     // FIXME: cannot be initialized like this
     // define generic initialization
 
@@ -71,12 +68,11 @@ public:
 
     // FIXME: check that initialization + init_equilibrium suffices
     LOG_DEBUG(simulation_logger, "Lattice Initialized...");
-    solver.init_equilibrium(lattice, f1);
-    LOG_DEBUG(simulation_logger, "Equilibrium Initialized...");
 
+    std::cout << "Initialized Simulation." << std::endl;
     write_header(lattice.grid);
 
-    solver.solve(lattice, params, f1, f2);
+    solver.solve(lattice, params);
 
     LOG_DEBUG(simulation_logger, "Finished Simulation.");
   };
@@ -133,7 +129,9 @@ public:
     }
   }
 
-  void output(const char *filepath) {
+  void output(const char *filepath,
+              std::function<std::vector<double>(const Lattice<dim> &)>
+                  extract_profile) {
     using namespace std::filesystem;
 
     quill::Logger *data_logger = logging::create_or_get_logger("data_log");
@@ -160,14 +158,10 @@ public:
 
     fout.write(header.data(), header.size());
 
-    std::vector<double> v_center(lattice.grid.size.y);
-    int x = lattice.grid.size.x / 2;
-    for (auto y = 0; y < lattice.grid.size.y; ++y) {
-      v_center[y] = lattice.u[lattice.grid.size.x * y + x].dx;
-    }
+    std::vector<double> profile = extract_profile(lattice);
 
-    fout.write(reinterpret_cast<const char *>(v_center.data()),
-               v_center.size() * sizeof(double));
+    fout.write(reinterpret_cast<const char *>(profile.data()),
+               profile.size() * sizeof(double));
 
     fout.close();
   };

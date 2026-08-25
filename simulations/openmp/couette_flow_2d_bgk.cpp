@@ -1,22 +1,15 @@
 // LBM SIM LIB
+#include "lbm-sim/analysis/exact-solution.hpp"
+#include "lbm-sim/boundaries.hpp"
+#include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
-
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-
 #include "lbm-sim/data/async-binary-writer.hpp"
-
-#include "lbm-sim/boundaries.hpp"
+#include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
-
 #include "lbm-sim/problems/problem_2d.hpp"
-
-#include "lbm-sim/solver/solver-2d.hpp"
-
-#include "lbm-sim/collision-detection/collision-area.hpp"
-
-#include "lbm-sim/analysis/exact-solution.hpp"
-
+#include "lbm-sim/solver/openmp-solver.hpp"
 #include "lbm/logging.hpp"
 
 // QUILL LIB
@@ -46,8 +39,7 @@ template <> struct Config<2> {
   /// Reynold number
   const double reyn_num;
 
-  /// Velocita' di riferimento, usata solo per calcolare nu/tau
-  /// NON muove piu' nessuna parete in Poiseuille!!!
+  /// Initial velocity of the fluid
   const lbm::utils::Vector<double, 2> init_vel;
 
   /// Output path for frames
@@ -61,6 +53,7 @@ template <> struct Config<2> {
   const std::unordered_map<unsigned int, uint8_t> obst_type_map;
 
   /// Quale soluzione analitica usare per compute_error() a fine run.
+  /// Fissato qui una volta sola: niente H/Umax duplicati altrove.
 
   Config(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
@@ -81,39 +74,40 @@ int main() {
   using types::DimPoint;
   using utils::Vector;
 
-  const Coordinate<2> A(0, 0);
-  const Coordinate<2> B(0, 128);
-  const Coordinate<2> C(128, 128);
-  const Coordinate<2> D(128, 0);
+  const Coordinate<2> ZERO(0, 0);
+  const Coordinate<2> B129(0, 128);
+  const Coordinate<2> C129(128, 128);
+  const Coordinate<2> D129(128, 0);
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {129, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
-          /*init_vel*/ {0.1, 0}, "out/norms_poiseuille_129_100_01_trt.bin",
-          "out/data_poiseuille_129_100_01_trt.bin",
+          {129, 129}, /*iters*/ 100000, /*frames*/ 300, /*reyn*/ 100.0,
+          /*init_vel*/ {0.1, 0}, "out/norms_couette_openmp_129_100_01_bgk.bin",
+          "out/data_couette_openmp_129_100_01_bgk.bin",
           {
               CollisionDetection::CollisionArea(
-                  A, {CollisionDetection::Segment(A, D),   // bottom (y=0)
-                      CollisionDetection::Segment(B, C)}), // top (y=128)
-              CollisionDetection::CollisionArea(           // LEFT WALL
-                  A, {CollisionDetection::Segment(A + Vector<int, DIM>(0, 1),
-                                                  B - Vector<int, DIM>(0, 1))}),
-              CollisionDetection::CollisionArea( // RIGHT WALL
-                  A, {CollisionDetection::Segment(C - Vector<int, DIM>(0, 1),
-                                                  D + Vector<int, DIM>(0, 1))}),
+                  ZERO,
+                  {CollisionDetection::Segment(ZERO, D129)}), // bottom (y=0)
+              CollisionDetection::CollisionArea(
+                  ZERO,
+                  {CollisionDetection::Segment(B129, C129)}), // top (y=128)
+              CollisionDetection::CollisionArea(
+                  ZERO,
+                  {CollisionDetection::Segment(ZERO + Vector<int, DIM>(0, 1),
+                                               B129 - Vector<int, DIM>(0, 1)),
+                   CollisionDetection::Segment(C129 - Vector<int, DIM>(0, 1),
+                                               D129 + Vector<int, DIM>(0, 1))}),
           },
-          {{0, Solid::BB_RIGID_WALL}, // fixed top and bottom wall
-           {1, Solid::PRESSURE_PERIODIC_INLET},
-           {2, Solid::PRESSURE_PERIODIC_OUTLET}}), // right and left
-                                                   // periodic bc
+          {{0, Solid::BB_RIGID_WALL},
+           {1, Solid::BB_MOVING_WALL},
+           {2, Solid::PERIODIC}}),
   };
 
   logging::setup_quill();
   quill::Logger *main_logger = logging::create_or_get_logger("main");
 
-  constexpr auto CollisionType = CollisionModel::TRT;
+  constexpr auto CollisionType = CollisionModel::BGK;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
-
   const LidCavity2D problem;
 
   LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
@@ -136,12 +130,9 @@ int main() {
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(conf.out_frames);
 
-    Params<DIM, CollisionType> params(reyn, grid_size, init_vel);
-    const double pout = 1;
-    const double pin =
-        pout + (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
-                   8 * params.nu * params.init_vel.dx;
-    Simulation simulation(grid_size, boundary_mask, params, pin, pout);
+    Simulation simulation(
+        grid_size, boundary_mask,
+        CollisionParams<DIM, CollisionType>(reyn, grid_size, init_vel));
 
     simulation.attachListener(writer);
 
@@ -149,9 +140,15 @@ int main() {
     solver.attachListener(writer);
 
     simulation.solve(solver, problem);
-    simulation.output(out_data.c_str());
+    simulation.output(out_data.c_str(),
+                      functional::extract_dx_profile_along_y_center);
+
+    // H = altezza canale (parete inferiore a y=0, superiore a y=grid_size.y-1);
+    // Umax = velocita' di riferimento (parete mobile per Couette).
+    // Stessi valori gia' usati per costruire la simulazione: nessuna
+    // duplicazione, flow_type sceglie la Function<2> corretta.
     const double H = static_cast<double>(grid_size.y - 1);
-    const auto exact_solution = analysis::PoiseuilleSolution2D(H, init_vel.dx);
+    const auto exact_solution = analysis::CouetteSolution2D(H, init_vel.dx);
     const double err_l2 =
         simulation.compute_error(analysis::NormType::L2, exact_solution);
 

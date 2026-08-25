@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.18)
 
 project(lbm-simulation-lib)
 
@@ -7,27 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+option(LBM_ENABLE_CUDA "Enable and build with CUDA Backend" OFF)
+
+# ------------ QUILL LOGGING LIBRARY ------------
 include(Quill)
-
-file(
-  GLOB_RECURSE
-  LBM_CORE_HEADERS
-  "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm-sim/*.hpp"
-)
-
-set(LBM_SIM_LIB lbm-sim)
-
-add_library(${LBM_SIM_LIB} INTERFACE ${LBM_CORE_HEADERS})
-
-target_include_directories(
-  ${LBM_SIM_LIB}
-  INTERFACE
-  "${CMAKE_CURRENT_SOURCE_DIR}/include"
-)
-
-find_package(OpenMP REQUIRED)
-
-target_link_libraries(${LBM_SIM_LIB} INTERFACE OpenMP::OpenMP_CXX)
 
 set(LBM_LOGGING_HELPER_LIB lbm-logging)
 
@@ -47,48 +31,51 @@ target_include_directories(
 target_link_libraries(${LBM_LOGGING_HELPER_LIB} PUBLIC quill::quill)
 lbm_apply_quill_log_level(${LBM_LOGGING_HELPER_LIB})
 
+# -------------------------------------------
+
+set(LBM_SIM_LIB lbm-sim)
+
+file(
+  GLOB_RECURSE
+  LBM_CORE_HEADERS
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm-sim/*.hpp"
+)
+
+add_library(${LBM_SIM_LIB} INTERFACE ${LBM_CORE_HEADERS})
+
+target_include_directories(
+  ${LBM_SIM_LIB}
+  INTERFACE
+  "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+
+find_package(OpenMP REQUIRED)
+
+target_link_libraries(${LBM_SIM_LIB} INTERFACE OpenMP::OpenMP_CXX)
+
 target_link_libraries(${LBM_SIM_LIB} INTERFACE ${LBM_LOGGING_HELPER_LIB})
+
+# ------------------------------------------------------
+
+if(MSVC)
+  target_compile_options(${LBM_SIM_LIB} INTERFACE
+        $<$<COMPILE_LANGUAGE:CXX>:/openmp:experimental>
+        # flag di ottimizzazione per release, sostituisce
+        # il loop unrolling di OpenMP che non funziona con MSVC!!!
+        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:/O2>
+    )
+endif()
+
+# ------------------------------------------------------
+
+include(Cuda)
+
+# ------------------------------------------------------
 
 if (${PROJECT_IS_TOP_LEVEL})
   add_subdirectory(simulations)
 endif()
 
-find_package(Doxygen)
-if(Doxygen_FOUND)
-  set(DOXYGEN_ROOT_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/docs/doxygen")
-  set(DOXYGEN_PROJECT_NAME lbm-sim)
-  set(
-    DOXYGEN_OUTPUT_DIRECTORY
-    ${DOXYGEN_ROOT_OUTPUT_DIRECTORY}/lbm-sim
-  )
+# ------------------------------------------------------
 
-  message(STATUS
-    "Doxygen found. Documentation will be outputted to
-    ${DOXYGEN_OUTPUT_DIRECTORY}"
-  )
-
-  doxygen_add_docs(lbm-sim-docs
-    ${LBM_CORE_HEADERS}
-    COMMENT "Generating documentation with Doxygen"
-  )
-
-  set(DOXYGEN_PROJECT_NAME ${PROJECT_NAME})
-  set(DOXYGEN_OUTPUT_DIRECTORY ${DOXYGEN_ROOT_OUTPUT_DIRECTORY})
-  set(
-    DOXYGEN_USE_MDFILE_AS_MAINPAGE
-    ${CMAKE_CURRENT_SOURCE_DIR}/docs/mainpage.md
-  )
-
-  doxygen_add_docs(lbm-docs-full
-    ${CMAKE_CURRENT_SOURCE_DIR}/docs/mainpage.md
-    COMMENT "Generating main documentation portal"
-  )
-
-  # --- THE AUTOMATION MAGIC ---
-  # This makes the main target depend on the two library targets
-  add_dependencies(lbm-docs-full lbm-sim-docs)
-
-  message(STATUS
-    "Doxygen automation configured. Use 'lbm-docs-full' to build all."
-  )
-endif()
+add_subdirectory(docs)
