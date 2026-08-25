@@ -86,8 +86,6 @@ private:
 
       // Scrivi i dati su disco
       if (file_.is_open()) {
-        LOG_TRACE_L3(logging::create_or_get_logger("writer"),
-                     "Writing data to file {}", path);
         file_.write(chunk.data(), chunk.size());
 
         if (++writes_since_flush >= flush_interval) {

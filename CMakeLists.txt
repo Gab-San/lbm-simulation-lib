@@ -69,7 +69,6 @@ endif()
 # ------------------------------------------------------
 
 include(Cuda)
-target_link_libraries(lbm-sim-cuda INTERFACE ${LBM_LOGGING_HELPER_LIB})
 
 # ------------------------------------------------------
 

@@ -61,6 +61,7 @@ public:
              omp_get_num_procs());
     LOG_INFO(solver_logger, "System can work with up to {} threads.",
              omp_get_max_threads());
+
     for (auto iter = 0; iter < this->niters; iter++) {
       const bool save = iter % this->nskips == 0;
       const bool store_macroscopic = save || (iter + 1 == this->niters);
@@ -77,10 +78,12 @@ private:
   inline void init_equilibrium(std::vector<double> &part_stream,
                                const Lattice<2> &lattice) const {
     using utils::ops::dot;
+
 #pragma omp parallel for shared(lattice, part_stream) schedule(static)         \
     collapse(2)
     for (auto y = 0; y < lattice.grid.size.y; ++y) {
       for (auto x = 0; x < lattice.grid.size.x; ++x) {
+
         const types::Coordinate<2> p(x, y);
 
         double r = lattice.rho[lattice.grid.scalar_index(p)];
@@ -112,9 +115,6 @@ private:
       for (auto x = 0; x < lattice.grid.size.x; ++x) {
         std::array<double, D2Q9::ndir> fp;
         const utils::Point<int, 2> p(x, y);
-
-        LOG_TRACE_L3(logging::create_or_get_logger("openmp-iteration"),
-                     "Running simulation on {}", p);
 
         double r_wall = 0.0;
         UNROLL_FULL

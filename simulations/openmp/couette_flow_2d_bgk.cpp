@@ -9,7 +9,7 @@
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/problems/problem_2d.hpp"
-#include "lbm-sim/solver/omp-solver.hpp"
+#include "lbm-sim/solver/openmp-solver.hpp"
 #include "lbm/logging.hpp"
 
 // QUILL LIB

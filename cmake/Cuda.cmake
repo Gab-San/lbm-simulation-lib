@@ -27,5 +27,6 @@ if(LBM_ENABLE_CUDA)
   target_compile_options(${LBM_SIM_LIB_CUDA} INTERFACE
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe --diag_suppress=128,--diag_suppress=2417>
   )
+  target_link_libraries(${LBM_SIM_LIB_CUDA} INTERFACE ${LBM_LOGGING_HELPER_LIB})
 endif()
 
