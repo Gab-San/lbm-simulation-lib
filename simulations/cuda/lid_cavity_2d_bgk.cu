@@ -99,7 +99,7 @@ int main() {
           {129, 129}, /*iters*/ 10000, /*frames*/ 100,
           /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
           "out/norms_lid_cavity_cuda_129_100_01_bgk.bin",
-          "out/data_lid_cavity_cuda_129_100_bgk.bin",
+          "out/data_lid_cavity_cuda_129_100_01_bgk.bin",
           {CollisionDetection::CollisionArea(
                ZERO,
                {CollisionDetection::Segment(ZERO, Coordinate<DIM>(0, 128)),
