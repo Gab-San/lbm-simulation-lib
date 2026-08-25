@@ -1,21 +1,20 @@
-#include "lbm-sim/lbm-simulation.hpp"
-
-#include "lbm-sim/collision-operators/collision-strategy-cuda.cuh"
+#include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
-
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-
-#include "lbm-sim/problems/problem_2d.hpp"
-
-#include "lbm-sim/solver/cuda-solver.cuh"
-
-#include "lbm-sim/collision-detection/collision-area.hpp"
-
 #include "lbm-sim/data/async-binary-writer.hpp"
+#include "lbm-sim/functions.hpp"
+#include "lbm-sim/lbm-simulation.hpp"
+#include "lbm-sim/problems/problem_2d.hpp"
+#include "lbm-sim/solver/omp-solver.hpp"
+
+#include "lbm/logging.hpp"
+
+#include "quill/LogMacros.h"
 
 // C++ STD LIB
+#include <memory>
 #include <unordered_map>
 
 static constexpr unsigned short int DIM = 2;
@@ -76,7 +75,7 @@ template <> struct Config<2> {
 
   const std::unordered_map<unsigned int, uint8_t> obst_type_map;
 
-  Config<2>(
+  Config(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
       const unsigned int c_frames, const double c_reyn_num,
       const lbm::utils::Vector<double, 2> init_vel_,
@@ -117,14 +116,10 @@ int main() {
   //                                   {1, Solid::BB_MOVING_WALL},
   //                                   {2, Solid::BB_FIXED_RHO_WALL}}
   std::vector<Config<DIM>> configs{
-      // Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
-      //             /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
-      //             "out/norms_lid_cavity_cuda_129_100_01_bgk.bin",
-      //             "out/data_lid
-      Config<DIM>({5000, 5000}, /*iters*/ 20000, /*frames*/ 200,
-                  /*reyn*/ 50000.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_lid_cavity_cuda_5000_50000_01_bgk.bin",
-                  "out/data_lid_cavity_cuda_5000_50000_01_bgk.bin",
+      Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
+                  /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
+                  "out/norms_lid_cavity_openmp_129_100_01_trt.bin",
+                  "out/data_lid_cavity_openmp_129_100_01_trt.bin",
                   {CollisionDetection::CollisionArea(
                        A2, {CollisionDetection::Segment(A, B),
                             CollisionDetection::Segment(A, D),
@@ -135,8 +130,8 @@ int main() {
 
       Config<DIM>({200, 200}, /*iters*/ 30000, /*frames*/ 100,
                   /*reyn*/ 1000.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_lid_cavity_cuda_200_1000_01_bgk.bin",
-                  "out/data_lid_cavity_cuda_200_1000_01_bgk.bin",
+                  "out/norms_200_1000_01_lid_cavity_openmp_trt.bin",
+                  "out/data_200_1000_01_lid_cavity_openmp_trt.bin",
                   {CollisionDetection::CollisionArea(
                        A2, {CollisionDetection::Segment(A2, B2),
                             CollisionDetection::Segment(A2, D2),
@@ -146,15 +141,28 @@ int main() {
                   {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
   };
 
-  constexpr auto CollisionType = CollisionModel::BGK;
+  constexpr auto CollisionType = CollisionModel::TRT;
 
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
   const LidCavity2D problem;
 
-  for (const auto &conf : configs) {
+  std::string path_to_benchmark("benchmarks/ghia/");
+  logging::setup_quill();
+  quill::Logger *main_logger = logging::create_or_get_logger("main");
+
+  LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
+
+  for (auto confidx = 0; confidx < configs.size(); confidx++) {
+    const auto conf = configs[confidx];
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obst_type_map] = conf;
+    LOG_INFO(
+        main_logger,
+        "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
+        "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
+        "frames: {}\n",
+        confidx, grid_size, reyn, init_vel, iters, frames);
 
     types::boundary_mask_t obstacle_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
@@ -168,12 +176,26 @@ int main() {
 
     simulation.attachListener(writer);
 
-    CUDASolver2D<CollisionType> solver(iters, frames);
+    MPISolver2D<CollisionType> solver(iters, frames);
     solver.attachListener(writer);
 
     simulation.solve(solver /*, preconditioner*/, problem);
 
-    simulation.output(out_data.c_str());
+    simulation.output(out_data.c_str(),
+                      functional::extract_dy_profile_along_x_center);
+
+    // Confronto con Ghia et al. (1982): Norma scelta qui: L2.
+    const auto ghia_y = simulation.compute_ghia_error(
+        path_to_benchmark + "data_y_" + std::to_string(reyn) + ".txt");
+    std::cout << "Ghia (" << analysis::to_string(analysis::NormType::L2)
+              << ") uy(x/2): rel=" << ghia_y.relative
+              << " abs=" << ghia_y.absolute << std::endl;
+
+    const auto ghia_x = simulation.compute_ghia_error(
+        path_to_benchmark + "data_x_" + std::to_string(reyn) + ".txt");
+    std::cout << "Ghia (" << analysis::to_string(analysis::NormType::L2)
+              << " | ux(y/2): rel=" << ghia_x.relative
+              << " abs=" << ghia_x.absolute << std::endl;
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

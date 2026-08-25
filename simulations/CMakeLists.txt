@@ -1,4 +1,4 @@
-file(GLOB CPP_SOURCES "*.cpp")
+file(GLOB_RECURSE CPP_SOURCES "*.cpp")
 
 foreach(SOURCE ${CPP_SOURCES})
   get_filename_component(TARGET_NAME ${SOURCE} NAME_WE)
@@ -7,7 +7,7 @@ foreach(SOURCE ${CPP_SOURCES})
 endforeach()
 
 if(LBM_ENABLE_CUDA)
-  file(GLOB CU_SOURCES "*.cu")
+  file(GLOB_RECURSE CU_SOURCES "*.cu")
   foreach(SOURCE ${CU_SOURCES})
     get_filename_component(TARGET_NAME ${SOURCE} NAME_WE)
     set(TARGET_NAME "cuda_${TARGET_NAME}")
