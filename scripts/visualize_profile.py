@@ -16,6 +16,10 @@ def parse_header(f, path):
 
 
 def read_ghia_data(f):
+    # Ghia's tables are already normalized by the lid velocity (u/U_lid),
+    # so we return them as-is. Rescaling by their own max (as before)
+    # distorts the true profile shape and silently hides magnitude
+    # mismatches between the simulation and the benchmark.
     ghia_data = []
 
     for line in f:
@@ -24,12 +28,6 @@ def read_ghia_data(f):
             continue
         x, y = line_str.split()
         ghia_data.append((float(x), float(y)))
-
-    # Normalizzo i dati di Ghia rispetto al massimo valore in modulo
-    # NOTE: Aren't values already normalized??
-    max_value_ghia = max([abs(y) for _, y in ghia_data])
-    if max_value_ghia > 0:
-        ghia_data = [(x, y / max_value_ghia) for x, y in ghia_data]
 
     return np.array(ghia_data)
 
@@ -44,20 +42,30 @@ def read_benchmark(f, args):
 
 
 def read_profile(f, args):
-    """%%profile <model> <nx|ny>\\n then raw float64 binary data.
-    Payload is a 1D centerline (length nx or ny)."""
+    """%%profile <model> <n> <lid_velocity>\\n then raw float64 binary data.
+    Payload is a 1D centerline (length n).
+
+    Normalized by lid_velocity (same convention Ghia's tables and
+    compute_ghia_error() use) rather than by its own max, so the plotted
+    curve is directly comparable in magnitude, not just shape."""
     data = np.fromfile(f, dtype=np.float64)
 
     expected = int(args[1])
     if data.size != expected:
         raise ValueError("Number of data inputs not matching data size.")
 
-    # Normalizzo i dati LBM
-    max_value = np.abs(data).max() if len(data) > 0 else 0
-    if max_value > 0:
-        data = data / max_value
+    if len(args) < 3:
+        raise ValueError(
+            "Profile header is missing lid_velocity (old file format) -- "
+            "regenerate this file with the updated output(); the plotted "
+            "magnitude cannot be trusted otherwise."
+        )
 
-    return data  # fallback: unknown shape, return flat
+    lid_velocity = float(args[2])
+    if lid_velocity == 0.0:
+        raise ValueError("lid_velocity in header is zero, cannot normalize.")
+
+    return data / lid_velocity
 
 
 def read_data(files):

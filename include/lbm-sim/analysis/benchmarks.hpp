@@ -49,7 +49,7 @@ inline void check_path_existence(const std::string &filepath_in) {
   }
 
   if (!std::filesystem::exists(path_in)) {
-    throw std::runtime_error("GHIA_INPUT: File not found!");
+    throw std::runtime_error("GHIA_INPUT: File " + filepath_in + " not found!");
   }
 }
 
@@ -69,10 +69,10 @@ inline std::vector<std::string> split(std::string s,
   return tokens;
 }
 
-enum PARSING_TYPE { Y, X };
+enum FIXED_AXIS { Y, X };
 
 // Assumes that the benchmark file is correctly formatted.
-inline enum PARSING_TYPE parse_header(std::ifstream &in, double reyn) {
+inline enum FIXED_AXIS parse_header(std::ifstream &in, double reyn) {
   std::string header;
 
   // FINISH READING HEADER
@@ -123,6 +123,10 @@ inline GhiaCavityData read_data(std::ifstream &input) {
 // coordinate t in [0,1] along a grid line of length n_cells.
 inline double interp_along_line(const std::vector<double> &line_values,
                                 double t) {
+  if (t < 0.0 || t > 1.0) {
+    throw std::runtime_error("GHIA_INPUT: coordinate " + std::to_string(t) +
+                             " out of expected [0,1] range");
+  }
   const double pos = t * static_cast<double>(line_values.size() - 1);
   const std::size_t i0 = static_cast<std::size_t>(std::floor(pos));
   const std::size_t i1 = std::min(i0 + 1, line_values.size() - 1);
@@ -144,27 +148,27 @@ compute_ghia_error(const std::string &filepath_in, const Lattice<2> &lattice,
     throw std::runtime_error("Cannot open ghia benchmark file!");
   }
 
-  enum PARSING_TYPE pt = detail::parse_header(in, reynolds);
+  enum FIXED_AXIS pt = detail::parse_header(in, reynolds);
 
   GhiaCavityData data = detail::read_data(in);
 
   // Extract simulated u along vertical or horizontal centerline,
   // normalized by lid_velocity, so it's directly comparable to Ghia's
   // tabulated values.
-  const bool is_x = (pt == PARSING_TYPE::X);
+  const bool is_x = (pt == FIXED_AXIS::X);
 
-  const auto line_size = is_x ? lattice.grid.size.x : lattice.grid.size.y;
+  const auto line_size = is_x ? lattice.grid.size.y : lattice.grid.size.x;
   const auto fixed_coord =
-      (is_x ? lattice.grid.size.y : lattice.grid.size.x) / 2;
+      (is_x ? lattice.grid.size.x : lattice.grid.size.y) / 2;
 
   std::vector<double> velocity_along_coord_line(line_size);
 
   for (unsigned int i = 0; i < line_size; ++i) {
-    const types::Coordinate<2> p = is_x ? types::Coordinate<2>(i, fixed_coord)
-                                        : types::Coordinate<2>(fixed_coord, i);
+    const types::Coordinate<2> p = is_x ? types::Coordinate<2>(fixed_coord, i)
+                                        : types::Coordinate<2>(i, fixed_coord);
 
     const auto &vel = lattice.u[lattice.grid.scalar_index(p)];
-    const double component = is_x ? vel.dy : vel.dx;
+    const double component = is_x ? vel.dx : vel.dy;
 
     velocity_along_coord_line[i] = component / lid_velocity;
   }

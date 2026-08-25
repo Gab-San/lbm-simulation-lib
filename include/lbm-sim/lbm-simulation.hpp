@@ -151,14 +151,15 @@ public:
       return;
     }
 
+    std::vector<double> profile = extract_profile(lattice);
+
     LOG_DEBUG(data_logger, "Writing header to file {}", filepath);
 
     std::string header = "%%profile " + collision_model_to_string(cm_t) + " " +
-                         std::to_string(lattice.grid.size.y) + "\n";
+                         std::to_string(profile.size()) + " " +
+                         std::to_string(params.init_vel.dx) + "\n";
 
     fout.write(header.data(), header.size());
-
-    std::vector<double> profile = extract_profile(lattice);
 
     fout.write(reinterpret_cast<const char *>(profile.data()),
                profile.size() * sizeof(double));

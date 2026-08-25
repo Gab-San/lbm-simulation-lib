@@ -186,16 +186,18 @@ int main() {
 
     // Confronto con Ghia et al. (1982): Norma scelta qui: L2.
     const auto ghia_y = simulation.compute_ghia_error(
-        path_to_benchmark + "data_y_" + std::to_string(reyn) + ".txt");
-    std::cout << "Ghia (" << analysis::to_string(analysis::NormType::L2)
-              << ") uy(x/2): rel=" << ghia_y.relative
-              << " abs=" << ghia_y.absolute << std::endl;
+        path_to_benchmark + "data_y_" + formatting::format_reyn(reyn) + ".txt");
+
+    LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
+               analysis::to_string(analysis::NormType::L2), ghia_y.relative,
+               ghia_y.absolute);
 
     const auto ghia_x = simulation.compute_ghia_error(
-        path_to_benchmark + "data_x_" + std::to_string(reyn) + ".txt");
-    std::cout << "Ghia (" << analysis::to_string(analysis::NormType::L2)
-              << " | ux(y/2): rel=" << ghia_x.relative
-              << " abs=" << ghia_x.absolute << std::endl;
+        path_to_benchmark + "data_x_" + formatting::format_reyn(reyn) + ".txt");
+
+    LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
+               analysis::to_string(analysis::NormType::L2), ghia_x.relative,
+               ghia_x.absolute);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);
