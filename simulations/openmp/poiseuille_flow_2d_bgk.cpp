@@ -1,19 +1,14 @@
 // LBM SIM LIB
+#include "lbm-sim/boundaries.hpp"
+#include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
-
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-
 #include "lbm-sim/data/async-binary-writer.hpp"
-
-#include "lbm-sim/boundaries.hpp"
+#include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
-
 #include "lbm-sim/problems/problem_2d.hpp"
-
 #include "lbm-sim/solver/omp-solver.hpp"
-
-#include "lbm-sim/collision-detection/collision-area.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -127,7 +122,8 @@ int main() {
     solver.attachListener(writer);
 
     simulation.solve(solver, problem);
-    simulation.output(out_data.c_str());
+    simulation.output(out_data.c_str(),
+                      functional::extract_dx_profile_along_y_center);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

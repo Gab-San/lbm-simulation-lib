@@ -12,12 +12,12 @@
 #include "lbm-sim/solver/solver-base.hpp"
 
 // C++ STANDARD LIB
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <iostream>
 #include <vector>
 
 namespace lbm {
@@ -65,7 +65,9 @@ public:
     std::cout << "Finished Simulation." << std::endl;
   };
 
-  void output(const char *filepath) {
+  void output(const char *filepath,
+              std::function<std::vector<double>(const Lattice<dim> &)>
+                  extract_profile) {
     using namespace std::filesystem;
 
     path outpath(filepath);
@@ -88,14 +90,10 @@ public:
 
     fout.write(header.data(), header.size());
 
-    std::vector<double> v_center(lattice.grid.size.y);
-    int x = lattice.grid.size.x / 2;
-    for (auto y = 0; y < lattice.grid.size.y; ++y) {
-      v_center[y] = lattice.u[lattice.grid.size.x * y + x].dx;
-    }
+    std::vector<double> profile = extract_profile(lattice);
 
-    fout.write(reinterpret_cast<const char *>(v_center.data()),
-               v_center.size() * sizeof(double));
+    fout.write(reinterpret_cast<const char *>(profile.data()),
+               profile.size() * sizeof(double));
 
     std::cout << "Finished writing to " << outpath << std::endl;
 

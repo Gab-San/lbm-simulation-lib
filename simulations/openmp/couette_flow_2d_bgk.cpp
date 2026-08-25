@@ -15,6 +15,8 @@
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
+#include "lbm-sim/functions.hpp"
+
 // C++ STD LIB
 #include <memory>
 #include <unordered_map>
@@ -123,7 +125,8 @@ int main() {
     solver.attachListener(writer);
 
     simulation.solve(solver, problem);
-    simulation.output(out_data.c_str());
+    simulation.output(out_data.c_str(),
+                      functional::extract_dx_profile_along_y_center);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

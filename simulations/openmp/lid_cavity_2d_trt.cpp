@@ -1,18 +1,13 @@
-#include "lbm-sim/lbm-simulation.hpp"
-
+#include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
-
 #include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-
-#include "lbm-sim/problems/problem_2d.hpp"
-
-#include "lbm-sim/solver/omp-solver.hpp"
-
-#include "lbm-sim/collision-detection/collision-area.hpp"
-
 #include "lbm-sim/data/async-binary-writer.hpp"
+#include "lbm-sim/functions.hpp"
+#include "lbm-sim/lbm-simulation.hpp"
+#include "lbm-sim/problems/problem_2d.hpp"
+#include "lbm-sim/solver/omp-solver.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -169,7 +164,8 @@ int main() {
 
     simulation.solve(solver /*, preconditioner*/, problem);
 
-    simulation.output(out_data.c_str());
+    simulation.output(out_data.c_str(),
+                      functional::extract_dy_profile_along_x_center);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);
