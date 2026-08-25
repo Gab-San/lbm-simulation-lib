@@ -1,5 +1,8 @@
 # Lattice Boltzmann Method
 
+> The project is being actively developed and big changes are coming to the code structure.
+> Therefore the current README is OUTDATED and instructions might not work!
+
 <!--toc:start-->
 - [Lattice Boltzmann Method](#lattice-boltzmann-method)
   - [Introduction](#introduction)
