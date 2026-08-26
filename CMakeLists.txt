@@ -63,6 +63,9 @@ target_link_libraries(${LBM_SIM_LIB} INTERFACE OpenMP::OpenMP_CXX)
 target_link_libraries(${LBM_SIM_LIB} INTERFACE ${LBM_LOGGING_HELPER_LIB})
 target_link_libraries(${LBM_SIM_LIB} INTERFACE tomlplusplus::tomlplusplus)
 
+target_compile_options(${LBM_SIM_LIB} INTERFACE
+    $<$<CONFIG:Debug>:-Wsign-compare>
+)
 # ------------------------------------------------------
 
 if(MSVC)

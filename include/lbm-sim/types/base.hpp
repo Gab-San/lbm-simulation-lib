@@ -1,18 +1,13 @@
-#ifndef __LBM_SIM_TYPES_BASE_HPP
-#define __LBM_SIM_TYPES_BASE_HPP
+#pragma once
 
 #include <cstdint>
-#include <vector>
 
-namespace lbm {
-namespace types {
-
-using boundary_t = uint8_t;
-using boundary_mask_t = std::vector<boundary_t>;
+namespace lbm::types {
 
 using dim_t = unsigned short int;
 
-} // namespace types
-} // namespace lbm
+using boundary_t = uint8_t;
+using obstacle_id_t = uint16_t;
+// using boundary_mask_t = std::vector<boundary_t>;
 
-#endif // __LBM_SIM_TYPES_BASE_HPP
+} // namespace lbm::types

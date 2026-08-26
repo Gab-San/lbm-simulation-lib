@@ -2,7 +2,7 @@
 #define __CORE_POINT_HPP
 
 #include "lbm-sim/cuda/annotations.hpp"
-#include "lbm-sim/types/base.hpp"
+#include "lbm-sim/types/fwd.hpp"
 
 // C++ STANDARD LIB
 #include <iostream>
@@ -14,8 +14,6 @@ template <unsigned short int dim> constexpr bool always_false = false;
 }
 
 namespace utils {
-
-template <typename T, types::dim_t dim> struct Point;
 
 template <typename T> struct Point<T, 2> {
   const T x, y;

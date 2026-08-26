@@ -2,6 +2,7 @@
 #define __LBM_SIM_BOUNDARIES_HPP
 
 #include "lbm-sim/backend.hpp"
+#include "lbm-sim/boundaries/types.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-detection/shape.hpp"
 #include "lbm-sim/constants.hpp"
@@ -22,12 +23,6 @@ namespace lbm {
 
 namespace Solid {
 
-constexpr types::boundary_t NONE = 0;
-constexpr types::boundary_t BB_RIGID_WALL = 1;
-constexpr types::boundary_t BB_MOVING_WALL = 2;
-constexpr types::boundary_t PERIODIC = 3;
-constexpr types::boundary_t PRESSURE_PERIODIC_INLET = 4;
-constexpr types::boundary_t PRESSURE_PERIODIC_OUTLET = 5;
 constexpr types::boundary_t BB_INNER = 6;
 
 template <unsigned short int dim>
@@ -215,7 +210,6 @@ LBM_HD_FUNC inline void apply_boundary_condition(
   }
 }
 
-} // namespace Solid
-} // namespace lbm
+} // namespace lbm::Solid
 
 #endif // __LBM_SIM_BOUNDARIES_HPP

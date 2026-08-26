@@ -1,10 +1,8 @@
 #ifndef __CORE_VECTOR_HPP
 #define __CORE_VECTOR_HPP
 
-#include "lbm-sim/core/point.hpp"
-#include "lbm-sim/types/base.hpp"
-
 #include "lbm-sim/cuda/annotations.hpp"
+#include "lbm-sim/types/fwd.hpp"
 
 // C++ STANDARD LIB
 #include <iostream>
@@ -13,8 +11,6 @@
 
 namespace lbm {
 namespace utils {
-
-template <typename T, types::dim_t dim> struct Vector;
 
 template <typename T> struct Vector<T, 2> {
   T dx, dy;

@@ -39,5 +39,4 @@ LBM_HD_FUNC inline std::size_t opposite(const std::size_t diridx) {
 #endif
 }
 } // namespace detail
-
 } // namespace lbm
