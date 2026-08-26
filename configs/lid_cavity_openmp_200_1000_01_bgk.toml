@@ -1,0 +1,19 @@
+[problem]
+type = "lid_cavity"
+
+[grid]
+nx = 200
+ny = 200
+
+[physics]
+collision = "BGK"
+reynolds = 1000.0
+init_vel_x = 0.1
+
+[solver]
+niters = 30000
+nframes = 100
+backend = "openmp"
+
+[output]
+path = "out"

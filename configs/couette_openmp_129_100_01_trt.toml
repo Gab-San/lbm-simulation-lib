@@ -1,0 +1,19 @@
+[problem]
+type = "couette"
+
+[grid]
+nx = 129
+ny = 129
+
+[physics]
+collision = "TRT"
+reynolds = 100.0
+init_vel_x = 0.1
+
+[solver]
+niters = 100000
+nframes = 300
+backend = "openmp"
+
+[output]
+path = "out"
