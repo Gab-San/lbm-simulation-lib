@@ -1,6 +1,7 @@
 #ifndef _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 #define _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 
+#include "lbm-sim/annotations.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/core/operators.hpp"
@@ -18,7 +19,7 @@ public:
   LBM_HD_FUNC CollisionStrategy(const CollisionParams<dim, cm_t> &params)
       : params(params) {}
 
-  LBM_HD_FUNC inline void apply(double *__restrict__ fp,
+  LBM_HD_FUNC inline void apply(double *RESTRICT fp,
                                 const types::Coordinate<dim> p,
                                 const double localrho,
                                 const utils::Vector<double, dim> u) const {
@@ -34,7 +35,7 @@ public:
   }
 
 private:
-  LBM_HD_FUNC inline void apply_bgk(double *__restrict__ fp,
+  LBM_HD_FUNC inline void apply_bgk(double *RESTRICT fp,
                                     const types::Coordinate<dim> p,
                                     const utils::Vector<double, dim> u,
                                     const double localrho) const {
@@ -54,7 +55,7 @@ private:
     }
   }
 
-  LBM_HD_FUNC inline void apply_trt(double *__restrict__ fp,
+  LBM_HD_FUNC inline void apply_trt(double *RESTRICT fp,
                                     const types::Coordinate<dim> p,
                                     const utils::Vector<double, dim> u,
                                     const double localrho) const {

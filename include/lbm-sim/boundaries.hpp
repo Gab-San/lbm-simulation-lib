@@ -7,6 +7,7 @@
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/operators.hpp"
 #include "lbm-sim/core/vector.hpp"
+#include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/cuda/annotations.hpp"
 #include "lbm-sim/types/common.hpp"
 
