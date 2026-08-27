@@ -11,6 +11,7 @@
 #include "lbm-sim/solver/openmp-solver.hpp"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
+#include "lbm-sim/functions.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -131,8 +132,9 @@ int main() {
     OpenMPSolver<DIM, D2Q9, CollisionType> solver(iters, frames);
     solver.attachListener(writer);
 
-    simulation.solve(solver, problem);
-    simulation.output(out_data.c_str());
+    simulation.solve(solver);
+    simulation.output(out_data.c_str(),
+                      functional::extract_dx_profile_along_y_center);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

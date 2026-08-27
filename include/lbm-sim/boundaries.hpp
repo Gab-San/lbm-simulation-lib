@@ -176,7 +176,7 @@ LBM_HD_FUNC inline void apply_boundary_condition(
   case BB_RIGID_WALL:
     apply_bb_rigid_wall<dim, VelocitySet>(fp, ffrom, diridx, grid, pos);
     break;
-  case BB_OBSTACLE:
+  case BB_INNER:
     apply_bb_rigid_wall<dim, VelocitySet>(fp, ffrom, diridx, grid, pos);
     break;
   case BB_MOVING_WALL:

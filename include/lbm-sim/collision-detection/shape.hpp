@@ -9,6 +9,7 @@
 #include "lbm-sim/collision-detection/algorithms/rasterization.hpp"
 
 // C++ STANDARD LIB
+#include <cmath>
 #include <stdexcept>
 #include <vector>
 
