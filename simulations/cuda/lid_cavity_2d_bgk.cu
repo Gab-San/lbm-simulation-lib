@@ -1,13 +1,16 @@
+#include "lbm-sim/analysis/exact-solution.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/async-binary-writer.hpp"
+#include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
-#include "lbm-sim/problems/problem_2d.hpp"
 #include "lbm-sim/solver/cuda-solver.cuh"
+#include "lbm/logging.hpp"
+
+// QUILL LIB
+#include "quill/LogMacros.h"
 
 // C++ STD LIB
 #include <unordered_map>
@@ -161,20 +164,32 @@ int main() {
   };
 
   constexpr auto CollisionType = CollisionModel::BGK;
-
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
-  const LidCavity2D problem;
+  logging::setup_quill();
+  quill::Logger *main_logger = logging::create_or_get_logger("main");
 
-  for (const auto &conf : configs) {
+  std::string path_to_benchmark("benchmarks/ghia/");
+
+  LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
+
+  for (auto confidx = 0; confidx < configs.size(); confidx++) {
+    const auto conf = configs[confidx];
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obst_type_map] = conf;
+
+    LOG_INFO(
+        main_logger,
+        "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
+        "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
+        "frames: {}\n",
+        confidx, grid_size, reyn, init_vel, iters, frames);
 
     types::boundary_mask_t obstacle_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
 
-    std::shared_ptr<AsyncBinaryWriter> writer =
-        std::make_shared<AsyncBinaryWriter>(out_frames);
+    std::shared_ptr<VtkWriter> writer =
+        std::make_shared<VtkWriter>(out_frames);
 
     Simulation simulation(
         grid_size, obstacle_mask,
@@ -182,13 +197,28 @@ int main() {
 
     simulation.attachListener(writer);
 
-    CUDASolver2D<CollisionType> solver(iters, frames);
+    CUDASolver<DIM, D2Q9, CollisionType> solver(iters, frames);
     solver.attachListener(writer);
 
-    simulation.solve(solver /*, preconditioner*/, problem);
+    simulation.solve(solver /*, preconditioner*/);
 
     simulation.output(out_data.c_str(),
                       functional::extract_dy_profile_along_x_center);
+
+    // Confronto con Ghia et al. (1982): Norma scelta qui: L2.
+    const auto ghia_y = simulation.compute_ghia_error(
+        path_to_benchmark + "data_y_" + formatting::format_reyn(reyn) + ".txt");
+
+    LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
+               analysis::to_string(analysis::NormType::L2), ghia_y.relative,
+               ghia_y.absolute);
+
+    const auto ghia_x = simulation.compute_ghia_error(
+        path_to_benchmark + "data_x_" + formatting::format_reyn(reyn) + ".txt");
+
+    LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
+               analysis::to_string(analysis::NormType::L2), ghia_x.relative,
+               ghia_x.absolute);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

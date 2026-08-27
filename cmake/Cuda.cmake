@@ -28,5 +28,9 @@ if(LBM_ENABLE_CUDA)
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe --diag_suppress=128,--diag_suppress=2417>
   )
   target_link_libraries(${LBM_SIM_LIB_CUDA} INTERFACE ${LBM_LOGGING_HELPER_LIB})
+
+  # Enables relocatable device code (safe guard for __constant__)
+  set_target_properties(${LBM_SIM_LIB_CUDA}
+  PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 endif()
 

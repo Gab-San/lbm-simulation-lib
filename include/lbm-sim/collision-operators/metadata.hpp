@@ -1,7 +1,8 @@
 #ifndef __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP
 #define __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP
 
-#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/types/common.hpp"
+
 #include "lbm-sim/core/vector.hpp"
 
 #include "lbm-sim/cuda/annotations.hpp"
@@ -39,16 +40,9 @@ struct CollisionParams<dim, CollisionModel::BGK> {
                               const types::DimPoint<dim> num_cells_,
                               const utils::Vector<double, dim> init_vel_)
       : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
-        nu([&]() -> double {
-          // WARN: this might need correction for different possible
-          // configurations of velocity and cells
-          if constexpr (dim == 2) {
-            return init_vel_.dx * num_cells_.y / reyn_num_;
-          } else {
-            static_assert(dim != dim, "BGK : 3D not implemented yet!");
-            // throw std::runtime_error("BGK: 3D not implemented yet!");
-          }
-        }()),
+        // Caratteristica: velocità del lid (init_vel.dx) e altezza cavità
+        // (num_cells.y), valide indipendentemente da dim (2D o 3D).
+        nu(init_vel_.dx * num_cells_.y / reyn_num_),
         tauinv(2.0 / (6.0 * nu + 1.0)), omtauinv(1.0 - tauinv) {
 #ifndef __CUDA_ARCH__
     double tau = 0.5 + 3.0 * nu;
@@ -80,23 +74,12 @@ struct CollisionParams<dim, CollisionModel::TRT> {
                               const types::DimPoint<dim> num_cells_,
                               const utils::Vector<double, dim> init_vel_)
       : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
-        nu([&]() -> double {
-          // WARN: this might need correction for different possible
-          // configurations of velocity and cells
-          if constexpr (dim == 2) {
-            return init_vel_.dx * num_cells_.y / reyn_num_;
-          } else {
-            static_assert(dim != dim, "TRT : 3D not implemented yet!");
-            // throw std::runtime_error("TRT: 3D not implemented yet!");
-          }
-        }()),
+        nu(init_vel_.dx * num_cells_.y / reyn_num_),
         tauPlus(3.0 * nu + 0.5), tauMinus(0.5 + (0.25) / (tauPlus - 0.5)),
         s_plus(1.0 / tauPlus), s_minus(1.0 / tauMinus) {
 #if DEBUG
-    // --- AGGIUNGI QUESTA RIGA ---
     std::cerr << "DEBUG: tauPlus=" << tauPlus << " tauMinus=" << tauMinus
               << " s_plus=" << s_plus << " s_minus=" << s_minus << std::endl;
-    // -----------------------------
 #endif
 
 #ifndef __CUDA_ARCH__

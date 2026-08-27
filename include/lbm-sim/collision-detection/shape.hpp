@@ -1,7 +1,8 @@
 #ifndef __SHAPE_HPP
 #define __SHAPE_HPP
 
-#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/types/common.hpp"
+
 #include "lbm-sim/core/vector.hpp"
 
 #include "lbm-sim/collision-detection/algorithms/collision.hpp"
@@ -16,7 +17,7 @@
 namespace lbm {
 namespace CollisionDetection {
 
-template <unsigned short int dim, class DerivedShape> class Shape {
+template <types::dim_t dim, class DerivedShape> class Shape {
 public:
   bool isCollidingWith(const types::Coordinate<dim> &point) const {
     return static_cast<DerivedShape *>(this)->isCollidingWith(point);
@@ -34,8 +35,7 @@ protected:
   Shape() = default;
 };
 
-template <unsigned short int dim>
-class Segment : public Shape<dim, Segment<dim>> {
+template <types::dim_t dim> class Segment : public Shape<dim, Segment<dim>> {
   const types::Coordinate<dim> A, B;
   mutable std::vector<types::Coordinate<dim>> cached_perimeter;
   const double dist_x, dist_y;
@@ -78,8 +78,7 @@ public:
   }
 };
 
-template <unsigned short int dim>
-class Circle : public Shape<dim, Circle<dim>> {
+template <types::dim_t dim> class Circle : public Shape<dim, Circle<dim>> {
   const types::Coordinate<dim> center;
   const unsigned int radius;
   mutable std::vector<types::Coordinate<dim>> cached_perimeter;
@@ -162,7 +161,7 @@ private:
   }
 };
 
-template <unsigned short int dim>
+template <types::dim_t dim>
 class Parallelogram : public Shape<dim, Parallelogram<dim>> {
   const types::Coordinate<dim> A, B, C, D;
   mutable std::vector<types::Coordinate<dim>> cached_perimeter;
