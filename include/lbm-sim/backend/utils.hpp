@@ -6,12 +6,8 @@
 
 #include <cstddef>
 
-// FIXME: REMOVE AND REWIRE
-namespace lbm {
+namespace lbm::detail {
 
-enum ExecutionBackend { CUDA, OPEN_MP };
-
-namespace detail {
 template <unsigned short int dim, typename VelocitySet>
 LBM_HD_FUNC inline types::Direction<dim> direction(const std::size_t diridx) {
 #if defined(__CUDA_ARCH__)
@@ -38,6 +34,5 @@ LBM_HD_FUNC inline std::size_t opposite(const std::size_t diridx) {
   return VelocitySet::opp[diridx];
 #endif
 }
-} // namespace detail
 
-} // namespace lbm
+} // namespace lbm::detail
