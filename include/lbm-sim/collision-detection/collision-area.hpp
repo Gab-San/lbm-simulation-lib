@@ -3,7 +3,7 @@
 
 #include "lbm-sim/collision-detection/shape.hpp"
 
-#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/types/common.hpp"
 
 // C++ STANDARD LIB
 #include <algorithm>

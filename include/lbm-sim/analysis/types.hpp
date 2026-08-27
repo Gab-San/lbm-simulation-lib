@@ -1,13 +1,14 @@
 #ifndef __LBM_SIM_ANALYSIS_TYPES_HPP
 #define __LBM_SIM_ANALYSIS_TYPES_HPP
 
-#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/types/common.hpp"
+
 #include "lbm-sim/core/vector.hpp"
 
 namespace lbm {
 namespace analysis {
 
-template <unsigned short int dim> class Function {
+template <types::dim_t dim> class Function {
 public:
   virtual ~Function() = default;
 
@@ -17,6 +18,7 @@ public:
 };
 
 enum class NormType { L1, L2, L2_squared, Linfty };
+
 inline const char *to_string(NormType t) {
   switch (t) {
   case NormType::L1:

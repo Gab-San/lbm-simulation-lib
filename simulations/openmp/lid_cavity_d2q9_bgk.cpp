@@ -1,12 +1,10 @@
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/async-binary-writer.hpp"
+#include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
-#include "lbm-sim/problems/problem_2d.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
 #include "lbm/logging.hpp"
 
@@ -17,9 +15,9 @@
 #include <memory>
 #include <unordered_map>
 
-static constexpr unsigned short int DIM = 2;
+static constexpr lbm::types::dim_t DIM = 2;
 
-template <unsigned short int dim> struct Config;
+template <lbm::types::dim_t dim> struct Config;
 
 /**
  * \brief This struct represents a configuration.
@@ -75,7 +73,7 @@ template <> struct Config<2> {
 
   const std::unordered_map<unsigned int, uint8_t> obst_type_map;
 
-  Config(
+  Config<2>(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
       const unsigned int c_frames, const double c_reyn_num,
       const lbm::utils::Vector<double, 2> init_vel_,
@@ -103,23 +101,11 @@ int main() {
   const Coordinate<2> C2(199, 199);
   const Coordinate<2> D2(199, 0);
 
-  const Coordinate<2> B_ = B2 - Coordinate<2>(0, 1);
-  const Coordinate<2> C_ = C2 - Coordinate<2>(0, 1);
-
-  // Ogni ostacolo viene associato a un tipo di parete tramite la mappa `strt`.
-  // Qui, l'ostacolo 0 diventa una parete rigida ferma e l'ostacolo 1 diventa
-  // il lato mobile della cavità (moving lid).
-  // Per cambiare il tipo di parete, modifica solo questa mappa.
-  // Esempio: due pareti rigide = {{0, Solid::BB_RIGID_WALL}, {1,
-  // Solid::BB_RIGID_WALL}} Esempio con terzo tipo fisso-rho = {{0,
-  // Solid::BB_RIGID_WALL},
-  //                                   {1, Solid::BB_MOVING_WALL},
-  //                                   {2, Solid::BB_FIXED_RHO_WALL}}
   std::vector<Config<DIM>> configs{
       Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
                   /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_lid_cavity_openmp_129_100_01_trt.bin",
-                  "out/data_lid_cavity_openmp_129_100_01_trt.bin",
+                  "out/norms_lid_cavity_openmp_d2q9_129_100_01_bgk.bin",
+                  "out/data_lid_cavity_openmp_d2q9_129_100_01_bgk.bin",
                   {CollisionDetection::CollisionArea(
                        A2, {CollisionDetection::Segment(A, B),
                             CollisionDetection::Segment(A, D),
@@ -130,8 +116,8 @@ int main() {
 
       Config<DIM>({200, 200}, /*iters*/ 30000, /*frames*/ 100,
                   /*reyn*/ 1000.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_200_1000_01_lid_cavity_openmp_trt.bin",
-                  "out/data_200_1000_01_lid_cavity_openmp_trt.bin",
+                  "out/norms_lid_cavity_openmp_d2q9_200_1000_01_bgk.bin",
+                  "out/data_lid_cavity_openmp_d2q9_200_1000_01_bgk.bin",
                   {CollisionDetection::CollisionArea(
                        A2, {CollisionDetection::Segment(A2, B2),
                             CollisionDetection::Segment(A2, D2),
@@ -141,15 +127,13 @@ int main() {
                   {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
   };
 
-  constexpr auto CollisionType = CollisionModel::TRT;
-
-  using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
-
-  const LidCavity2D problem;
-
-  std::string path_to_benchmark("benchmarks/ghia/");
   logging::setup_quill();
   quill::Logger *main_logger = logging::create_or_get_logger("main");
+
+  constexpr auto CollisionType = CollisionModel::BGK;
+  using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
+
+  std::string path_to_benchmark("benchmarks/ghia/");
 
   LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
 
@@ -157,18 +141,19 @@ int main() {
     const auto conf = configs[confidx];
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obst_type_map] = conf;
+
     LOG_INFO(
         main_logger,
         "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
         "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
-        "frames: {}\n",
+        "frames: {}",
         confidx, grid_size, reyn, init_vel, iters, frames);
 
     types::boundary_mask_t obstacle_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
 
-    std::shared_ptr<AsyncBinaryWriter> writer =
-        std::make_shared<AsyncBinaryWriter>(out_frames);
+    std::shared_ptr<VtkWriter> writer =
+        std::make_shared<VtkWriter>(out_frames);
 
     Simulation simulation(
         grid_size, obstacle_mask,
@@ -176,10 +161,10 @@ int main() {
 
     simulation.attachListener(writer);
 
-    MPISolver2D<CollisionType> solver(iters, frames);
+    OpenMPSolver<DIM, D2Q9, CollisionType> solver(iters, frames);
     solver.attachListener(writer);
 
-    simulation.solve(solver /*, preconditioner*/, problem);
+    simulation.solve(solver /*, preconditioner*/);
 
     simulation.output(out_data.c_str(),
                       functional::extract_dy_profile_along_x_center);

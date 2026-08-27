@@ -3,12 +3,10 @@
 #include "lbm-sim/boundaries.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/async-binary-writer.hpp"
+#include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
-#include "lbm-sim/problems/problem_2d.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
 #include "lbm/logging.hpp"
 
@@ -105,7 +103,6 @@ int main() {
 
   constexpr auto CollisionType = CollisionModel::TRT;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
-  const LidCavity2D problem;
 
   LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
 
@@ -124,8 +121,8 @@ int main() {
     types::boundary_mask_t boundary_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
 
-    std::shared_ptr<AsyncBinaryWriter> writer =
-        std::make_shared<AsyncBinaryWriter>(conf.out_frames);
+    std::shared_ptr<VtkWriter> writer =
+        std::make_shared<VtkWriter>(conf.out_frames);
 
     Simulation simulation(
         grid_size, boundary_mask,
@@ -133,10 +130,10 @@ int main() {
 
     simulation.attachListener(writer);
 
-    MPISolver2D<CollisionType> solver(iters, frames);
+    OpenMPSolver<DIM, D2Q9, CollisionType> solver(iters, frames);
     solver.attachListener(writer);
 
-    simulation.solve(solver, problem);
+    simulation.solve(solver);
     simulation.output(out_data.c_str(),
                       functional::extract_dx_profile_along_y_center);
 

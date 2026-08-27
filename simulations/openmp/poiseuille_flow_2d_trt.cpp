@@ -3,12 +3,10 @@
 #include "lbm-sim/boundaries.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/async-binary-writer.hpp"
+#include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
-#include "lbm-sim/problems/problem_2d.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
 #include "lbm/logging.hpp"
 
@@ -20,9 +18,9 @@
 #include <unordered_map>
 #include <vector>
 
-static constexpr unsigned short int DIM = 2;
+static constexpr lbm::types::dim_t DIM = 2;
 
-template <unsigned short int dim> struct Config;
+template <lbm::types::dim_t dim> struct Config;
 template <> struct Config<2> {
 
   const lbm::types::DimPoint<2> grid_size;
@@ -53,9 +51,7 @@ template <> struct Config<2> {
 
   const std::unordered_map<unsigned int, uint8_t> obst_type_map;
 
-  /// Quale soluzione analitica usare per compute_error() a fine run.
-
-  Config(
+  Config<2>(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
       const unsigned int c_frames, const double c_reyn_num,
       const lbm::utils::Vector<double, 2> init_vel_,
@@ -107,8 +103,6 @@ int main() {
   constexpr auto CollisionType = CollisionModel::TRT;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
-  const LidCavity2D problem;
-
   LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
 
   for (auto confidx = 0; confidx < configs.size(); confidx++) {
@@ -126,8 +120,8 @@ int main() {
     types::boundary_mask_t boundary_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
 
-    std::shared_ptr<AsyncBinaryWriter> writer =
-        std::make_shared<AsyncBinaryWriter>(conf.out_frames);
+    std::shared_ptr<VtkWriter> writer =
+        std::make_shared<VtkWriter>(conf.out_frames);
 
     const CollisionParams<DIM, CollisionType> params(reyn, grid_size, init_vel);
     const double pout = 1;
@@ -138,11 +132,10 @@ int main() {
 
     simulation.attachListener(writer);
 
-    MPISolver2D<CollisionType> solver(iters, frames);
+    OpenMPSolver<DIM, D2Q9, CollisionType> solver(iters, frames);
     solver.attachListener(writer);
 
-    simulation.solve(solver, problem);
-
+    simulation.solve(solver);
     simulation.output(out_data.c_str(),
                       functional::extract_dx_profile_along_y_center);
 

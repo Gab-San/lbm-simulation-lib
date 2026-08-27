@@ -1,16 +1,14 @@
 #ifndef __LBM_SIM_BOUNDARIES_HPP
 #define __LBM_SIM_BOUNDARIES_HPP
 
-#include "lbm-sim/cuda/annotations.hpp"
-
+#include "lbm-sim/backend.hpp"
+#include "lbm-sim/collision-detection/collision-area.hpp"
+#include "lbm-sim/constants.hpp"
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/operators.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
-
-#include "lbm-sim/backend.hpp"
-
-#include "lbm-sim/collision-detection/collision-area.hpp"
+#include "lbm-sim/cuda/annotations.hpp"
+#include "lbm-sim/types/common.hpp"
 
 #include <cstdint>
 #include <unordered_map>
@@ -29,7 +27,7 @@ constexpr types::boundary_t PERIODIC = 3;
 constexpr types::boundary_t PRESSURE_PERIODIC_INLET = 4;
 constexpr types::boundary_t PRESSURE_PERIODIC_OUTLET = 5;
 
-template <unsigned short int dim>
+template <types::dim_t dim>
 std::vector<uint8_t> compute_boundary_mask(
     const std::unordered_map<unsigned int, uint8_t> &obst_type_map,
     const std::vector<CollisionDetection::CollisionArea<dim>> &obstacles,
@@ -56,7 +54,7 @@ std::vector<uint8_t> compute_boundary_mask(
   return boundary_mask;
 }
 
-template <unsigned short int dim, typename VelocitySet>
+template <types::dim_t dim, typename VelocitySet>
 LBM_HD_FUNC inline void
 apply_bb_rigid_wall(double *fp, const double *ffrom, const std::size_t diridx,
                     const Grid<dim> grid, const types::Coordinate<dim> p) {
@@ -64,7 +62,7 @@ apply_bb_rigid_wall(double *fp, const double *ffrom, const std::size_t diridx,
   fp[diridx] = ffrom[grid.field_index(p, oppdir, VelocitySet::ndir)];
 }
 
-template <unsigned short int dim, typename VelocitySet>
+template <types::dim_t dim, typename VelocitySet>
 LBM_HD_FUNC inline void
 apply_bb_moving_wall(double *fp, const double *ffrom, const std::size_t diridx,
                      const Grid<dim> grid, const types::Coordinate<dim> p,
@@ -75,7 +73,7 @@ apply_bb_moving_wall(double *fp, const double *ffrom, const std::size_t diridx,
 
   fp[diridx] = ffrom[grid.field_index(p, oppdir, VelocitySet::ndir)] -
                2.0 * detail::weight<VelocitySet>(oppdir) * localrho *
-                   utils::ops::dot(opp_direction, u0) * VelocitySet::inv_cs2;
+                   utils::ops::dot(opp_direction, u0) * numbers::invcs_2;
 }
 
 template <unsigned short int dim, typename VelocitySet>

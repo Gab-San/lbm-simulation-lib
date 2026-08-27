@@ -2,8 +2,9 @@
 #define __LBM_SIM_LATTICE_HPP
 
 #include "lbm-sim/core/grid.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
+
+#include "lbm-sim/types/common.hpp"
 
 // C++ STD LIB
 #include <vector>

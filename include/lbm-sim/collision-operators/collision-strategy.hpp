@@ -4,7 +4,6 @@
 #include "lbm-sim/collision-operators/metadata.hpp"
 
 #include "lbm-sim/core/operators.hpp"
-#include "lbm-sim/core/types.hpp"
 
 #include "lbm-sim/backend.hpp"
 
