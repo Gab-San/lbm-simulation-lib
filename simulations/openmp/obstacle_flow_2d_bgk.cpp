@@ -1,7 +1,6 @@
 // LBM SIM LIB
 #include "lbm-sim/collision-operators/metadata.hpp"
 
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 
 #include "lbm-sim/data/async-binary-writer.hpp"
@@ -9,9 +8,7 @@
 #include "lbm-sim/boundaries.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 
-#include "lbm-sim/problems/problem_2d.hpp"
-
-#include "lbm-sim/solver/omp-solver.hpp"
+#include "lbm-sim/solver/openmp-solver.hpp"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 
@@ -95,13 +92,16 @@ int main() {
 
               // Nuovo ostacolo dentro il dominio
               CollisionDetection::CollisionArea(
-                  Coordinate<2>(0, 0),         // posizione base (l'offset per le coord del cerchio)
+                  Coordinate<2>(
+                      0,
+                      0), // posizione base (l'offset per le coord del cerchio)
                   {CollisionDetection::Circle<DIM>(
-                      Coordinate<2>(64, 64),  // centro relativo alla posizione base
-                      16)}                    // raggio in celle
-              ),
+                      Coordinate<2>(64,
+                                    64), // centro relativo alla posizione base
+                      16)}               // raggio in celle
+                  ),
           },
-          {{0, Solid::BB_RIGID_WALL},   // fixed top and bottom wall
+          {{0, Solid::BB_RIGID_WALL}, // fixed top and bottom wall
            {1, Solid::PRESSURE_PERIODIC_INLET},
            {2, Solid::PRESSURE_PERIODIC_OUTLET}, // right and left
            {3, Solid::BB_RIGID_WALL}}), // <= indice 3 = il nuovo oggetto
@@ -109,8 +109,6 @@ int main() {
 
   constexpr auto CollisionType = CollisionModel::BGK;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
-
-  const LidCavity2D problem;
 
   for (const auto &conf : configs) {
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
@@ -121,7 +119,7 @@ int main() {
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(conf.out_frames);
 
-    Params<DIM, CollisionType> params(reyn, grid_size, init_vel);
+    CollisionParams<DIM, CollisionType> params(reyn, grid_size, init_vel);
     const double pout = 1;
     const double pin =
         pout + (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
@@ -130,7 +128,7 @@ int main() {
 
     simulation.attachListener(writer);
 
-    MPISolver2D<CollisionType> solver(iters, frames);
+    OpenMPSolver<DIM, D2Q9, CollisionType> solver(iters, frames);
     solver.attachListener(writer);
 
     simulation.solve(solver, problem);

@@ -3,6 +3,7 @@
 
 #include "lbm-sim/backend.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
+#include "lbm-sim/collision-detection/shape.hpp"
 #include "lbm-sim/constants.hpp"
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/operators.hpp"
@@ -27,28 +28,69 @@ constexpr types::boundary_t BB_MOVING_WALL = 2;
 constexpr types::boundary_t PERIODIC = 3;
 constexpr types::boundary_t PRESSURE_PERIODIC_INLET = 4;
 constexpr types::boundary_t PRESSURE_PERIODIC_OUTLET = 5;
+constexpr types::boundary_t BB_INNER = 6;
 
-template <types::dim_t dim>
+template <unsigned short int dim>
 std::vector<uint8_t> compute_boundary_mask(
     const std::unordered_map<unsigned int, uint8_t> &obst_type_map,
     const std::vector<CollisionDetection::CollisionArea<dim>> &obstacles,
     types::DimPoint<dim> size) {
 
+  // Initialize the boundary mask with NONE for all grid points
   types::boundary_mask_t boundary_mask(utils::ops::measure(size), Solid::NONE);
   const Grid<dim> grid(size);
 
-  // FIXME: THIS SHOULD BE SUBSTITUTED BY .CONTAINS()
-  // AND IT SHOULD BE NAMED COMPUTE_OBSTACLE_MASK
-  // use different approach, matching streaming support for internal solid nodes
+  // For each obstacle, get its perimeter and mark the corresponding grid points
+  // in the boundary mask
   for (auto obs_idx = 0; obs_idx < obstacles.size(); obs_idx++) {
     const CollisionDetection::CollisionArea<dim> &obstacle = obstacles[obs_idx];
     const std::vector<types::Coordinate<dim>> &perimeter =
         obstacle.getPerimeter();
+
+    // check if the obstacle is a Circle by using std::holds_alternative
+    if (std::holds_alternative<lbm::CollisionDetection::Circle<dim>>(
+            obstacle.collision_shapes[0])) {
+
+      // DEBUG: stampo la class name dell'oggetto
+      std::cout << "Obstacle " << obs_idx
+                << " is of type: " << typeid(obstacle).name() << std::endl;
+
 #pragma omp parallel for shared(obst_type_map, perimeter, boundary_mask)       \
     schedule(static)
-    for (auto per_idx = 0; per_idx < perimeter.size(); per_idx++) {
-      const types::Coordinate<dim> &p = perimeter[per_idx];
-      boundary_mask[grid.scalar_index(p)] = obst_type_map.at(obs_idx);
+
+      // check the whole gird with contains() and mark the boundary mask for
+      // each obstacle
+      for (auto y = 0; y < size.y; ++y) {
+        for (auto x = 0; x < size.x; ++x) {
+          const types::Coordinate<dim> p(x, y);
+
+          if (obstacle.contains(p)) {
+            boundary_mask[grid.scalar_index(p)] = Solid::BB_INNER;
+
+            // Now we can create the outer shell:
+            for (auto diridx = 0; diridx < D2Q9::ndir; ++diridx) {
+              const types::Coordinate<2> src = p - D2Q9::dir[diridx];
+
+              // if the point p is inside the shape we mark all its neighbors
+              // which are not marked as inner as boundary nodes
+              if (boundary_mask[grid.scalar_index(src)] != Solid::BB_INNER) {
+                boundary_mask[grid.scalar_index(src)] =
+                    obst_type_map.at(obs_idx);
+              }
+            }
+          }
+        }
+      }
+
+    } else {
+      // Now ovverride / mark the perimeter points with the specific obstacle
+      // type
+#pragma omp parallel for shared(obst_type_map, perimeter, boundary_mask)       \
+    schedule(static)
+      for (auto per_idx = 0; per_idx < perimeter.size(); per_idx++) {
+        const types::Coordinate<dim> &p = perimeter[per_idx];
+        boundary_mask[grid.scalar_index(p)] = obst_type_map.at(obs_idx);
+      }
     }
   }
 

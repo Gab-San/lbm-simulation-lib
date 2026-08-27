@@ -112,6 +112,11 @@ private:
       std::array<double, VelocitySet::ndir> fp;
       const types::Coordinate<dim> p = iteration::unflatten<dim>(cell, ext);
 
+      // If p is a Inner boundary node, we skip the streaming and collision step
+      if (lattice.boundary_mask[lattice.grid.scalar_index(p)] ==
+          Solid::BB_INNER) {
+        continue;
+      }
       double r_wall = 0.0;
       UNROLL_FULL
       for (auto i = 0; i < VelocitySet::ndir; ++i) {
@@ -124,8 +129,14 @@ private:
       for (auto diridx = 0; diridx < VelocitySet::ndir; ++diridx) {
         const types::Coordinate<dim> src = p - VelocitySet::dir[diridx];
 
-        if (!lattice.grid.contains(src)) {
-          // if source node is external it is on a boundary node
+        // if source node is external it is on a boundary node
+        // BUT THIS ALSO HAS TO APPLY TO INTERNAL OBJECTS, WHICH ARE ALSO
+        // BOUNDARY NODES!!!
+        if (!lattice.grid.contains(src) ||
+            lattice.boundary_mask[lattice.grid.scalar_index(src)] ==
+                Solid::BB_INNER) {
+          // if source node is external it is on a
+          // boundary node
           Solid::apply_boundary_condition<dim, VelocitySet>(
               fp.data(), ffrom.data(), diridx, lattice.grid,
               lattice.boundary_mask.data(), lattice.rho.data(),

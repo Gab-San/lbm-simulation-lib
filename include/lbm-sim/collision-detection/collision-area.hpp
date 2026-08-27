@@ -21,10 +21,10 @@ using CollisionShapesT =
 template <unsigned short int dim> class CollisionArea {
 
   types::Coordinate<dim> position;
-  const std::vector<CollisionShapesT<dim>> collision_shapes;
   mutable std::vector<types::Coordinate<dim>> cached_perimeter;
 
 public:
+  const std::vector<CollisionShapesT<dim>> collision_shapes;
   CollisionArea(const types::Coordinate<dim> position_,
                 std::vector<CollisionShapesT<dim>> collision_shapes_)
       : position(position_), collision_shapes(std::move(collision_shapes_)) {}
