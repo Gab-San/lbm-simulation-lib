@@ -49,6 +49,48 @@ public:
   }
 };
 
+/**
+ * Soluzione analitica per il flusso di Hagen-Poiseuille in un condotto
+ * cilindrico (3D), asse parallelo a x.
+ * Profilo parabolico di rivoluzione: u_x(r) = Umax * (1 - r^2/R^2), con
+ * r la distanza dall'asse del tubo; u_y = u_z = 0.
+ *
+ * Fuori dal condotto (r >= R) vale zero, non il prolungamento negativo
+ * della parabola: cosi' i nodi solidi della parete, dove il solver lascia
+ * u = 0, non inquinano l'errore calcolato su tutta la griglia da
+ * ErrorEvaluator<3>::integrate_difference().
+ *
+ * R e' il raggio *effettivo* della parete. Con bounce-back halfway la
+ * parete non sta sui nodi solidi ma a meta' strada fra l'ultimo nodo di
+ * fluido e il primo nodo solido, quindi vale R = r_inner + 0.5 se
+ * r_inner e' il raggio passato a CylindricalShell.
+ */
+class HagenPoiseuilleSolution3D : public Function<3> {
+private:
+  double R;      // Raggio effettivo del condotto
+  double Umax;   // Velocita' sull'asse
+  double cy, cz; // Posizione dell'asse nel piano della sezione
+
+public:
+  HagenPoiseuilleSolution3D(double pipe_radius, double max_axis_velocity,
+                            double axis_y, double axis_z)
+      : R(pipe_radius), Umax(max_axis_velocity), cy(axis_y), cz(axis_z) {}
+
+  utils::Vector<double, 3> value(const types::Coordinate<3> &p) const override {
+    const double dy = p.y - cy;
+    const double dz = p.z - cz;
+    const double r2 = dy * dy + dz * dz;
+    const double R2 = R * R;
+
+    if (r2 >= R2) {
+      return utils::Vector<double, 3>{0.0, 0.0, 0.0};
+    }
+
+    const double ux = Umax * (1.0 - r2 / R2);
+    return utils::Vector<double, 3>{ux, 0.0, 0.0};
+  }
+};
+
 } // namespace analysis
 } // namespace lbm
 

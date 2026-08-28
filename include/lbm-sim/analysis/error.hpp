@@ -38,9 +38,23 @@ public:
         }
       }
     } else {
-      static_assert(assertion::always_false<dim>,
-                    "ErrorEvaluator::integrate_difference() non ancora "
-                    "implementato per dim > 2!");
+      // Stesso conto in 3D: la differenza vettoriale ha una componente in
+      // piu', il resto (un errore per cella, non normalizzato) e' identico.
+      for (int z = 0; z < static_cast<int>(grid.size.z); ++z) {
+        for (int y = 0; y < static_cast<int>(grid.size.y); ++y) {
+          for (int x = 0; x < static_cast<int>(grid.size.x); ++x) {
+            types::Coordinate<dim> coord{x, y, z};
+            std::size_t idx = grid.scalar_index(coord);
+
+            utils::Vector<double, dim> u_exact = exact_solution.value(coord);
+            utils::Vector<double, dim> u_sim = sim_u[idx];
+
+            utils::Vector<double, dim> diff = u_sim - u_exact;
+            error_per_cell[idx] = std::sqrt(
+                diff.dx * diff.dx + diff.dy * diff.dy + diff.dz * diff.dz);
+          }
+        }
+      }
     }
 
     return error_per_cell;

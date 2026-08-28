@@ -9,6 +9,7 @@
 #include "lbm-sim/collision-detection/algorithms/collision.hpp"
 
 // C++ STANDARD LIB
+#include <algorithm>
 #include <cmath>
 #include <initializer_list>
 #include <stdexcept>
@@ -189,6 +190,105 @@ private:
       const auto c = utils::ops::cross(lhs, rhs);
       return utils::ops::dot(c, c) == 0;
     }
+  }
+};
+
+/**
+ * Wall of a pipe: the cylindrical shell around the grid-aligned axis A--B.
+ * A node is solid when it sits between the two endpoints along that axis and
+ * its distance from the axis falls in (inner_radius, outer_radius].
+ *
+ * This is the COMPLEMENT of a cylinder, and deliberately so: in a duct the
+ * fluid is the inside and the solid is everything around it, while
+ * Solid::compute_solid_mask() paints exactly what contains() calls solid.
+ * Give outer_radius a value large enough to leave the domain -- the AABB is
+ * clamped against the grid anyway -- and the mask becomes "every node past
+ * inner_radius", i.e. a pipe drilled through the box.
+ *
+ * Exact integer test, like Circle: dist^2 against the two radii, no sqrt. The
+ * accumulator is 64-bit because outer_radius is routinely set well past the
+ * grid, and r^2 for a few thousand cells already leaves int territory.
+ */
+template <types::dim_t dim>
+class CylindricalShell : public Shape<dim, CylindricalShell<dim>> {
+  static_assert(dim == 3, "CylindricalShell currently supports only 3D");
+
+  const types::Coordinate<dim> A, B;
+  const unsigned int inner_radius, outer_radius;
+  const types::dim_t axis_id;
+
+  /// The one axis along which the two endpoints differ: that is the pipe
+  /// direction. Anything else (a skew axis, or A == B) is rejected here
+  /// rather than silently rasterized as something unintended.
+  static types::dim_t deduce_axis(const types::Coordinate<dim> &A_,
+                                  const types::Coordinate<dim> &B_) {
+    types::dim_t found = 0;
+    int ndiff = 0;
+    for (types::dim_t d = 0; d < dim; ++d) {
+      if (utils::ops::axis(A_, d) != utils::ops::axis(B_, d)) {
+        found = d;
+        ++ndiff;
+      }
+    }
+    if (ndiff != 1) {
+      throw std::invalid_argument("CylindricalShell : the two endpoints must "
+                                  "differ along exactly one grid axis");
+    }
+    return found;
+  }
+
+public:
+  CylindricalShell(const types::Coordinate<dim> A_,
+                   const types::Coordinate<dim> B_,
+                   const unsigned int inner_radius_,
+                   const unsigned int outer_radius_)
+      : A(A_), B(B_), inner_radius(inner_radius_), outer_radius(outer_radius_),
+        axis_id(deduce_axis(A_, B_)) {
+    if (inner_radius_ >= outer_radius_) {
+      throw std::invalid_argument(
+          "CylindricalShell : inner radius must be smaller than the outer one");
+    }
+  }
+
+  bool contains(const types::Coordinate<dim> &point) const {
+    using utils::ops::axis;
+
+    const int s = axis(point, axis_id);
+    const int lo = std::min(axis(A, axis_id), axis(B, axis_id));
+    const int hi = std::max(axis(A, axis_id), axis(B, axis_id));
+    if (s < lo || s > hi)
+      return false;
+
+    // Squared distance from the axis: the endpoints share every coordinate
+    // but axis_id, so A carries the centre of the cross section.
+    long long r2 = 0;
+    for (types::dim_t d = 0; d < dim; ++d) {
+      if (d == axis_id)
+        continue;
+      const long long e = axis(point, d) - axis(A, d);
+      r2 += e * e;
+    }
+
+    const long long rin = inner_radius;
+    const long long rout = outer_radius;
+    return r2 > rin * rin && r2 <= rout * rout;
+  }
+
+  AABB<dim> aabb() const {
+    using utils::ops::axis;
+
+    const int r = static_cast<int>(outer_radius);
+    types::Coordinate<dim> lo = A, hi = A;
+    for (types::dim_t d = 0; d < dim; ++d) {
+      if (d == axis_id) {
+        axis(lo, d) = std::min(axis(A, d), axis(B, d));
+        axis(hi, d) = std::max(axis(A, d), axis(B, d));
+      } else {
+        axis(lo, d) = axis(A, d) - r;
+        axis(hi, d) = axis(A, d) + r;
+      }
+    }
+    return {lo, hi};
   }
 };
 
