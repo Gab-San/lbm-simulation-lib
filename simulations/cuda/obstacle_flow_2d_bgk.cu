@@ -101,21 +101,35 @@ int main() {
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {640, 129}, /*iters*/ 1000000, /*frames*/ 200, /*reyn*/ 5000.0,
+          {640, 129}, /*iters*/ 1000000, /*frames*/ 200, /*reyn*/ 1000.0,
           /*init_vel*/ {0.05, 0}, "out/norms_obstacle_129_100_01_bgk.bin",
           "out/data_obstacle_129_100_01_bgk.bin",
           {
               // Le pareti del canale non sono piu' ostacoli: stanno in
               // make_channel_bc(). Qui resta solo il corpo immerso.
+              // CollisionDetection::CollisionArea(
+              //     Coordinate<2>(
+              //         0,
+              //         0), // posizione base (l'offset per le coord del cerchio)
+              //     {CollisionDetection::Circle<DIM>(
+              //         Coordinate<2>(160,
+              //                       64), // centro relativo alla posizione base
+              //         16)}               // raggio in celle
+              // ),
+
+              // Profilo Airfoil NACA
               CollisionDetection::CollisionArea(
-                  Coordinate<2>(
-                      0,
-                      0), // posizione base (l'offset per le coord del cerchio)
-                  {CollisionDetection::Circle<DIM>(
-                      Coordinate<2>(160,
-                                    64), // centro relativo alla posizione base
-                      16)}               // raggio in celle
-                  ),
+                    Coordinate<2>(0, 0),
+                    {CollisionDetection::Airfoil<DIM>(
+                        Coordinate<2>(100, 64), // leading edge del profilo
+                        100.0,                  // corda in celle
+                        0.12,                   // spessore         0.12 -> NACA XX12
+                        0.02,                   // camber massimo   0.02 -> NACA 2XXX
+                        0.4,                    // posizione camber 0.40 -> NACA X4XX
+                        5.0)}                   // angolo di attacco
+              ),
+              
+    
           },
           // id 0 = il cilindro: parete rigida, ferma.
           {{Solid::BB_RIGID_WALL, {0.0, 0.0}}}, make_channel_bc()),
