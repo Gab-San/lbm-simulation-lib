@@ -9,6 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 option(LBM_ENABLE_CUDA "Enable and build with CUDA Backend" OFF)
+option(LBM_ENABLE_PROFILING "Enable chrono-based profiling instrumentation" OFF)
 
 # ------------ QUILL LOGGING LIBRARY ------------
 include(Quill)
@@ -66,6 +67,10 @@ target_link_libraries(${LBM_SIM_LIB} INTERFACE tomlplusplus::tomlplusplus)
 target_compile_options(${LBM_SIM_LIB} INTERFACE
     $<$<CONFIG:Debug>:-Wsign-compare>
 )
+
+if(LBM_ENABLE_PROFILING)
+  target_compile_definitions(${LBM_SIM_LIB} INTERFACE LBM_PROFILING)
+endif()
 # ------------------------------------------------------
 
 if(MSVC)
@@ -88,4 +93,3 @@ endif()
 # ------------------------------------------------------
 
 add_subdirectory(docs)
-

@@ -10,6 +10,7 @@
 #include "lbm-sim/omp/iteration.hpp"
 #include "lbm-sim/solver/solver-base.hpp"
 #include "lbm/logging.hpp"
+#include "lbm-sim/profiling.hpp"
 
 #include "quill/LogMacros.h"
 
@@ -37,36 +38,54 @@ public:
   ~OpenMPSolver() = default;
 
   void solve(Lattice<dim> &lattice,
-             const CollisionParams<dim, cm_t> &params_) const override {
-    quill::Logger *solver_logger = logging::create_or_get_logger("solver");
+           const CollisionParams<dim, cm_t> &params_) const override {
+  quill::Logger *solver_logger = logging::create_or_get_logger("solver");
 
-    std::vector<double> ffrom(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
-    std::vector<double> fto(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
-    std::vector<float> usq(lattice.grid.getArea());
+  std::vector<double> ffrom(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
+  std::vector<double> fto(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
+  std::vector<float> usq(lattice.grid.getArea());
 
-    const CollisionStrategy<dim, VelocitySet, cm_t> cs(params_);
+  const CollisionStrategy<dim, VelocitySet, cm_t> cs(params_);
 
+  {
+    PROFILE_SCOPE("init_equilibrium");
     init_equilibrium(ffrom, lattice);
+  }
 
-    LOG_DEBUG(solver_logger, "Equilibrium Initialized...");
-
-    LOG_INFO(solver_logger, "System has {} logical processors.",
+  LOG_DEBUG(solver_logger, "Equilibrium Initialized...");
+  LOG_INFO(solver_logger, "System has {} logical processors.",
              omp_get_num_procs());
     LOG_INFO(solver_logger, "The parallel section will run on {} threads.",
              omp_get_max_threads());
+
+  {
+    PROFILE_SCOPE("solve_total");   // tempo wall dell'intero loop
 
     for (std::size_t iter = 0; iter < this->niters; iter++) {
       const bool save = iter % this->nskips == 0;
       const bool store_macroscopic = save || (iter + 1 == this->niters);
 
-      update_stream_collide(ffrom, fto, usq, lattice, cs, store_macroscopic);
+      {
+        PROFILE_SCOPE("stream_collide");
+        update_stream_collide(ffrom, fto, usq, lattice, cs, store_macroscopic);
+      }
       std::swap(ffrom, fto);
 
       if (save) {
+        PROFILE_SCOPE("write_norms");
         write_norms(usq);
       }
     }
   }
+
+#ifdef LBM_PROFILING
+  for (const auto& [label, e] : profiling::registry()) {
+    LOG_NOTICE(solver_logger,
+               "[PROFILE] {}: total={} ms | avg={} ms | calls={}",
+               label, e.total_ms, e.total_ms / e.calls, e.calls);
+  }
+#endif
+}
 
 private:
   inline void init_equilibrium(std::vector<double> &part_stream,

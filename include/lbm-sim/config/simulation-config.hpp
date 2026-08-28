@@ -4,7 +4,7 @@
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/metadata.hpp"
 #include "lbm-sim/types/base.hpp"
-
+#include <array>
 #include <stdexcept>
 #include <string>
 
