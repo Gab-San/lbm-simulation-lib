@@ -55,9 +55,7 @@ std::vector<uint8_t> compute_boundary_mask(
       std::cout << "Obstacle " << obs_idx
                 << " is of type: " << typeid(obstacle).name() << std::endl;
 
-#pragma omp parallel for shared(obst_type_map, perimeter, boundary_mask)       \
-    schedule(static)
-
+      #pragma omp parallel for shared(boundary_mask) schedule(static) collapse(2)
       // check the whole gird with contains() and mark the boundary mask for
       // each obstacle
       for (auto y = 0; y < size.y; ++y) {
@@ -66,27 +64,42 @@ std::vector<uint8_t> compute_boundary_mask(
 
           if (obstacle.contains(p)) {
             boundary_mask[grid.scalar_index(p)] = Solid::BB_INNER;
+          }
+        }
+      }
 
-            // Now we can create the outer shell:
-            for (auto diridx = 0; diridx < D2Q9::ndir; ++diridx) {
-              const types::Coordinate<2> src = p - D2Q9::dir[diridx];
+      #pragma omp parallel for shared(boundary_mask, obst_type_map) schedule(static) collapse(2)
+      for (auto y = 0; y < size.y; ++y) {
+        for (auto x = 0; x < size.x; ++x) {
 
-              // if the point p is inside the shape we mark all its neighbors
-              // which are not marked as inner as boundary nodes
-              if (boundary_mask[grid.scalar_index(src)] != Solid::BB_INNER) {
-                boundary_mask[grid.scalar_index(src)] =
-                    obst_type_map.at(obs_idx);
-              }
+          const types::Coordinate<dim> p(x, y);
+          const auto p_idx = grid.scalar_index(p);
+
+          if (boundary_mask[p_idx] == Solid::BB_INNER) continue;
+
+          // Now we can create the outer shell:
+          for (auto diridx = 0; diridx < D2Q9::ndir; ++diridx) {
+            const types::Coordinate<2> src = p - D2Q9::dir[diridx];
+
+            // Very important: check if the src point is inside the grid, 
+            // otherwise we will have an out-of-bounds access and a crash!!!
+            if (!grid.contains(src)) {
+              continue;
+            }
+
+            // if the point p is inside the shape we mark all its neighbors
+            // which are not marked as inner as boundary nodes
+            if (boundary_mask[grid.scalar_index(src)] == Solid::BB_INNER) {
+              boundary_mask[p_idx] = obst_type_map.at(obs_idx);
+              break; // No need to check other directions, we already marked this point
             }
           }
         }
       }
 
     } else {
-      // Now ovverride / mark the perimeter points with the specific obstacle
-      // type
-#pragma omp parallel for shared(obst_type_map, perimeter, boundary_mask)       \
-    schedule(static)
+      // Now ovverride / mark the perimeter points with the specific obstacle type
+      #pragma omp parallel for shared(obst_type_map, perimeter, boundary_mask) schedule(static)
       for (auto per_idx = 0; per_idx < perimeter.size(); per_idx++) {
         const types::Coordinate<dim> &p = perimeter[per_idx];
         boundary_mask[grid.scalar_index(p)] = obst_type_map.at(obs_idx);

@@ -10,6 +10,7 @@
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
 #include "lbm/logging.hpp"
+#include "lbm-sim/data/async-binary-writer.hpp"
 
 // QUILL LIB
 #include "quill/LogMacros.h"
@@ -122,8 +123,9 @@ int main(int argc, char **argv) {
   // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
   // configurazione, cosi' run diversi nella stessa cartella non si
   // sovrascrivono a vicenda.
-  std::shared_ptr<VtkWriter> writer =
-      std::make_shared<VtkWriter>(cfg.frames_out, cfg.name);
+  std::shared_ptr<AsyncBinaryWriter> writer =
+      std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
+      //std::make_shared<VtkWriter>(cfg.frames_out, cfg.name);
 
   LBMSimulation<DIM, D2Q9, COLLISION> simulation(
       grid_size, boundary_mask,

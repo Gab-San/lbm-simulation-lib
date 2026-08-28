@@ -131,7 +131,9 @@ int main(int argc, char **argv) {
   // Poiseuille per il canale, non e' un parametro libero.
   const double pout = 1;
   const double pin =
-      pout + (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
+      pout + 
+      numbers::invcs_2 *
+      (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
                  8 * params.nu * params.init_vel.dx;
 
   LBMSimulation<DIM, D2Q9, COLLISION> simulation(grid_size, boundary_mask,

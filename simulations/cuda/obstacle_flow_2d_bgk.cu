@@ -8,7 +8,7 @@
 #include "lbm-sim/boundaries.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 
-#include "lbm-sim/solver/openmp-solver.hpp"
+#include "lbm-sim/solver/cuda-solver.cuh"
 
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/functions.hpp"
@@ -83,7 +83,7 @@ int main() {
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {640, 129}, /*iters*/ 1000000, /*frames*/ 200, /*reyn*/ 5000.0,
+          {640, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
           /*init_vel*/ {0.05, 0}, "out/norms_obstacle_129_100_01_bgk.bin",
           "out/data_obstacle_129_100_01_bgk.bin",
           {
@@ -103,8 +103,8 @@ int main() {
                       0,
                       0), // posizione base (l'offset per le coord del cerchio)
                   {CollisionDetection::Circle<DIM>(
-                      Coordinate<2>(160, 64), // centro relativo alla posizione base
-                      16)}                    // raggio in celle
+                      Coordinate<2>(160,64), // centro relativo alla posizione base
+                      16)}                  // raggio in celle
                   ),
           },
           {{0, Solid::BB_RIGID_WALL}, // fixed top and bottom wall
@@ -136,7 +136,7 @@ int main() {
 
     simulation.attachListener(writer);
 
-    OpenMPSolver<DIM, D2Q9, CollisionType> solver(iters, frames);
+    CUDASolver<DIM, D2Q9, CollisionType> solver(iters, frames);
     solver.attachListener(writer);
 
     simulation.solve(solver);

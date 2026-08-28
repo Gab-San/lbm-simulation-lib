@@ -64,10 +64,15 @@ build_boundary_mask(const lbm::types::DimPoint<3> &size) {
   lbm::types::boundary_mask_t mask(size.x * size.y * size.z, lbm::Solid::NONE);
   const lbm::Grid<3> grid(size);
 
+  const int size_x = static_cast<int>(size.x);
+  const int size_y = static_cast<int>(size.y);
+  const int size_z = static_cast<int>(size.z);
+  
 #pragma omp parallel for collapse(3) schedule(static)
-  for (std::size_t z = 0; z < size.z; ++z) {
-    for (std::size_t y = 0; y < size.y; ++y) {
-      for (std::size_t x = 0; x < size.x; ++x) {
+  for (int z = 0; z < size_z; ++z) {
+    for (int y = 0; y < size_y; ++y) {
+      for (int x = 0; x < size_x; ++x) {
+
         const bool on_boundary =
             (x == 0 || x == size.x - 1 || y == 0 || y == size.y - 1 ||
              z == 0 || z == size.z - 1);

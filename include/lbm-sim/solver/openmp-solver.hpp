@@ -77,7 +77,7 @@ private:
     using utils::ops::dot;
 
 #pragma omp parallel for shared(lattice, part_stream) schedule(runtime)
-    for (std::size_t cell = 0; cell < area; cell++) {
+    for (int cell = 0; cell < area; cell++) {
 
       const types::Coordinate<dim> p = iteration::unflatten<dim>(cell, ext);
 
@@ -108,7 +108,7 @@ private:
 
 #pragma omp parallel for shared(ffrom, fto, cs, lattice, store_macroscopic)    \
     schedule(static)
-    for (std::size_t cell = 0; cell < area; ++cell) {
+    for (int cell = 0; cell < area; ++cell) {
       std::array<double, VelocitySet::ndir> fp;
       const types::Coordinate<dim> p = iteration::unflatten<dim>(cell, ext);
 

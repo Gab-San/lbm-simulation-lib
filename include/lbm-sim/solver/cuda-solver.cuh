@@ -11,6 +11,7 @@
 #include "lbm-sim/cuda/structs.cuh"
 #include "lbm-sim/cuda/utils.cuh"
 #include "lbm-sim/solver/solver-base.hpp"
+#include "lbm-sim/core/velocity-sets.hpp"
 
 // CUDA LIB
 #include <cuda_runtime.h>
