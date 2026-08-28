@@ -14,13 +14,14 @@
 namespace lbm {
 namespace CollisionDetection {
 
-/// Airfoil is 2D-only (it static_asserts on dim), so it is not an alternative
-/// in 3D: std::visit instantiates *every* alternative, and CollisionArea<3>
-/// is visited by Solid::compute_solid_mask<3>().
+/// Airfoil is 2D-only and CylindricalShell is 3D-only (both static_assert on
+/// dim), so neither is an alternative on the other side: std::visit
+/// instantiates *every* alternative, and CollisionArea<dim> is visited by
+/// Solid::compute_solid_mask<dim>().
 template <unsigned short int dim>
 using CollisionShapesT = std::conditional_t<
     dim == 2, std::variant<Segment<2>, Circle<2>, Parallelogram<2>, Airfoil<2>>,
-    std::variant<Segment<3>, Circle<3>, Parallelogram<3>>>;
+    std::variant<Segment<3>, Circle<3>, Parallelogram<3>, CylindricalShell<3>>>;
 
 template <unsigned short int dim> class CollisionArea {
 
