@@ -8,10 +8,10 @@
 #include "lbm-sim/collision-operators/metadata.hpp"
 #include "lbm-sim/constants.hpp"
 #include "lbm-sim/core/vector.hpp"
+#include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/cuda/structs.cuh"
 #include "lbm-sim/cuda/utils.cuh"
 #include "lbm-sim/solver/solver-base.hpp"
-#include "lbm-sim/core/velocity-sets.hpp"
 
 // CUDA LIB
 #include <cuda_runtime.h>
@@ -127,44 +127,45 @@ __global__ void update_stream_collide(
   }
 }
 
-/// Pair of CUDA events with a destructor, so that an exception thrown between
-/// the two records -- `LBM_CUDA_CHECK` throws -- does not leak them.
-class EventPair {
-public:
-  EventPair() : start(nullptr), stop(nullptr) {
-    LBM_CUDA_CHECK(cudaEventCreate(&start));
-    LBM_CUDA_CHECK(cudaEventCreate(&stop));
-  }
-
-  ~EventPair() {
-    if (stop)
-      cudaEventDestroy(stop);
-    if (start)
-      cudaEventDestroy(start);
-  }
-
-  EventPair(const EventPair &) = delete;
-  EventPair &operator=(const EventPair &) = delete;
-
-  void record_start(cudaStream_t stream) const {
-    LBM_CUDA_CHECK(cudaEventRecord(start, stream));
-  }
-
-  void record_stop(cudaStream_t stream) const {
-    LBM_CUDA_CHECK(cudaEventRecord(stop, stream));
-  }
-
-  /// Milliseconds between the two records. Blocks until `stop` is reached.
-  float elapsed_ms() const {
-    LBM_CUDA_CHECK(cudaEventSynchronize(stop));
-    float ms = 0.0f;
-    LBM_CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
-    return ms;
-  }
-
-private:
-  cudaEvent_t start, stop;
-};
+// /// Pair of CUDA events with a destructor, so that an exception thrown
+// between
+// /// the two records -- `LBM_CUDA_CHECK` throws -- does not leak them.
+// class EventPair {
+// public:
+//   EventPair() : start(nullptr), stop(nullptr) {
+//     LBM_CUDA_CHECK(cudaEventCreate(&start));
+//     LBM_CUDA_CHECK(cudaEventCreate(&stop));
+//   }
+//
+//   ~EventPair() {
+//     if (stop)
+//       cudaEventDestroy(stop);
+//     if (start)
+//       cudaEventDestroy(start);
+//   }
+//
+//   EventPair(const EventPair &) = delete;
+//   EventPair &operator=(const EventPair &) = delete;
+//
+//   void record_start(cudaStream_t stream) const {
+//     LBM_CUDA_CHECK(cudaEventRecord(start, stream));
+//   }
+//
+//   void record_stop(cudaStream_t stream) const {
+//     LBM_CUDA_CHECK(cudaEventRecord(stop, stream));
+//   }
+//
+//   /// Milliseconds between the two records. Blocks until `stop` is reached.
+//   float elapsed_ms() const {
+//     LBM_CUDA_CHECK(cudaEventSynchronize(stop));
+//     float ms = 0.0f;
+//     LBM_CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
+//     return ms;
+//   }
+//
+// private:
+//   cudaEvent_t start, stop;
+// };
 
 } // namespace cuda_detail
 
@@ -228,8 +229,8 @@ public:
     // warm-up -- it also pays for the lazy module load of the first launch --
     // and would flatter or spoil the number depending on how many iterations
     // it is amortized over.
-    const cuda_detail::EventPair timer;
-    timer.record_start(stream);
+    // const cuda_detail::EventPair timer;
+    // timer.record_start(stream);
 
     for (auto iter = 0; iter < this->niters; iter++) {
       // Benchmark mode keeps the host sync, the download and the frame write
@@ -255,25 +256,25 @@ public:
       }
     }
 
-    timer.record_stop(stream);
+    // timer.record_stop(stream);
 
     // MLUPS = million lattice updates per second: every cell is updated once
     // per iteration, so the update count is area * niters.
-    const float elapsed_ms = timer.elapsed_ms();
-    const double mlups =
-        static_cast<double>(area) * this->niters / (elapsed_ms * 1.0e3);
-
-    if (benchmarking) {
-      LOG_NOTICE(solver_logger, "{} cells x {} iters in {} ms -> {} MLUPS",
-                 area, this->niters, elapsed_ms, mlups);
-    } else {
-      // Frames were written from inside the loop, so this figure covers the
-      // host syncs and the I/O too. Use benchmark mode for a throughput
-      // number worth quoting.
-      LOG_INFO(solver_logger,
-               "{} cells x {} iters in {} ms -> {} MLUPS (frame I/O included)",
-               area, this->niters, elapsed_ms, mlups);
-    }
+    // const float elapsed_ms = timer.elapsed_ms();
+    // const double mlups =
+    //     static_cast<double>(area) * this->niters / (elapsed_ms * 1.0e3);
+    //
+    // if (benchmarking) {
+    //   LOG_NOTICE(solver_logger, "{} cells x {} iters in {} ms -> {} MLUPS",
+    //              area, this->niters, elapsed_ms, mlups);
+    // } else {
+    //   // Frames were written from inside the loop, so this figure covers the
+    //   // host syncs and the I/O too. Use benchmark mode for a throughput
+    //   // number worth quoting.
+    //   LOG_INFO(solver_logger,
+    //            "{} cells x {} iters in {} ms -> {} MLUPS (frame I/O
+    //            included)", area, this->niters, elapsed_ms, mlups);
+    // }
 
     // The final iteration always stores rho/u even when it is not a frame.
     download_macroscopic(d_rho, d_u, lattice, stream);
