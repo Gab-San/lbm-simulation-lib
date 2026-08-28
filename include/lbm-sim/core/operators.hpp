@@ -11,8 +11,7 @@
 // C++ STANDARD LIB
 #include <type_traits>
 
-namespace lbm {
-namespace utils {
+namespace lbm::utils {
 
 template <typename T, typename K, types::dim_t dim>
 LBM_HD_FUNC inline Point<std::common_type_t<T, K>, dim>
@@ -102,9 +101,26 @@ static_assert(
                    double>,
     "dot(Vector<int,2>, Vector<double,2>) must return double, not int");
 
+template <typename T, types::dim_t dim>
+LBM_HD_FUNC inline T &axis(Point<T, dim> &p, const types::dim_t a) {
+  if constexpr (dim == 2) {
+    return a == 0 ? p.x : p.y;
+  } else {
+    return a == 0 ? p.x : (a == 1 ? p.y : p.z);
+  }
+}
+
+template <typename T, types::dim_t dim>
+LBM_HD_FUNC inline const T &axis(const Point<T, dim> &p, const types::dim_t a) {
+  if constexpr (dim == 2) {
+    return a == 0 ? p.x : p.y;
+  } else {
+    return a == 0 ? p.x : (a == 1 ? p.y : p.z);
+  }
+}
+
 } // namespace ops
 
-} // namespace utils
-} // namespace lbm
+} // namespace lbm::utils
 
 #endif // __CORE_OPEATORS_HPP

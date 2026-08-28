@@ -14,8 +14,6 @@
 /// "lbm-sim/backend/fwd.hpp" instead and stay free of <omp.h> and the CUDA
 /// runtime.
 
-#include "lbm-sim/backend/fwd.hpp"
-
 #if defined(_OPENMP)
 #include "lbm-sim/backend/omp/properties.hpp"
 #endif

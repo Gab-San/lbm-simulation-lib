@@ -1,8 +1,5 @@
 #pragma once
 
-// FIXME: REWIRE
-#include "lbm-sim/backend.hpp"
-
 #include "lbm-sim/metadata.hpp"
 
 namespace lbm::profiling {

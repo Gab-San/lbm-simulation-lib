@@ -1,6 +1,6 @@
-#ifndef __LBM_SIM_CORE_VELOCITY_SETS_HPP
-#define __LBM_SIM_CORE_VELOCITY_SETS_HPP
+#pragma once
 
+#include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/types/common.hpp"
 
 #ifdef __CUDACC__
@@ -16,6 +16,7 @@ namespace lbm {
 
 struct D2Q9 {
 
+  /// Number of dimensions
   static inline constexpr types::dim_t dim = 2;
 
   /// Number of directions
@@ -224,5 +225,3 @@ inline void upload_lattice_constants() {
 #endif
 
 } // namespace lbm
-
-#endif // __LBM_SIM_CORE_VELOCITY_SETS_HPP

@@ -1,5 +1,4 @@
-#ifndef __LBM_SIM_CORE_GRID_HPP
-#define __LBM_SIM_CORE_GRID_HPP
+#pragma once
 
 #include "lbm-sim/types/common.hpp"
 
@@ -50,15 +49,13 @@ template <types::dim_t dim> struct Grid {
   }
 
   LBM_HD_FUNC inline bool contains(const types::Coordinate<dim> &p) const {
-    const bool isIn = p.x >= 0 && p.x < size.x && p.y >= 0 && p.y < size.y;
-    if constexpr (dim == 2) {
+    const bool isIn = p.x >= 0 && p.x < static_cast<int>(size.x) && p.y >= 0 &&
+                      p.y < static_cast<int>(size.y);
+    if constexpr (dim == 2)
       return isIn;
-    } else {
-      return isIn && p.z >= 0 && p.z < size.z;
-    }
+    else
+      return isIn && p.z >= 0 && p.z < static_cast<int>(size.z);
   }
 };
 
 } // namespace lbm
-
-#endif // __LBM_SIM_CORE_GRID_HPP

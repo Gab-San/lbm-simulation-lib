@@ -5,8 +5,8 @@
 
 #include "lbm-sim/core/grid.hpp"
 
-#include "lbm-sim/backend.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
+#include "lbm-sim/metadata.hpp"
 
 #include "lbm-sim/solver/solver-base.hpp"
 
@@ -40,11 +40,16 @@ private:
 
 public:
   LBMSimulation(const types::DimPoint<dim> grid_dim_,
-                types::boundary_mask_t boundary_mask_,
+                types::solid_mask_t solid_mask_,
+                std::vector<Solid::ObstacleData<dim>> obstacles_,
+                Solid::DomainBC<dim> domain_bc_,
                 const CollisionParams<dim, cm_t> params_, const double pin = 0,
                 const double pout = 0)
-      : lattice(grid_dim_, std::move(boundary_mask_), pin, pout),
-        params(params_) {};
+      : lattice(grid_dim_, std::move(solid_mask_), std::move(obstacles_),
+                domain_bc_, pin, pout),
+        params(params_) {
+    Solid::assert_consistent_domain_bc<dim>(domain_bc_);
+  };
 
   template <enum ExecutionBackend backend_t>
   void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver) {
