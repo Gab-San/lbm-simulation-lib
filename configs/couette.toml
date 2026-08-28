@@ -1,0 +1,43 @@
+# Verifica: ensure_compatible deve rifiutare backend = "cuda" quando il
+# binario e' compilato con BACKEND = ExecutionBackend::OPEN_MP.
+# Il parsing sintattico va a buon fine (backend e' un valore valido per
+# parse_execution_backend); l'errore atteso arriva dal confronto in
+# ensure_compatible, con messaggio che include execution_backend_to_string.
+
+[[conf]]
+collision = "BGK"
+backend   = "openmp"
+
+[conf.lattice]
+size = [129, 129]
+
+[conf.physics]
+reynolds = 100.0
+size     = [0.1, 0.0]
+
+[conf.solver]
+niters  = 100000
+nframes = 200
+
+[conf.output]
+frames  = "output/should_not_run.vtk"
+profile = "output/should_not_run.dat"
+
+[[conf]]
+collision = "BGK"
+backend   = "openmp"
+
+[conf.lattice]
+size = [129, 129]
+
+[conf.physics]
+reynolds = 100.0
+size     = [0.1, 0.0]
+
+[conf.solver]
+niters  = 100000
+nframes = 200
+
+[conf.output]
+frames  = "output/should_not_run.vtk"
+profile = "output/should_not_run.dat"

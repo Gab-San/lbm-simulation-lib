@@ -22,18 +22,12 @@ namespace lbm {
 class VtkWriter : public IDataListener {
 public:
   VtkWriter(const std::string &output_dir, const std::string &basename)
-      : output_dir_(output_dir), basename_(basename), have_dims_(false),
-        nx_(0), ny_(0), nz_(1), frame_count_(0), stop_(false) {
+      : output_dir_(output_dir), basename_(basename), have_dims_(false), nx_(0),
+        ny_(0), nz_(1), frame_count_(0), stop_(false) {
     std::filesystem::create_directories(output_dir_);
     worker_ = std::thread(&VtkWriter::run, this);
   }
 
-  /// Variante comoda per i main che hanno gia' un singolo path in stile
-  /// AsyncBinaryWriter (es. "out/norms_lid_cavity.bin"): i frame finiscono
-  /// in "out/norms_lid_cavity_vtk/" con basename "norms_lid_cavity", e
-  /// l'estensione originale viene ignorata. Cosi' passare da
-  /// AsyncBinaryWriter a VtkWriter e' una sostituzione di nome, senza
-  /// toccare i path nelle configurazioni.
   explicit VtkWriter(const std::string &path)
       : VtkWriter(dir_from_path(path), basename_from_path(path)) {}
 
@@ -137,8 +131,7 @@ private:
 
     std::ofstream out(frame_path);
     if (!out.is_open()) {
-      std::cerr << "[VtkWriter] impossibile aprire " << frame_path
-                << std::endl;
+      std::cerr << "[VtkWriter] impossibile aprire " << frame_path << std::endl;
       return;
     }
 

@@ -1,0 +1,21 @@
+# La presenza di [grid].nz e' cio' che rende questa configurazione 3D:
+# passandola a un binario 2D viene rifiutata con un errore esplicito.
+
+[grid]
+nx = 32
+ny = 32
+nz = 32
+# dim = 3   # opzionale: non decide nulla, serve solo a far ricontrollare
+            # al parser la dimensione dedotta da nz
+
+[physics]
+collision = "BGK"
+reynolds = 100.0
+# init_vel_x e' la velocita' del lid, diretta lungo x sulla faccia z = nz-1
+init_vel_x = 0.1
+init_vel_y = 0.0
+init_vel_z = 0.0
+
+[solver]
+niters = 20000
+nframes = 200

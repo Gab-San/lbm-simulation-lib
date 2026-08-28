@@ -1,3 +1,8 @@
+// Variante di lid_cavity_d2q9_bgk che gira il solve dentro uno
+// scopedApply() di BackendProperties: serve a misurare l'effetto di un
+// numero di thread imposto senza toccare il resto della pipeline.
+
+#include "lbm-sim/backend/properties.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
 #include "lbm-sim/config/config-parser.hpp"
@@ -32,6 +37,10 @@ static constexpr lbm::CollisionModel COLLISION = lbm::CollisionModel::BGK;
 
 constexpr auto BACKEND = lbm::ExecutionBackend::OPEN_MP;
 
+/// Numero di thread imposto per la durata del solve: e' il parametro sotto
+/// test di questo binario.
+static constexpr int NUM_THREADS = 6;
+
 int main(int argc, char **argv) {
   using namespace lbm;
   using types::Coordinate;
@@ -39,7 +48,7 @@ int main(int argc, char **argv) {
 
   config::SimulationConfig<DIM> cfg;
 
-  cfg.name = "lid_cavity_d2q9_bgk";
+  cfg.name = "properties_test";
 
   cfg.backend = lbm::ExecutionBackend::OPEN_MP;
   cfg.collision = lbm::CollisionModel::BGK;
@@ -53,8 +62,8 @@ int main(int argc, char **argv) {
   cfg.niters = 100000;
   cfg.nframes = 200;
 
-  cfg.frames_out = "output/lid_cavity_bgk_frames";
-  cfg.profile_out = "output/lid_cavity_bgk_profile.dat";
+  cfg.frames_out = "output/properties_test_frames";
+  cfg.profile_out = "output/properties_test_profile.dat";
 
   // --- 2. ISTANZIA LOGGER ------------------------------------------------
   logging::setup_quill();
@@ -69,6 +78,9 @@ int main(int argc, char **argv) {
            "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
            cfg.name, grid_size, cfg.reynolds, init_vel, cfg.niters, cfg.nframes,
            cfg.frames_out, cfg.profile_out);
+
+  auto &prop = profiling::BackendProperties<OPEN_MP>::get();
+  prop.setNumThreads(NUM_THREADS);
 
   // --- 3. CREA OSTACOLI --------------------------------------------------
   // Per la lid cavity gli "ostacoli" sono i quattro lati del dominio: tre
@@ -110,7 +122,13 @@ int main(int argc, char **argv) {
   OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
   solver.attachListener(writer);
 
-  simulation.solve(solver);
+  {
+    // Le proprieta' valgono solo per la durata del solve: alla chiusura
+    // dello scope il runtime OpenMP torna com'era, cosi' una run non
+    // condiziona quella dopo.
+    const auto scope = prop.scopedApply();
+    simulation.solve(solver);
+  }
 
   // --- 6. OUTPUT ---------------------------------------------------------
   simulation.output(cfg.profile_out.c_str(),

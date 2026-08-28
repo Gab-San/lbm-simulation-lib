@@ -52,7 +52,7 @@ public:
 
     LOG_INFO(solver_logger, "System has {} logical processors.",
              omp_get_num_procs());
-    LOG_INFO(solver_logger, "System can work with up to {} threads.",
+    LOG_INFO(solver_logger, "The parallel section will run on {} threads.",
              omp_get_max_threads());
 
     for (auto iter = 0; iter < this->niters; iter++) {
@@ -76,7 +76,7 @@ private:
 
     using utils::ops::dot;
 
-#pragma omp parallel for shared(lattice, part_stream) schedule(static)
+#pragma omp parallel for shared(lattice, part_stream) schedule(runtime)
     for (std::size_t cell = 0; cell < area; cell++) {
 
       const types::Coordinate<dim> p = iteration::unflatten<dim>(cell, ext);
