@@ -3,6 +3,7 @@
 #include "lbm-sim/boundaries.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
@@ -14,135 +15,100 @@
 #include "quill/LogMacros.h"
 
 // C++ STD LIB
+#include <iostream>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 static constexpr lbm::types::dim_t DIM = 2;
 
-template <lbm::types::dim_t dim> struct Config;
-template <> struct Config<2> {
+static constexpr lbm::CollisionModel COLLISION = lbm::CollisionModel::BGK;
+static constexpr lbm::ExecutionBackend BACKEND = lbm::ExecutionBackend::OPEN_MP;
 
-  const lbm::types::DimPoint<2> grid_size;
-
-  /// Number of iteration steps
-  const unsigned int iters;
-
-  /// Number of frames
-  ///
-  /// Frames contain the information about
-  /// the norm of the velocity at a step t.
-  const unsigned int frames;
-
-  /// Reynold number
-  const double reyn_num;
-
-  /// Initial velocity of the fluid
-  const lbm::utils::Vector<double, 2> init_vel;
-
-  /// Output path for frames
-  const std::string out_frames;
-
-  /// Output path for benchmark data
-  const std::string out_data;
-
-  const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
-
-  const std::unordered_map<unsigned int, uint8_t> obst_type_map;
-
-  Config<2>(
-      const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
-      const unsigned int c_frames, const double c_reyn_num,
-      const lbm::utils::Vector<double, 2> init_vel_,
-      const std::string c_out_frames, const std::string c_out_data,
-      const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles_,
-      const std::unordered_map<unsigned int, uint8_t> obst_type_map_)
-      : grid_size(grid_size_), iters(c_iters), frames(c_frames),
-        reyn_num(c_reyn_num), init_vel(init_vel_), out_frames(c_out_frames),
-        out_data(c_out_data), obstacles(std::move(obstacles_)),
-        obst_type_map(std::move(obst_type_map_)) {}
-};
-
-int main() {
+int main(int argc, char **argv) {
   using namespace lbm;
   using types::Coordinate;
   using types::DimPoint;
   using utils::Vector;
 
-  const Coordinate<2> ZERO(0, 0);
-  const Coordinate<2> B129(0, 128);
-  const Coordinate<2> C129(128, 128);
-  const Coordinate<2> D129(128, 0);
+  // --- 1. LEGGI CONFIGURAZIONI --------------------------------------------
+  if (argc < 2) {
+    config::print_usage(argv[0]);
+    return 1;
+  }
 
-  std::vector<Config<2>> configs{
-      Config<2>(
-          {129, 129}, /*iters*/ 100000, /*frames*/ 300, /*reyn*/ 100.0,
-          /*init_vel*/ {0.1, 0}, "out/norms_couette_openmp_129_100_01_bgk.bin",
-          "out/data_couette_openmp_129_100_01_bgk.bin",
-          {
-              CollisionDetection::CollisionArea(
-                  ZERO,
-                  {CollisionDetection::Segment(ZERO, D129)}), // bottom (y=0)
-              CollisionDetection::CollisionArea(
-                  ZERO,
-                  {CollisionDetection::Segment(B129, C129)}), // top (y=128)
-              CollisionDetection::CollisionArea(
-                  ZERO,
-                  {CollisionDetection::Segment(ZERO + Vector<int, DIM>(0, 1),
-                                               B129 - Vector<int, DIM>(0, 1)),
-                   CollisionDetection::Segment(C129 - Vector<int, DIM>(0, 1),
-                                               D129 + Vector<int, DIM>(0, 1))}),
-          },
-          {{0, Solid::BB_RIGID_WALL},
-           {1, Solid::BB_MOVING_WALL},
-           {2, Solid::PERIODIC}}),
-  };
+  std::vector<config::SimulationConfig<DIM>> configs;
+  try {
+    configs = config::parse_config<DIM>(argv[1]);
+    for (auto &cfg : configs)
+      config::ensure_compatible(cfg, COLLISION, BACKEND);
+  } catch (const config::ConfigError &err) {
+    std::cerr << "Errore di configurazione: " << err.what() << "\n";
+    return 1;
+  }
 
+  // --- 2. ISTANZIA LOGGER --------------------------------------------------
   logging::setup_quill();
   quill::Logger *main_logger = logging::create_or_get_logger("main");
 
-  constexpr auto CollisionType = CollisionModel::BGK;
-  using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
+  // --- 3. ESEGUI UNA SIMULAZIONE PER OGNI CONFIG ---------------------------
+  for (const auto &cfg : configs) {
+    const DimPoint<DIM> grid_size(cfg.grid_size);
 
-  LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
+    LOG_INFO(main_logger,
+             "Simulation:\n\tGrid dimensions: {}\n\tReynolds number: "
+             "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
+             "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
+             grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
+             cfg.frames_out, cfg.profile_out);
 
-  for (auto confidx = 0; confidx < configs.size(); confidx++) {
-    const auto conf = configs[confidx];
-    const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
-                 obstacles, obst_type_map] = conf;
+    const int x_max = static_cast<int>(grid_size.x) - 1;
+    const int y_max = static_cast<int>(grid_size.y) - 1;
 
-    LOG_INFO(
-        main_logger,
-        "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
-        "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
-        "frames: {}\n",
-        confidx, grid_size, reyn, init_vel, iters, frames);
+    const Coordinate<2> A(0, 0);
+    const Coordinate<2> B(0, y_max);
+    const Coordinate<2> C(x_max, y_max);
+    const Coordinate<2> D(x_max, 0);
+
+    const std::vector<CollisionDetection::CollisionArea<DIM>> obstacles{
+        CollisionDetection::CollisionArea(A,
+                                          {CollisionDetection::Segment(A, D)}),
+        CollisionDetection::CollisionArea(A,
+                                          {CollisionDetection::Segment(B, C)}),
+        CollisionDetection::CollisionArea(
+            A, {CollisionDetection::Segment(A + Vector<int, DIM>(0, 1),
+                                            B - Vector<int, DIM>(0, 1)),
+                CollisionDetection::Segment(C - Vector<int, DIM>(0, 1),
+                                            D + Vector<int, DIM>(0, 1))}),
+    };
+
+    const std::unordered_map<unsigned int, uint8_t> obst_type_map{
+        {0, Solid::BB_RIGID_WALL},
+        {1, Solid::BB_MOVING_WALL},
+        {2, Solid::PERIODIC}};
 
     types::boundary_mask_t boundary_mask =
         Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
 
     std::shared_ptr<VtkWriter> writer =
-        std::make_shared<VtkWriter>(conf.out_frames);
+        std::make_shared<VtkWriter>(cfg.frames_out);
 
-    Simulation simulation(
+    LBMSimulation<DIM, D2Q9, COLLISION> simulation(
         grid_size, boundary_mask,
-        CollisionParams<DIM, CollisionType>(reyn, grid_size, init_vel));
-
+        CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, cfg.u0));
     simulation.attachListener(writer);
 
-    OpenMPSolver<DIM, D2Q9, CollisionType> solver(iters, frames);
+    OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
     solver.attachListener(writer);
 
     simulation.solve(solver);
-    simulation.output(out_data.c_str(),
+
+    simulation.output(cfg.profile_out.c_str(),
                       functional::extract_dx_profile_along_y_center);
 
-    // H = altezza canale (parete inferiore a y=0, superiore a y=grid_size.y-1);
-    // Umax = velocita' di riferimento (parete mobile per Couette).
-    // Stessi valori gia' usati per costruire la simulazione: nessuna
-    // duplicazione, flow_type sceglie la Function<2> corretta.
     const double H = static_cast<double>(grid_size.y - 1);
-    const auto exact_solution = analysis::CouetteSolution2D(H, init_vel.dx);
+    const auto exact_solution = analysis::CouetteSolution2D(H, cfg.u0.dx);
     const double err_l2 =
         simulation.compute_error(analysis::NormType::L2, exact_solution);
 

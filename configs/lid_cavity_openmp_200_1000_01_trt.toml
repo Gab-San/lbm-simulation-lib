@@ -1,0 +1,14 @@
+
+[grid]
+nx = 200
+ny = 200
+
+[physics]
+reynolds = 1000.0
+init_vel_x = 0.1
+init_vel_y = 0.0
+init_vel_z = 0.0
+
+[solver]
+niters = 30000
+nframes = 100

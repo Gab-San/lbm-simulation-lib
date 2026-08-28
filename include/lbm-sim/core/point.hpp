@@ -25,6 +25,10 @@ template <typename T> struct Point<T, 2> {
   template <typename U>
   LBM_HD_FUNC explicit Point(const Point<U, 2> &other)
       : x(static_cast<T>(other.x)), y(static_cast<T>(other.y)) {}
+
+  template <typename Container>
+  constexpr Point(Container c) : Point(c[0], c[1]) {}
+
   ~Point() = default;
 };
 
@@ -38,6 +42,9 @@ template <typename T> struct Point<T, 3> {
   LBM_HD_FUNC explicit Point(const Point<U, 3> &other)
       : x(static_cast<T>(other.x)), y(static_cast<T>(other.y)),
         z(static_cast<T>(other.z)) {}
+
+  template <typename Container>
+  constexpr Point(Container c) : Point(c[0], c[1], c[2]) {}
 
   ~Point() = default;
 };

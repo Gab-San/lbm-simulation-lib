@@ -1,5 +1,6 @@
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
@@ -12,192 +13,132 @@
 #include "quill/LogMacros.h"
 
 // C++ STD LIB
+#include <iostream>
 #include <memory>
+#include <string>
 #include <unordered_map>
+#include <vector>
+
+// Path ai benchmark di Ghia, iniettato da CMake (vedi
+// simulations/CMakeLists.txt) per non dipendere dalla working directory.
+// Il fallback vale solo se si compila fuori da CMake.
+#ifndef LBM_BENCHMARKS_DIR
+#define LBM_BENCHMARKS_DIR "benchmarks"
+#endif
 
 static constexpr lbm::types::dim_t DIM = 2;
 
-template <lbm::types::dim_t dim> struct Config;
+static constexpr lbm::CollisionModel COLLISION = lbm::CollisionModel::TRT;
 
-/**
- * \brief This struct represents a configuration.
- * A configuration is an instance of a simulation.
- *
- * The parameters of a lid cavity simulation are:
- * - grid_size (num_cells_x, num_cells_y)
- * - reyn_num: reynold number
- * - u_lid: initial velocity of the lid
- * - coll_op: collision operator
- * - num_steps: number of iteration steps
- * - num_frames: number of frames to save
- *
- *
- * Frames contain the information about
- * the norm of the velocity at a step t.
- *
- *
- * Jobs are divided from one another by
- * whitelines.
- * There is no special string of characters to divide jobs,
- * but all of the parameters of a job must be configured.
- *
- * \note TRT operator is not supported
- *
- */
-template <> struct Config<2> {
+constexpr auto BACKEND = lbm::ExecutionBackend::OPEN_MP;
 
-  const lbm::types::DimPoint<2> grid_size;
-
-  /// Number of iteration steps
-  const unsigned int iters;
-
-  /// Number of frames
-  ///
-  /// Frames contain the information about
-  /// the norm of the velocity at a step t.
-  const unsigned int frames;
-
-  /// Reynold number
-  const double reyn_num;
-
-  /// Initial velocity of the fluid
-  const lbm::utils::Vector<double, 2> init_vel;
-
-  /// Output path for frames
-  const std::string out_frames;
-
-  /// Output path for benchmark data
-  const std::string out_data;
-
-  const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
-
-  const std::unordered_map<unsigned int, uint8_t> obst_type_map;
-
-  Config<2>(
-      const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
-      const unsigned int c_frames, const double c_reyn_num,
-      const lbm::utils::Vector<double, 2> init_vel_,
-      const std::string c_out_frames, const std::string c_out_data,
-      const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles_,
-      const std::unordered_map<unsigned int, uint8_t> obst_type_map_)
-      : grid_size(grid_size_), iters(c_iters), frames(c_frames),
-        reyn_num(c_reyn_num), init_vel(init_vel_), out_frames(c_out_frames),
-        out_data(c_out_data), obstacles(std::move(obstacles_)),
-        obst_type_map(std::move(obst_type_map_)) {}
-};
-
-int main() {
+int main(int argc, char **argv) {
   using namespace lbm;
   using types::Coordinate;
   using types::DimPoint;
 
-  const Coordinate<2> A(0, 0);
-  const Coordinate<2> B(0, 128);
-  const Coordinate<2> C(128, 128);
-  const Coordinate<2> D(128, 0);
+  config::SimulationConfig<DIM> cfg;
 
-  const Coordinate<2> A2(0, 0);
-  const Coordinate<2> B2(0, 199);
-  const Coordinate<2> C2(199, 199);
-  const Coordinate<2> D2(199, 0);
+  cfg.name = "lid_cavity_d2q9_trt";
 
-  const Coordinate<2> B_ = B2 - Coordinate<2>(0, 1);
-  const Coordinate<2> C_ = C2 - Coordinate<2>(0, 1);
+  cfg.backend = lbm::ExecutionBackend::OPEN_MP;
+  cfg.collision = lbm::CollisionModel::TRT;
 
-  // Ogni ostacolo viene associato a un tipo di parete tramite la mappa `strt`.
-  // Qui, l'ostacolo 0 diventa una parete rigida ferma e l'ostacolo 1 diventa
-  // il lato mobile della cavità (moving lid).
-  // Per cambiare il tipo di parete, modifica solo questa mappa.
-  // Esempio: due pareti rigide = {{0, Solid::BB_RIGID_WALL}, {1,
-  // Solid::BB_RIGID_WALL}} Esempio con terzo tipo fisso-rho = {{0,
-  // Solid::BB_RIGID_WALL},
-  //                                   {1, Solid::BB_MOVING_WALL},
-  //                                   {2, Solid::BB_FIXED_RHO_WALL}}
-  std::vector<Config<DIM>> configs{
-      Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
-                  /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_lid_cavity_openmp_d2q9_129_100_01_trt.bin",
-                  "out/data_lid_cavity_openmp_d2q9_129_100_01_trt.bin",
-                  {CollisionDetection::CollisionArea(
-                       A2, {CollisionDetection::Segment(A, B),
-                            CollisionDetection::Segment(A, D),
-                            CollisionDetection::Segment(D, C)}),
-                   CollisionDetection::CollisionArea(
-                       A2, {CollisionDetection::Segment(B, C)})},
-                  {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
+  cfg.grid_size = {129, 129};
 
-      Config<DIM>({200, 200}, /*iters*/ 30000, /*frames*/ 100,
-                  /*reyn*/ 1000.0, /*init_vel*/ {0.1, 0},
-                  "out/norms_lid_cavity_openmp_d2q9_200_1000_01_trt.bin",
-                  "out/data_lid_cavity_openmp_d2q9_200_1000_01_trt.bin",
-                  {CollisionDetection::CollisionArea(
-                       A2, {CollisionDetection::Segment(A2, B2),
-                            CollisionDetection::Segment(A2, D2),
-                            CollisionDetection::Segment(D2, C2)}),
-                   CollisionDetection::CollisionArea(
-                       A2, {CollisionDetection::Segment(B2, C2)})},
-                  {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
-  };
+  cfg.u0 = {0.1, 0};
 
-  constexpr auto CollisionType = CollisionModel::TRT;
-  using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
+  cfg.reynolds = 100;
 
+  cfg.niters = 100000;
+  cfg.nframes = 200;
+
+  cfg.frames_out = "output/lid_cavity_trt_frames";
+  cfg.profile_out = "output/lid_cavity_trt_profile.dat";
+
+  // --- 2. ISTANZIA LOGGER ------------------------------------------------
   logging::setup_quill();
   quill::Logger *main_logger = logging::create_or_get_logger("main");
 
-  std::string path_to_benchmark("benchmarks/ghia/");
+  const DimPoint<DIM> grid_size(cfg.grid_size);
+  const utils::Vector<double, DIM> init_vel = cfg.u0;
 
-  LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
+  LOG_INFO(main_logger,
+           "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
+           "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
+           "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
+           cfg.name, grid_size, cfg.reynolds, init_vel, cfg.niters, cfg.nframes,
+           cfg.frames_out, cfg.profile_out);
 
-  for (auto confidx = 0; confidx < configs.size(); confidx++) {
-    const auto conf = configs[confidx];
-    const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
-                 obstacles, obst_type_map] = conf;
-    LOG_INFO(
-        main_logger,
-        "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
-        "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
-        "frames: {}\n",
-        confidx, grid_size, reyn, init_vel, iters, frames);
+  // --- 3. CREA OSTACOLI --------------------------------------------------
+  // Per la lid cavity gli "ostacoli" sono i quattro lati del dominio: tre
+  // pareti rigide + il lid mobile in alto. Ricavati da grid_size.
+  const int x_max = static_cast<int>(cfg.grid_size[0]) - 1;
+  const int y_max = static_cast<int>(cfg.grid_size[1]) - 1;
 
-    types::boundary_mask_t obstacle_mask =
-        Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
+  const Coordinate<2> A(0, 0);
+  const Coordinate<2> B(0, y_max);
+  const Coordinate<2> C(x_max, y_max);
+  const Coordinate<2> D(x_max, 0);
 
-    std::shared_ptr<VtkWriter> writer =
-        std::make_shared<VtkWriter>(out_frames);
+  const std::vector<CollisionDetection::CollisionArea<DIM>> obstacles{
+      CollisionDetection::CollisionArea(A, {CollisionDetection::Segment(A, B),
+                                            CollisionDetection::Segment(A, D),
+                                            CollisionDetection::Segment(D, C)}),
+      CollisionDetection::CollisionArea(A,
+                                        {CollisionDetection::Segment(B, C)})};
 
-    Simulation simulation(
-        grid_size, obstacle_mask,
-        CollisionParams<DIM, CollisionType>(reyn, grid_size, init_vel));
+  const std::unordered_map<unsigned int, uint8_t> obst_type_map{
+      {0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}};
 
-    simulation.attachListener(writer);
+  // --- 4. CREA MASCHERA --------------------------------------------------
+  types::boundary_mask_t obstacle_mask =
+      Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
 
-    OpenMPSolver<DIM, D2Q9, CollisionType> solver(iters, frames);
-    solver.attachListener(writer);
+  // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
+  // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
+  // configurazione, cosi' run diversi nella stessa cartella non si
+  // sovrascrivono a vicenda.
+  std::shared_ptr<VtkWriter> writer =
+      std::make_shared<VtkWriter>(cfg.frames_out, cfg.name);
 
-    simulation.solve(solver /*, preconditioner*/);
+  LBMSimulation<DIM, D2Q9, COLLISION> simulation(
+      grid_size, obstacle_mask,
+      CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, init_vel));
+  simulation.attachListener(writer);
 
-    simulation.output(out_data.c_str(),
-                      functional::extract_dy_profile_along_x_center);
+  OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
+  solver.attachListener(writer);
 
-    // Confronto con Ghia et al. (1982): Norma scelta qui: L2.
-    const auto ghia_y = simulation.compute_ghia_error(
-        path_to_benchmark + "data_y_" + formatting::format_reyn(reyn) + ".txt");
+  simulation.solve(solver);
 
-    LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
-               analysis::to_string(analysis::NormType::L2), ghia_y.relative,
-               ghia_y.absolute);
+  // --- 6. OUTPUT ---------------------------------------------------------
+  simulation.output(cfg.profile_out.c_str(),
+                    functional::extract_dy_profile_along_x_center);
 
-    const auto ghia_x = simulation.compute_ghia_error(
-        path_to_benchmark + "data_x_" + formatting::format_reyn(reyn) + ".txt");
+  // --- 7. CALCOLO DELL'ERRORE --------------------------------------------
+  // Confronto con Ghia et al. (1982). Norma scelta qui: L2.
+  const std::string path_to_benchmark =
+      std::string(LBM_BENCHMARKS_DIR) + "/ghia/";
 
-    LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
-               analysis::to_string(analysis::NormType::L2), ghia_x.relative,
-               ghia_x.absolute);
+  const auto ghia_y = simulation.compute_ghia_error(
+      path_to_benchmark + "data_y_" + formatting::format_reyn(cfg.reynolds) +
+      ".txt");
 
-    simulation.detachListener(writer);
-    solver.detachListener(writer);
-  }
+  LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
+             analysis::to_string(analysis::NormType::L2), ghia_y.relative,
+             ghia_y.absolute);
+
+  const auto ghia_x = simulation.compute_ghia_error(
+      path_to_benchmark + "data_x_" + formatting::format_reyn(cfg.reynolds) +
+      ".txt");
+
+  LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
+             analysis::to_string(analysis::NormType::L2), ghia_x.relative,
+             ghia_x.absolute);
+
+  simulation.detachListener(writer);
+  solver.detachListener(writer);
 
   return 0;
 }

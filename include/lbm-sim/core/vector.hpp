@@ -23,6 +23,9 @@ template <typename T> struct Vector<T, 2> {
   LBM_HD_FUNC constexpr Vector(const Point<T, 2> &A_, const Point<T, 2> &B_)
       : Vector(B_.x - A_.x, B_.y - A_.y) {}
 
+  template <typename Container>
+  constexpr Vector(Container c) : Vector(c[0], c[1]) {}
+
   LBM_HD_FUNC constexpr Vector() : Vector(0, 0) {}
 
   ~Vector() = default;
@@ -37,6 +40,9 @@ template <typename T> struct Vector<T, 3> {
   LBM_HD_FUNC constexpr Vector() : Vector(0, 0, 0) {}
   LBM_HD_FUNC constexpr Vector(const Point<T, 3> &A_, const Point<T, 3> &B_)
       : Vector(B_.x - A_.x, B_.y - A_.y, B_.z - A_.z) {}
+
+  template <typename Container>
+  constexpr Vector(Container c) : Vector(c[0], c[1], c[2]) {}
 
   ~Vector() = default;
 };
