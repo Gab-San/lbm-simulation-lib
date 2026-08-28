@@ -1,14 +1,11 @@
 // LBM SIM LIB
 #include "lbm-sim/analysis/exact-solution.hpp"
-#include "lbm-sim/boundaries.hpp"
-#include "lbm-sim/collision-detection/collision-area.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
+#include "lbm-sim/config/simulation-config.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/async-binary-writer.hpp"
+#include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
-#include "lbm-sim/problems/problem_2d.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
 #include "lbm/logging.hpp"
 
@@ -17,145 +14,108 @@
 
 // C++ STD LIB
 #include <memory>
-#include <unordered_map>
+#include <string>
 #include <vector>
 
-static constexpr unsigned short int DIM = 2;
+static constexpr lbm::types::dim_t DIM = 2;
+constexpr auto COLLISION = lbm::CollisionModel::BGK;
+constexpr auto BACKEND = lbm::ExecutionBackend::OPEN_MP;
 
-template <unsigned short int dim> struct Config;
-template <> struct Config<2> {
-
-  const lbm::types::DimPoint<2> grid_size;
-
-  /// Number of iteration steps
-  const unsigned int iters;
-
-  /// Number of frames
-  ///
-  /// Frames contain the information about
-  /// the norm of the velocity at a step t.
-  const unsigned int frames;
-
-  /// Reynold number
-  const double reyn_num;
-
-  /// Velocita' di riferimento, usata solo per calcolare nu/tau
-  /// NON muove piu' nessuna parete in Poiseuille!!!
-  const lbm::utils::Vector<double, 2> init_vel;
-
-  /// Output path for frames
-  const std::string out_frames;
-
-  /// Output path for benchmark data
-  const std::string out_data;
-
-  const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
-
-  const std::unordered_map<unsigned int, uint8_t> obst_type_map;
-
-  /// Quale soluzione analitica usare per compute_error() a fine run.
-
-  Config(
-      const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
-      const unsigned int c_frames, const double c_reyn_num,
-      const lbm::utils::Vector<double, 2> init_vel_,
-      const std::string c_out_frames, const std::string c_out_data,
-      const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles_,
-      const std::unordered_map<unsigned int, uint8_t> obst_type_map_)
-      : grid_size(grid_size_), iters(c_iters), frames(c_frames),
-        reyn_num(c_reyn_num), init_vel(init_vel_), out_frames(c_out_frames),
-        out_data(c_out_data), obstacles(std::move(obstacles_)),
-        obst_type_map(std::move(obst_type_map_)) {}
-};
-
-int main() {
+int main(int argc, char **argv) {
   using namespace lbm;
+
   using types::Coordinate;
   using types::DimPoint;
   using utils::Vector;
 
-  const Coordinate<2> A(0, 0);
-  const Coordinate<2> B(0, 128);
-  const Coordinate<2> C(128, 128);
-  const Coordinate<2> D(128, 0);
+  config::SimulationConfig<DIM> cfg;
 
-  std::vector<Config<2>> configs{
-      Config<2>(
-          {129, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
-          /*init_vel*/ {0.1, 0},
-          "out/norms_poiseuille_openmp_129_100_01_bgk.bin",
-          "out/data_poiseuille_openmp_129_100_01_bgk.bin",
-          {
-              CollisionDetection::CollisionArea(
-                  A, {CollisionDetection::Segment(A, D),   // bottom (y=0)
-                      CollisionDetection::Segment(B, C)}), // top (y=128)
-              CollisionDetection::CollisionArea(           // LEFT WALL
-                  A, {CollisionDetection::Segment(A + Vector<int, DIM>(0, 1),
-                                                  B - Vector<int, DIM>(0, 1))}),
-              CollisionDetection::CollisionArea( // RIGHT WALL
-                  A, {CollisionDetection::Segment(C - Vector<int, DIM>(0, 1),
-                                                  D + Vector<int, DIM>(0, 1))}),
-          },
-          {{0, Solid::BB_RIGID_WALL}, // fixed top and bottom wall
-           {1, Solid::PRESSURE_PERIODIC_INLET},
-           {2, Solid::PRESSURE_PERIODIC_OUTLET}}), // right and left
-                                                   // periodic bc
-  };
+  cfg.backend = lbm::ExecutionBackend::OPEN_MP;
+  cfg.collision = lbm::BGK;
 
+  cfg.grid_size = {129, 129};
+
+  cfg.u0 = {0.1, 0};
+
+  cfg.reynolds = 100;
+
+  cfg.niters = 100000;
+  cfg.nframes = 200;
+
+  cfg.frames_out = "output/poiseuille_bgk_frames";
+  cfg.profile_out = "output/pouisseille_bgk_profile.dat";
+
+  // --- 2. ISTANZIA LOGGER ------------------------------------------------
   logging::setup_quill();
   quill::Logger *main_logger = logging::create_or_get_logger("main");
 
-  constexpr auto CollisionType = CollisionModel::BGK;
-  using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
+  const DimPoint<DIM> grid_size(cfg.grid_size);
 
-  const LidCavity2D problem;
+  LOG_INFO(main_logger,
+           "Simulation:\n\tGrid dimensions: {}\n\tReynolds number: "
+           "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
+           "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
+           grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
+           cfg.frames_out, cfg.profile_out);
 
-  for (auto confidx = 0; confidx < configs.size(); confidx++) {
-    const auto conf = configs[confidx];
-    const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
-                 obstacles, obst_type_map] = conf;
+  // --- 3. CREA OSTACOLI --------------------------------------------------
+  // Poiseuille: pareti rigide sopra e sotto, ingresso e uscita a pressione
+  // imposta sui lati. Gli angoli restano alle orizzontali come prima: il wrap
+  // su x avviene per primo, poi la faccia y rivendica il link.
+  Solid::DomainBC<DIM> dbc{};
+  dbc.low(0) = Solid::PRESSURE_PERIODIC_INLET;   // x = 0
+  dbc.high(0) = Solid::PRESSURE_PERIODIC_OUTLET; // x = nx-1
+  dbc.low(1) = Solid::BB_RIGID_WALL;             // y = 0
+  dbc.high(1) = Solid::BB_RIGID_WALL;            // y = ny-1
 
-    LOG_INFO(
-        main_logger,
-        "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
-        "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
-        "frames: {}\n",
-        confidx, grid_size, reyn, init_vel, iters, frames);
+  // --- 4. CREA MASCHERA --------------------------------------------------
+  // Nessun ostacolo immerso nel fluido: la maschera e' tutta types::FLUID.
+  types::solid_mask_t solid_mask =
+      Solid::compute_solid_mask<DIM>({}, grid_size);
 
-    types::boundary_mask_t boundary_mask =
-        Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
+  // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
+  // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
+  // configurazione, cosi' run diversi nella stessa cartella non si
+  // sovrascrivono a vicenda.
+  std::shared_ptr<VtkWriter> writer =
+      std::make_shared<VtkWriter>(cfg.frames_out);
 
-    std::shared_ptr<AsyncBinaryWriter> writer =
-        std::make_shared<AsyncBinaryWriter>(conf.out_frames);
+  const CollisionParams<DIM, COLLISION> params(cfg.reynolds, grid_size, cfg.u0);
+  // Salto di pressione che sostiene il flusso: ricavato dalla soluzione di
+  // Poiseuille per il canale, non e' un parametro libero.
+  const double pout = 1;
+  const double pin =
+      pout +
+      numbers::invcs_2 *
+          (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) * 8 *
+          params.nu * params.init_vel.dx;
 
-    const CollisionParams<DIM, CollisionType> params(reyn, grid_size, init_vel);
-    const double pout = 1;
-    const double pin =
-        pout + (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
-                   8 * params.nu * params.init_vel.dx;
-    Simulation simulation(grid_size, boundary_mask, params, pin, pout);
+  LBMSimulation<DIM, D2Q9, COLLISION> simulation(
+      grid_size, std::move(solid_mask), {}, dbc, params, pin, pout);
+  simulation.attachListener(writer);
 
-    simulation.attachListener(writer);
+  OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
+  solver.attachListener(writer);
 
-    MPISolver2D<CollisionType> solver(iters, frames);
-    solver.attachListener(writer);
+  simulation.solve(solver);
 
-    simulation.solve(solver, problem);
+  // --- 6. OUTPUT ---------------------------------------------------------
+  simulation.output(cfg.profile_out.c_str(),
+                    functional::extract_dx_profile_along_y_center);
 
-    simulation.output(out_data.c_str(),
-                      functional::extract_dx_profile_along_y_center);
+  // --- 7. CALCOLO DELL'ERRORE --------------------------------------------
+  // H = altezza canale (parete inferiore a y=0, superiore a y=ny-1);
+  // Umax = velocita' di riferimento (parete mobile per Couette).
+  const double H = static_cast<double>(grid_size.y - 1);
+  const auto exact_solution = analysis::PoiseuilleSolution2D(H, cfg.u0.dx);
+  const double err_l2 =
+      simulation.compute_error(analysis::NormType::L2, exact_solution);
 
-    const double H = static_cast<double>(grid_size.y - 1);
-    const auto exact_solution = analysis::PoiseuilleSolution2D(H, init_vel.dx);
-    const double err_l2 =
-        simulation.compute_error(analysis::NormType::L2, exact_solution);
+  LOG_NOTICE(main_logger, "{} error: {}",
+             analysis::to_string(analysis::NormType::L2), err_l2);
 
-    LOG_NOTICE(main_logger, "{} error: {}",
-               analysis::to_string(analysis::NormType::L2), err_l2);
-
-    simulation.detachListener(writer);
-    solver.detachListener(writer);
-  }
+  simulation.detachListener(writer);
+  solver.detachListener(writer);
 
   return 0;
 }

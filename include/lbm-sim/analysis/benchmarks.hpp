@@ -180,7 +180,7 @@ compute_ghia_error(const std::string &filepath_in, const Lattice<2> &lattice,
   std::array<double, detail::GhiaCavityData::n_points> u_diff_per_point;
   std::array<double, detail::GhiaCavityData::n_points> u_ref_per_point;
 
-  for (auto i = 0; i < detail::GhiaCavityData::n_points; ++i) {
+  for (int i = 0; i < static_cast<int>(detail::GhiaCavityData::n_points); ++i) {
     const double u_sim =
         detail::interp_along_line(velocity_along_coord_line, data.coord[i]);
     u_diff_per_point[i] = std::abs(u_sim - data.values[i]);

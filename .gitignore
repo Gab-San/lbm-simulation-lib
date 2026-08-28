@@ -32,6 +32,7 @@
 *.app
 
 # Project Files
+output/
 build/
 .vscode/
 visualizer.pyZone.Identifier
@@ -39,3 +40,4 @@ visualizer.pyZone.Identifier
 *_scaling_*.txt
 *.xlsx
 *.gif
+*.mp4

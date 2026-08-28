@@ -1,7 +1,6 @@
-#ifndef __LBM_SIM_CORE_GRID_HPP
-#define __LBM_SIM_CORE_GRID_HPP
+#pragma once
 
-#include "lbm-sim/core/types.hpp"
+#include "lbm-sim/types/common.hpp"
 
 #include "lbm-sim/cuda/annotations.hpp"
 
@@ -10,7 +9,7 @@
 
 namespace lbm {
 
-template <unsigned short int dim> struct Grid {
+template <types::dim_t dim> struct Grid {
   const types::DimPoint<dim> size;
 
   LBM_HD_FUNC Grid(types::DimPoint<dim> grid_dim_) : size(grid_dim_) {}
@@ -20,11 +19,7 @@ template <unsigned short int dim> struct Grid {
     if constexpr (dim == 2) {
       return size.x * p.y + p.x;
     } else {
-      static_assert(assertion::always_false<dim>,
-                    "Grid<3>::scalar_index() : 3D not implemented yet!");
-      // TODO: Check implementation
-      //
-      // return Nx * (Ny * z + y) + x;
+      return size.x * (size.y * p.z + p.y) + p.x;
     }
   }
 
@@ -34,16 +29,7 @@ template <unsigned short int dim> struct Grid {
   LBM_HD_FUNC inline std::size_t field_index(const types::Coordinate<dim> &p,
                                              std::size_t dir,
                                              std::size_t ndir) const {
-    if constexpr (dim == 2) {
-      // NOTE: maybe grid could be templated on velocity sets.
-      return ndir * (size.x * p.y + p.x) + dir;
-    } else {
-      static_assert(assertion::always_false<dim>,
-                    "Grid<3>::field_index() : 3D not implemented yet!");
-      // TODO: Check implementation
-      //
-      // return Nx * (Ny * (Nz * dir + z) + y) + x;
-    }
+    return ndir * scalar_index(p) + dir;
   }
 
   LBM_HD_FUNC inline std::size_t getArea() const {
@@ -54,16 +40,22 @@ template <unsigned short int dim> struct Grid {
     }
   }
 
-  LBM_HD_FUNC inline bool contains(const types::Coordinate<dim> &p) const {
-    const bool isIn = p.x >= 0 && p.x < size.x && p.y >= 0 && p.y < size.y;
+  inline std::array<std::size_t, dim> extents() const {
     if constexpr (dim == 2) {
-      return isIn;
+      return {size.x, size.y};
     } else {
-      return isIn && p.z >= 0 && p.z < size.z;
+      return {size.x, size.y, size.z};
     }
+  }
+
+  LBM_HD_FUNC inline bool contains(const types::Coordinate<dim> &p) const {
+    const bool isIn = p.x >= 0 && p.x < static_cast<int>(size.x) && p.y >= 0 &&
+                      p.y < static_cast<int>(size.y);
+    if constexpr (dim == 2)
+      return isIn;
+    else
+      return isIn && p.z >= 0 && p.z < static_cast<int>(size.z);
   }
 };
 
 } // namespace lbm
-
-#endif // __LBM_SIM_CORE_GRID_HPP

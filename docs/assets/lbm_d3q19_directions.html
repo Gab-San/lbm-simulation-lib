@@ -2,10 +2,10 @@
 <html>
 <head>
 <style>
-  body { margin: 0; background: #0f1117; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; color: #e0e0e0; }
+  body { margin: 0; background: transparent; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; color: #222; }
   canvas { cursor: grab; }
   canvas:active { cursor: grabbing; }
-  .info { margin-top: 12px; font-size: 13px; color: #888; }
+  .info { margin-top: 12px; font-size: 13px; color: #555; }
   .legend { display: flex; gap: 18px; margin-top: 10px; flex-wrap: wrap; justify-content: center; font-size: 12px; }
   .leg { display: flex; align-items: center; gap: 5px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; }
@@ -16,21 +16,19 @@
 <div class="legend">
   <div class="leg"><div class="dot" style="background:#fff"></div> 0: rest</div>
   <div class="leg"><div class="dot" style="background:#4fc3f7"></div> 1-6: face</div>
-  <div class="leg"><div class="dot" style="background:#ffd54f"></div> 7-14: edge (xy/xz)</div>
-  <div class="leg"><div class="dot" style="background:#ef5350"></div> 15-26: corner/edge (yz/xyz)</div>
+  <div class="leg"><div class="dot" style="background:#ffd54f"></div> 7-18: edge</div>
 </div>
 <div class="info">Trascina per ruotare</div>
 <script>
-const dirx = [0, 1,-1,0,0,0,0, 1,-1,1,-1,1,-1,1,-1, 0,0,0,0, 1,-1,1,-1,1,-1,1,-1];
-const diry = [0, 0,0,1,-1,0,0, 1,-1,-1,1,0,0,0,0, 1,-1,1,-1, 1,-1,1,-1,-1,1,-1,1];
-const dirz = [0, 0,0,0,0,1,-1, 0,0,0,0,1,-1,-1,1, 1,-1,-1,1, 1,-1,-1,1,1,-1,-1,1];
+const dirx = [0, 1,-1,0,0,0,0, 1,-1,1,-1,0,0,1,-1,1,-1,0,0];
+const diry = [0, 0,0,1,-1,0,0, 1,-1,0,0,1,-1,-1,1,0,0,1,-1];
+const dirz = [0, 0,0,0,0,1,-1, 0,0,1,-1,1,-1,0,0,-1,1,-1,1];
 
 const colors = [
   '#ffffff',
   '#4fc3f7','#4fc3f7','#4fc3f7','#4fc3f7','#4fc3f7','#4fc3f7',
-  '#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f',
-  '#ef5350','#ef5350','#ef5350','#ef5350',
-  '#ce93d8','#ce93d8','#ce93d8','#ce93d8','#ce93d8','#ce93d8','#ce93d8','#ce93d8',
+  '#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f',
+  '#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f','#ffd54f',
 ];
 
 const canvas = document.getElementById('c');
@@ -51,10 +49,8 @@ canvas.addEventListener('mousemove', e => {
 });
 
 function project(x, y, z) {
-  // Rotate Y
   let x1 = x * Math.cos(rotY) + z * Math.sin(rotY);
   let z1 = -x * Math.sin(rotY) + z * Math.cos(rotY);
-  // Rotate X
   let y1 = y * Math.cos(rotX) - z1 * Math.sin(rotX);
   let z2 = y * Math.sin(rotX) + z1 * Math.cos(rotX);
   const scale = 120;
@@ -65,10 +61,9 @@ function project(x, y, z) {
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
-  // Draw cube edges
   const corners = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];
   const edges = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-  ctx.strokeStyle = 'rgba(100,120,150,0.35)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
   ctx.lineWidth = 1;
   for (const [a, b] of edges) {
     const [ax, ay] = project(...corners[a]);
@@ -76,7 +71,6 @@ function draw() {
     ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
   }
 
-  // Draw axes
   const axisColors = ['#ff6b6b','#6bff6b','#6b9fff'];
   const axisLabels = ['x','y','z'];
   const axisDirs = [[1,0,0],[0,1,0],[0,0,1]];
@@ -86,17 +80,18 @@ function draw() {
     ctx.strokeStyle = axisColors[i];
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
-    ctx.fillStyle = axisColors[i];
     ctx.font = 'bold 13px monospace';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.strokeText(axisLabels[i], ex + 4, ey + 4);
+    ctx.fillStyle = axisColors[i];
     ctx.fillText(axisLabels[i], ex + 4, ey + 4);
   }
 
-  // Collect all points with depth
   const pts = dirx.map((_, i) => {
     const [px, py, pz] = project(dirx[i], diry[i], dirz[i]);
     return { i, px, py, pz, x: dirx[i], y: diry[i], z: dirz[i] };
   });
-  // Sort back-to-front
   pts.sort((a, b) => a.pz - b.pz);
 
   for (const pt of pts) {
@@ -104,7 +99,6 @@ function draw() {
     const isRest = i === 0;
     const r = isRest ? 10 : 7;
 
-    // Draw line from center to node
     if (!isRest) {
       const [ox, oy] = project(0, 0, 0);
       ctx.strokeStyle = colors[i] + '55';
@@ -112,28 +106,26 @@ function draw() {
       ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(px, py); ctx.stroke();
     }
 
-    // Node circle
     ctx.beginPath();
     ctx.arc(px, py, r, 0, Math.PI * 2);
     ctx.fillStyle = colors[i];
     ctx.fill();
-    if (isRest) {
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = isRest ? 2 : 1;
+    ctx.stroke();
 
-    // Index label
     ctx.fillStyle = '#000';
     ctx.font = `bold ${isRest ? 11 : 9}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(i, px, py);
 
-    // Coordinate tooltip near node
-    ctx.fillStyle = colors[i];
     ctx.font = '9px monospace';
     ctx.textAlign = 'left';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.strokeText(`(${pt.x},${pt.y},${pt.z})`, px + r + 2, py - 6);
+    ctx.fillStyle = colors[i];
     ctx.fillText(`(${pt.x},${pt.y},${pt.z})`, px + r + 2, py - 6);
   }
 }

@@ -1,0 +1,16 @@
+
+[grid]
+nx = 129
+ny = 129
+
+[physics]
+collision = "TRT"
+reynolds = 100.0
+init_vel_x = 0.1
+init_vel_y = 0.0
+init_vel_z = 0.0
+
+[solver]
+niters = 100000
+nframes = 300
+

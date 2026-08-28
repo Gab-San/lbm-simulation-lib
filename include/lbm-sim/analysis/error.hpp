@@ -5,7 +5,6 @@
 #include "lbm-sim/core/grid.hpp"
 
 #include "lbm-sim/analysis/types.hpp"
-#include "lbm-sim/core/types.hpp"
 #include "lbm-sim/core/vector.hpp"
 
 // C++ STANDARD LIB

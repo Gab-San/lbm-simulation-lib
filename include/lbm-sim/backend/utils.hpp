@@ -1,18 +1,15 @@
-#ifndef __LBM_SIM_BACKEND_HPP
-#define __LBM_SIM_BACKEND_HPP
+#pragma once
 
+#include "lbm-sim/backend/cuda/annotations.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
+#include "lbm-sim/types/common.hpp"
 
-#include "lbm-sim/cuda/annotations.hpp"
+#include <cstddef>
 
-namespace lbm {
-
-enum ExecutionBackend { CUDA, OPEN_MP };
-
-namespace detail { // using cuda or openmp
+namespace lbm::detail {
 
 template <unsigned short int dim, typename VelocitySet>
-LBM_HD_FUNC inline types::VectorInt<dim> direction(const std::size_t diridx) {
+LBM_HD_FUNC inline types::Direction<dim> direction(const std::size_t diridx) {
 #if defined(__CUDA_ARCH__)
   return cuda::vs_dir<dim, VelocitySet>[diridx];
 #else
@@ -38,8 +35,4 @@ LBM_HD_FUNC inline std::size_t opposite(const std::size_t diridx) {
 #endif
 }
 
-} // namespace detail
-
-} // namespace lbm
-
-#endif // __LBM_SIM_BACKEND_HPP
+} // namespace lbm::detail

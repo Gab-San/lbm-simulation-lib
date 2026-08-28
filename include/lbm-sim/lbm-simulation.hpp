@@ -1,13 +1,12 @@
 #ifndef __LBM_SIM_LBM_SIMULATION_HPP
 #define __LBM_SIM_LBM_SIMULATION_HPP
 
+#include "lbm-sim/types/common.hpp"
+
 #include "lbm-sim/core/grid.hpp"
-#include "lbm-sim/core/types.hpp"
 
-#include "lbm-sim/backend.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
-
-#include "lbm-sim/problems/problem_2d.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
+#include "lbm-sim/metadata.hpp"
 
 #include "lbm-sim/solver/solver-base.hpp"
 
@@ -41,35 +40,24 @@ private:
 
 public:
   LBMSimulation(const types::DimPoint<dim> grid_dim_,
-                types::boundary_mask_t boundary_mask_,
+                types::solid_mask_t solid_mask_,
+                std::vector<Solid::ObstacleData<dim>> obstacles_,
+                Solid::DomainBC<dim> domain_bc_,
                 const CollisionParams<dim, cm_t> params_, const double pin = 0,
                 const double pout = 0)
-      : lattice(grid_dim_, std::move(boundary_mask_), pin, pout),
-        params(params_) {};
+      : lattice(grid_dim_, std::move(solid_mask_), std::move(obstacles_),
+                domain_bc_, pin, pout),
+        params(params_) {
+    Solid::assert_consistent_domain_bc<dim>(domain_bc_);
+  };
 
   template <enum ExecutionBackend backend_t>
-  void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver,
-             const LidCavity2D &problem) {
-
+  void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver) {
     quill::Logger *simulation_logger =
         logging::create_or_get_logger("simulation");
 
     LOG_DEBUG(simulation_logger, "Initializing Simulation...");
 
-    // FIXME: cannot be initialized like this
-    // define generic initialization
-
-    // Segment<2> seg(
-    //     types::Coordinate<2>(0, grid.size.y - 1),
-    //     types::Coordinate<2>(grid.size.x - 1,
-    //                                              grid.size.y - 1));
-    //
-    // problem.init(grid, params.init_vel, seg.getPerimeter());
-
-    // FIXME: check that initialization + init_equilibrium suffices
-    LOG_DEBUG(simulation_logger, "Lattice Initialized...");
-
-    std::cout << "Initialized Simulation." << std::endl;
     write_header(lattice.grid);
 
     solver.solve(lattice, params);
