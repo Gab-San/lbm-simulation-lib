@@ -3,7 +3,7 @@
 
 // LIB SIM LIB
 #include "lbm-sim/backend.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/data-observable.hpp"
 #include "lbm-sim/lattice.hpp"

@@ -1,12 +1,11 @@
-#include "lbm-sim/collision-detection/collision-area.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm/config/config-parser.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
+#include "lbm/config/config-parser.hpp"
 #include "lbm/logging.hpp"
 
 // QUILL LIB
@@ -89,8 +88,8 @@ int main(int argc, char **argv) {
            "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
            "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
            "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-           cfg.name, grid_size, cfg.reynolds, init_vel, cfg.niters,
-           cfg.nframes, cfg.frames_out, cfg.profile_out);
+           cfg.name, grid_size, cfg.reynolds, init_vel, cfg.niters, cfg.nframes,
+           cfg.frames_out, cfg.profile_out);
 
   // --- 3. CREA OSTACOLI --------------------------------------------------
   // Per la lid cavity i "confini" non sono ostacoli disegnati sui nodi di
@@ -104,7 +103,8 @@ int main(int argc, char **argv) {
 
   // --- 4. CREA MASCHERA --------------------------------------------------
   // Nessun ostacolo immerso nel fluido: la maschera e' tutta types::FLUID.
-  types::solid_mask_t solid_mask = Solid::compute_solid_mask<DIM>({}, grid_size);
+  types::solid_mask_t solid_mask =
+      Solid::compute_solid_mask<DIM>({}, grid_size);
 
   // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
   // frames_out e' la CARTELLA; il basename dei file lo da' il nome della

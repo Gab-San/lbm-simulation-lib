@@ -2,7 +2,7 @@
 #include "lbm-sim/analysis/exact-solution.hpp"
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
@@ -88,12 +88,12 @@ int main() {
   const Coordinate<2> D129(128, 0);
 
   std::vector<Config<2>> configs{
-      Config<2>(
-          {129, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
-          /*init_vel*/ {0.1, 0}, "out/norms_poiseuille_cuda_129_100_01_trt.bin",
-          "out/data_poiseuille_cuda_129_100_01_trt.bin",
-          {}, {}, make_channel_bc()),
-                                                   // periodic bc
+      Config<2>({129, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
+                /*init_vel*/ {0.1, 0},
+                "out/norms_poiseuille_cuda_129_100_01_trt.bin",
+                "out/data_poiseuille_cuda_129_100_01_trt.bin", {}, {},
+                make_channel_bc()),
+      // periodic bc
   };
 
   logging::setup_quill();
@@ -102,7 +102,7 @@ int main() {
   constexpr auto CollisionType = CollisionModel::TRT;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
-  for (auto confidx = 0; confidx < configs.size(); confidx++) {
+  for (std::size_t confidx = 0; confidx < configs.size(); confidx++) {
     const auto conf = configs[confidx];
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obstacle_data, domain_bc] = conf;

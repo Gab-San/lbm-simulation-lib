@@ -3,6 +3,7 @@
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/cuda/annotations.hpp"
 #include "lbm-sim/types/base.hpp"
+#include "lbm-sim/types/common.hpp"
 
 #include <cassert>
 #include <vector>
@@ -88,6 +89,13 @@ inline void assert_consistent_domain_bc(const DomainBC<dim> &dbc) {
 template <types::dim_t dim> struct ObstacleData {
   types::boundary_t bc_type = BB_RIGID_WALL;
   utils::Vector<double, dim> wall_velocity{};
+};
+
+/// What a single link (p, dir) resolves to.
+template <types::dim_t dim> struct LinkResolution {
+  types::Coordinate<dim> src; // already wrapped where applicable
+  types::boundary_t bc;       // NONE -> plain streaming from src
+  types::obstacle_id_t oid;   // FLUID unless a solid owns the link
 };
 
 } // namespace Solid

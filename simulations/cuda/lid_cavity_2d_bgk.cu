@@ -1,6 +1,6 @@
 #include "lbm-sim/analysis/exact-solution.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
@@ -112,18 +112,17 @@ int main() {
   const Coordinate<2> D200(199, 0);
 
   std::vector<Config<DIM>> configs{
-      Config<DIM>(
-          {129, 129}, /*iters*/ 10000, /*frames*/ 100,
-          /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
-          "out/norms_lid_cavity_cuda_129_100_01_bgk.bin",
-          "out/data_lid_cavity_cuda_129_100_01_bgk.bin",
-          {}, {}, make_cavity_bc()),
+      Config<DIM>({129, 129}, /*iters*/ 10000, /*frames*/ 100,
+                  /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
+                  "out/norms_lid_cavity_cuda_129_100_01_bgk.bin",
+                  "out/data_lid_cavity_cuda_129_100_01_bgk.bin", {}, {},
+                  make_cavity_bc()),
 
       Config<DIM>({200, 200}, /*iters*/ 30000, /*frames*/ 100,
                   /*reyn*/ 1000.0, /*init_vel*/ {0.1, 0},
                   "out/norms_lid_cavity_cuda_200_1000_01_bgk.bin",
-                  "out/data_lid_cavity_cuda_200_1000_01_bgk.bin",
-                  {}, {}, make_cavity_bc()),
+                  "out/data_lid_cavity_cuda_200_1000_01_bgk.bin", {}, {},
+                  make_cavity_bc()),
 
 #if 0
       Config<DIM>(
@@ -152,7 +151,7 @@ int main() {
 
   LOG_INFO(main_logger, "Number of Simulations: {}", configs.size());
 
-  for (auto confidx = 0; confidx < configs.size(); confidx++) {
+  for (std::size_t confidx = 0; confidx < configs.size(); confidx++) {
     const auto conf = configs[confidx];
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obstacle_data, domain_bc] = conf;
@@ -167,8 +166,7 @@ int main() {
     types::solid_mask_t solid_mask =
         Solid::compute_solid_mask<DIM>(obstacles, grid_size);
 
-    std::shared_ptr<VtkWriter> writer =
-        std::make_shared<VtkWriter>(out_frames);
+    std::shared_ptr<VtkWriter> writer = std::make_shared<VtkWriter>(out_frames);
 
     Simulation simulation(
         grid_size, std::move(solid_mask), obstacle_data, domain_bc,

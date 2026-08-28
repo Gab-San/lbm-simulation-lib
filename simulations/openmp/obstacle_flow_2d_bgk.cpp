@@ -1,11 +1,10 @@
 // LBM SIM LIB
-#include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 
 #include "lbm-sim/core/velocity-sets.hpp"
 
 #include "lbm-sim/data/async-binary-writer.hpp"
 
-#include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 
 #include "lbm-sim/solver/openmp-solver.hpp"
@@ -14,6 +13,7 @@
 #include "lbm-sim/functions.hpp"
 
 #include "lbm/logging.hpp"
+
 #include "quill/LogMacros.h"
 
 // C++ STD LIB
@@ -89,7 +89,6 @@ int main() {
   using types::DimPoint;
   using utils::Vector;
 
-<<<<<<< HEAD
   const Coordinate<2> A(0, 0);
   const Coordinate<2> B(0, 128);
   const Coordinate<2> C(639, 128);
@@ -98,8 +97,6 @@ int main() {
   logging::setup_quill();
   quill::Logger *main_logger = logging::create_or_get_logger("main");
 
-=======
->>>>>>> 34ab65d (steps from 1 to 10(do not compile))
   std::vector<Config<2>> configs{
       Config<2>(
           {640, 129}, /*iters*/ 1000000, /*frames*/ 200, /*reyn*/ 5000.0,
@@ -113,8 +110,9 @@ int main() {
                       0,
                       0), // posizione base (l'offset per le coord del cerchio)
                   {CollisionDetection::Circle<DIM>(
-                      Coordinate<2>(160, 64), // centro relativo alla posizione base
-                      16)}                    // raggio in celle
+                      Coordinate<2>(160,
+                                    64), // centro relativo alla posizione base
+                      16)}               // raggio in celle
                   ),
           },
           // id 0 = il cilindro: parete rigida, ferma.
@@ -136,13 +134,13 @@ int main() {
     CollisionParams<DIM, CollisionType> params(reyn, grid_size, init_vel);
     const double pout = 1;
     const double pin =
-        pout + 
+        pout +
         numbers::invcs_2 *
-        (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
-                   8 * params.nu * params.init_vel.dx;
+            (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) * 8 *
+            params.nu * params.init_vel.dx;
+
     Simulation simulation(grid_size, std::move(solid_mask), obstacle_data,
                           domain_bc, params, pin, pout);
-
     simulation.attachListener(writer);
 
     OpenMPSolver<DIM, D2Q9, CollisionType> solver(iters, frames);

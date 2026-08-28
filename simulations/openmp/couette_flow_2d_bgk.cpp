@@ -1,16 +1,14 @@
 // LBM SIM LIB
 #include "lbm-sim/analysis/exact-solution.hpp"
-#include "lbm-sim/boundaries/boundary-conditions.hpp"
-#include "lbm-sim/collision-detection/collision-area.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm/config/config-parser.hpp"
+#include "lbm-sim/boundaries/utils.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/vtk-writer.hpp"
+#include "lbm-sim/data/async-binary-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
+#include "lbm/config/config-parser.hpp"
 #include "lbm/logging.hpp"
-#include "lbm-sim/data/async-binary-writer.hpp"
 
 // QUILL LIB
 #include "quill/LogMacros.h"
@@ -83,8 +81,8 @@ int main(int argc, char **argv) {
            "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
            "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
            "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-           cfg.name, grid_size, cfg.reynolds, init_vel, cfg.niters,
-           cfg.nframes, cfg.frames_out, cfg.profile_out);
+           cfg.name, grid_size, cfg.reynolds, init_vel, cfg.niters, cfg.nframes,
+           cfg.frames_out, cfg.profile_out);
 
   // --- 3. CREA OSTACOLI --------------------------------------------------
   // Couette: parete inferiore rigida, parete superiore mobile, lati sinistro
@@ -98,7 +96,8 @@ int main(int argc, char **argv) {
 
   // --- 4. CREA MASCHERA --------------------------------------------------
   // Nessun ostacolo immerso nel fluido: la maschera e' tutta types::FLUID.
-  types::solid_mask_t solid_mask = Solid::compute_solid_mask<DIM>({}, grid_size);
+  types::solid_mask_t solid_mask =
+      Solid::compute_solid_mask<DIM>({}, grid_size);
 
   // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
   // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
@@ -106,7 +105,7 @@ int main(int argc, char **argv) {
   // sovrascrivono a vicenda.
   std::shared_ptr<AsyncBinaryWriter> writer =
       std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
-      //std::make_shared<VtkWriter>(cfg.frames_out, cfg.name);
+  // std::make_shared<VtkWriter>(cfg.frames_out, cfg.name);
 
   LBMSimulation<DIM, D2Q9, COLLISION> simulation(
       grid_size, std::move(solid_mask), {}, dbc,

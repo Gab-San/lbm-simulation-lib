@@ -12,7 +12,7 @@ inline std::vector<double>
 extract_dx_profile_along_y_center(const Lattice<2> &lattice) {
   std::vector<double> profile(lattice.grid.size.y);
   int x = lattice.grid.size.x / 2;
-  for (auto y = 0; y < lattice.grid.size.y; ++y) {
+  for (int y = 0; y < static_cast<int>(lattice.grid.size.y); ++y) {
     profile[y] = lattice.u[lattice.grid.scalar_index({x, y})].dx;
   }
   return profile;
@@ -22,7 +22,7 @@ inline std::vector<double>
 extract_dy_profile_along_x_center(const Lattice<2> &lattice) {
   std::vector<double> profile(lattice.grid.size.x);
   int y = lattice.grid.size.y / 2;
-  for (auto x = 0; x < lattice.grid.size.x; ++x) {
+  for (int x = 0; x < static_cast<int>(lattice.grid.size.x); ++x) {
     profile[x] = lattice.u[lattice.grid.scalar_index({x, y})].dy;
   }
   return profile;
@@ -41,7 +41,7 @@ extract_dx_profile_along_z_center(const Lattice<3> &lattice) {
   std::vector<double> profile(lattice.grid.size.z);
   const int x = lattice.grid.size.x / 2;
   const int y = lattice.grid.size.y / 2;
-  for (auto z = 0; z < lattice.grid.size.z; ++z) {
+  for (int z = 0; z < static_cast<int>(lattice.grid.size.z); ++z) {
     profile[z] = lattice.u[lattice.grid.scalar_index({x, y, z})].dx;
   }
   return profile;

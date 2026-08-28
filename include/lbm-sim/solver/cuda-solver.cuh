@@ -4,8 +4,9 @@
 #include "lbm-sim/backend.hpp"
 #include "lbm-sim/backend/cuda/properties.cuh"
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
+#include "lbm-sim/boundaries/utils.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
 #include "lbm-sim/constants.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
@@ -83,9 +84,9 @@ __global__ void update_stream_collide(
 
   // STREAMING + HALFWAY COLLISION
   for (auto diridx = 0; diridx < VelocitySet::ndir; diridx++) {
-    const auto link = Solid::resolve_link<dim>(
-        grid, dbc, solid_mask, obstacles, p,
-        cuda::vs_dir<dim, VelocitySet>[diridx]);
+    const auto link =
+        Solid::resolve_link<dim>(grid, dbc, solid_mask, obstacles, p,
+                                 cuda::vs_dir<dim, VelocitySet>[diridx]);
 
     if (link.bc == Solid::NONE) {
       // source node is fluid and in range: plain streaming.
@@ -243,7 +244,7 @@ public:
     // const cuda_detail::EventPair timer;
     // timer.record_start(stream);
 
-    for (auto iter = 0; iter < this->niters; iter++) {
+    for (std::size_t iter = 0; iter < this->niters; iter++) {
       // Benchmark mode keeps the host sync, the download and the frame write
       // out of the loop entirely; the macroscopic fields are still computed on
       // the last iteration and downloaded once, after the timer stops.
@@ -252,11 +253,10 @@ public:
 
       cuda_detail::update_stream_collide<dim, VelocitySet, cm_t>
           <<<grid_dims, block, 0, stream>>>(
-              ffrom.data(), fto.data(), d_solid_mask.data(),
-              d_obstacles.data(), lattice.domain_bc, norms.data(),
-              d_rho.data(), d_u.data(), lattice.grid,
-              CollisionStrategy<dim, VelocitySet, cm_t>(params_), lattice.pin,
-              lattice.pout, store_macroscopic);
+              ffrom.data(), fto.data(), d_solid_mask.data(), d_obstacles.data(),
+              lattice.domain_bc, norms.data(), d_rho.data(), d_u.data(),
+              lattice.grid, CollisionStrategy<dim, VelocitySet, cm_t>(params_),
+              lattice.pin, lattice.pout, store_macroscopic);
 
       LBM_CUDA_CHECK(cudaGetLastError());
       std::swap(ffrom, fto);

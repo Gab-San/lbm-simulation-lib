@@ -7,16 +7,13 @@
 // LBMSimulation e OpenMPSolver sono templati sul VelocitySet, quindi
 // l'unica differenza col main D3Q19 e' il tipo passato ai due template.
 
-#include "lbm-sim/boundaries/boundary-conditions.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
-#include "lbm/config/config-parser.hpp"
-#include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
-#include <cstddef>
+#include "lbm/config/config-parser.hpp"
 #include "lbm/logging.hpp"
 
 // QUILL LIB
@@ -56,38 +53,6 @@ void print_usage(const char *exe) {
 /// + 1 parete mobile (il "lid", bounce-back con velocita' imposta) sulla
 /// faccia superiore z = Nz-1.
 ///
-<<<<<<< HEAD
-/// A differenza del 2D non passiamo da Solid::compute_boundary_mask(): il
-/// modulo collision-detection lavora su Segment/Circle nel piano (x,y) e
-/// non e' ancora esteso a 3D. Per un dominio a scatola non serve comunque
-/// quella generalita' - basta scorrere le facce.
-lbm::types::boundary_mask_t
-build_boundary_mask(const lbm::types::DimPoint<3> &size) {
-  lbm::types::boundary_mask_t mask(size.x * size.y * size.z, lbm::Solid::NONE);
-  const lbm::Grid<3> grid(size);
-  const int size_x = static_cast<int>(size.x);
-  const int size_y = static_cast<int>(size.y);
-  const int size_z = static_cast<int>(size.z);
-
-#pragma omp parallel for collapse(3) schedule(static)
-  for (int z = 0; z < size_z; ++z) {
-    for (int y = 0; y < size_y; ++y) {
-      for (int x = 0; x < size_x; ++x) {
-        const bool on_boundary =
-            (x == 0 || x == size.x - 1 || y == 0 || y == size.y - 1 ||
-             z == 0 || z == size.z - 1);
-        if (!on_boundary)
-          continue;
-
-        const lbm::types::Coordinate<3> p(
-            static_cast<int>(x), static_cast<int>(y), static_cast<int>(z));
-
-        mask[grid.scalar_index(p)] = (z == size.z - 1)
-                                         ? lbm::Solid::BB_MOVING_WALL
-                                         : lbm::Solid::BB_RIGID_WALL;
-      }
-    }
-=======
 /// Non serve piu' scorrere le facce nodo per nodo: sono esattamente le sei
 /// facce del dominio, sei byte in tutto.
 lbm::Solid::DomainBC<3> build_domain_bc() {
@@ -95,7 +60,6 @@ lbm::Solid::DomainBC<3> build_domain_bc() {
   for (lbm::types::dim_t a = 0; a < 3; ++a) {
     dbc.low(a) = lbm::Solid::BB_RIGID_WALL;
     dbc.high(a) = lbm::Solid::BB_RIGID_WALL;
->>>>>>> 34ab65d (steps from 1 to 10(do not compile))
   }
   dbc.high(2) = lbm::Solid::BB_MOVING_WALL; // il lid, z = nz-1
   return dbc;
@@ -149,7 +113,8 @@ int main(int argc, char **argv) {
   // Le pareti sono le facce del dominio; nessun ostacolo immerso nel fluido,
   // quindi la maschera e' tutta types::FLUID.
   const Solid::DomainBC<3> dbc = build_domain_bc();
-  types::solid_mask_t solid_mask = Solid::compute_solid_mask<DIM>({}, grid_size);
+  types::solid_mask_t solid_mask =
+      Solid::compute_solid_mask<DIM>({}, grid_size);
 
   // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
   // frames_out e' la CARTELLA; il basename dei file lo da' il nome della

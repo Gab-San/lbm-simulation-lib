@@ -3,8 +3,8 @@
 
 #include "lbm-sim/backend.hpp"
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
+#include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
 #include "lbm-sim/core/operators.hpp"
 #include "lbm-sim/omp/annotations.hpp"
 #include "lbm-sim/omp/iteration.hpp"
@@ -55,7 +55,7 @@ public:
     LOG_INFO(solver_logger, "The parallel section will run on {} threads.",
              omp_get_max_threads());
 
-    for (auto iter = 0; iter < this->niters; iter++) {
+    for (std::size_t iter = 0; iter < this->niters; iter++) {
       const bool save = iter % this->nskips == 0;
       const bool store_macroscopic = save || (iter + 1 == this->niters);
 
@@ -72,7 +72,7 @@ private:
   inline void init_equilibrium(std::vector<double> &part_stream,
                                const Lattice<dim> &lattice) const {
     const auto ext = lattice.grid.extents();
-    const auto area = lattice.grid.getArea();
+    const auto area = static_cast<std::ptrdiff_t>(lattice.grid.getArea());
 
     using utils::ops::dot;
 
@@ -86,7 +86,8 @@ private:
       const double u_sq = dot(u, u);
 
 #pragma omp simd
-      for (auto diridx = 0; diridx < VelocitySet::ndir; ++diridx) {
+      for (std::ptrdiff_t diridx = 0;
+           diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); ++diridx) {
         double cidotu = dot(VelocitySet::dir[diridx], u);
 
         part_stream[lattice.grid.field_index(p, diridx, VelocitySet::ndir)] =
@@ -104,7 +105,7 @@ private:
                         const CollisionStrategy<dim, VelocitySet, cm_t> &cs,
                         const bool store_macroscopic) const {
     const auto ext = lattice.grid.extents();
-    const auto area = lattice.grid.getArea();
+    const auto area = static_cast<std::ptrdiff_t>(lattice.grid.getArea());
 
 #pragma omp parallel for shared(ffrom, fto, cs, lattice, store_macroscopic)    \
     schedule(static)
@@ -131,14 +132,16 @@ private:
 
       double r_wall = 0.0;
       UNROLL_FULL
-      for (auto i = 0; i < VelocitySet::ndir; ++i) {
-        // calculate local rho on wall before boundary conditions
-        r_wall += ffrom[lattice.grid.field_index(p, i, VelocitySet::ndir)];
+      for (std::ptrdiff_t diridx = 0;
+           diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); ++diridx) {
+        // calculate local rho on wall before boundary conddiridxtions
+        r_wall += ffrom[lattice.grid.field_index(p, diridx, VelocitySet::ndir)];
       }
 
       // STREAMING + HALFWAY COLLISION
       UNROLL_FULL
-      for (auto diridx = 0; diridx < VelocitySet::ndir; ++diridx) {
+      for (std::ptrdiff_t diridx = 0;
+           diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); ++diridx) {
         // One resolve_link per direction: domain faces, periodic wrap and
         // immersed obstacles are all decided in there, per link, not per node.
         const auto link = Solid::resolve_link<dim>(
@@ -166,9 +169,10 @@ private:
       utils::Vector<double, dim> u;
 
 #pragma omp simd
-      for (auto i = 0; i < VelocitySet::ndir; ++i) {
-        r += fp[i];
-        u += VelocitySet::dir[i] * fp[i];
+      for (std::ptrdiff_t diridx = 0;
+           diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); ++diridx) {
+        r += fp[diridx];
+        u += VelocitySet::dir[diridx] * fp[diridx];
       }
 
       // u = (sum_i fi * ci) / rho
@@ -190,8 +194,10 @@ private:
 
       // COPY LOCAL DENSITY TO GRID
 #pragma omp simd
-      for (auto i = 0; i < VelocitySet::ndir; i++) {
-        fto[lattice.grid.field_index(p, i, VelocitySet::ndir)] = fp[i];
+      for (std::ptrdiff_t diridx = 0;
+           diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); diridx++) {
+        fto[lattice.grid.field_index(p, diridx, VelocitySet::ndir)] =
+            fp[diridx];
       }
     }
   };

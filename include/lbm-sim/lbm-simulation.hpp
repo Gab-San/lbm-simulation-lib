@@ -6,7 +6,7 @@
 #include "lbm-sim/core/grid.hpp"
 
 #include "lbm-sim/backend.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 
 #include "lbm-sim/solver/solver-base.hpp"
 
