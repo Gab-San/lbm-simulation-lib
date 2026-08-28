@@ -1,5 +1,4 @@
-#include "lbm-sim/collision-detection/collision-area.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
@@ -13,10 +12,8 @@
 #include "quill/LogMacros.h"
 
 // C++ STD LIB
-#include <iostream>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 // Path ai benchmark di Ghia, iniettato da CMake (vedi
@@ -71,29 +68,19 @@ int main(int argc, char **argv) {
            cfg.frames_out, cfg.profile_out);
 
   // --- 3. CREA OSTACOLI --------------------------------------------------
-  // Per la lid cavity gli "ostacoli" sono i quattro lati del dominio: tre
-  // pareti rigide + il lid mobile in alto. Ricavati da grid_size.
-  const int x_max = static_cast<int>(cfg.grid_size[0]) - 1;
-  const int y_max = static_cast<int>(cfg.grid_size[1]) - 1;
-
-  const Coordinate<2> A(0, 0);
-  const Coordinate<2> B(0, y_max);
-  const Coordinate<2> C(x_max, y_max);
-  const Coordinate<2> D(x_max, 0);
-
-  const std::vector<CollisionDetection::CollisionArea<DIM>> obstacles{
-      CollisionDetection::CollisionArea(A, {CollisionDetection::Segment(A, B),
-                                            CollisionDetection::Segment(A, D),
-                                            CollisionDetection::Segment(D, C)}),
-      CollisionDetection::CollisionArea(A,
-                                        {CollisionDetection::Segment(B, C)})};
-
-  const std::unordered_map<unsigned int, uint8_t> obst_type_map{
-      {0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}};
+  // Per la lid cavity i "confini" non sono ostacoli disegnati sui nodi di
+  // bordo, ma le quattro facce del dominio: tre pareti rigide + il lid mobile
+  // in alto. Quattro byte in tutto, indipendenti dalla risoluzione.
+  Solid::DomainBC<DIM> dbc{};
+  dbc.low(0) = Solid::BB_RIGID_WALL;   // x = 0
+  dbc.high(0) = Solid::BB_RIGID_WALL;  // x = nx-1
+  dbc.low(1) = Solid::BB_RIGID_WALL;   // y = 0
+  dbc.high(1) = Solid::BB_MOVING_WALL; // il lid, y = ny-1
 
   // --- 4. CREA MASCHERA --------------------------------------------------
-  types::boundary_mask_t obstacle_mask =
-      Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
+  // Nessun ostacolo immerso nel fluido: la maschera e' tutta types::FLUID.
+  types::solid_mask_t solid_mask =
+      Solid::compute_solid_mask<DIM>({}, grid_size);
 
   // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
   // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
@@ -103,7 +90,7 @@ int main(int argc, char **argv) {
       std::make_shared<VtkWriter>(cfg.frames_out, cfg.name);
 
   LBMSimulation<DIM, D2Q9, COLLISION> simulation(
-      grid_size, obstacle_mask,
+      grid_size, std::move(solid_mask), {}, dbc,
       CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, init_vel));
   simulation.attachListener(writer);
 

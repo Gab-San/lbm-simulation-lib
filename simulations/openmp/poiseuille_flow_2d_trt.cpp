@@ -1,8 +1,6 @@
 // LBM SIM LIB
 #include "lbm-sim/analysis/exact-solution.hpp"
-#include "lbm-sim/boundaries.hpp"
-#include "lbm-sim/collision-detection/collision-area.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/config/simulation-config.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
@@ -17,7 +15,6 @@
 // C++ STD LIB
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 static constexpr lbm::types::dim_t DIM = 2;
@@ -62,35 +59,19 @@ int main(int argc, char **argv) {
            cfg.frames_out, cfg.profile_out);
 
   // --- 3. CREA OSTACOLI --------------------------------------------------
-  // Couette: parete inferiore rigida, parete superiore mobile, lati sinistro
-  // e destro periodici (esclusi gli angoli, gia' presi dalle orizzontali).
-  const int x_max = static_cast<int>(grid_size.x) - 1;
-  const int y_max = static_cast<int>(grid_size.y) - 1;
-
-  const Coordinate<2> A(0, 0);
-  const Coordinate<2> B(0, y_max);
-  const Coordinate<2> C(x_max, y_max);
-  const Coordinate<2> D(x_max, 0);
-  const std::vector<CollisionDetection::CollisionArea<DIM>> obstacles{
-      CollisionDetection::CollisionArea(
-          A, {CollisionDetection::Segment(A, D)}), // bottom (y=0)
-      CollisionDetection::CollisionArea(
-          A, {CollisionDetection::Segment(B, C)}), // top (y=y_max)
-      CollisionDetection::CollisionArea(
-          A, {CollisionDetection::Segment(A + Vector<int, DIM>(0, 1),
-                                          B - Vector<int, DIM>(0, 1)),
-              CollisionDetection::Segment(C - Vector<int, DIM>(0, 1),
-                                          D + Vector<int, DIM>(0, 1))}),
-  };
-
-  const std::unordered_map<unsigned int, uint8_t> obst_type_map{
-      {0, Solid::BB_RIGID_WALL},
-      {1, Solid::BB_MOVING_WALL},
-      {2, Solid::PERIODIC}};
+  // Poiseuille: pareti rigide sopra e sotto, ingresso e uscita a pressione
+  // imposta sui lati. Gli angoli restano alle orizzontali come prima: il wrap
+  // su x avviene per primo, poi la faccia y rivendica il link.
+  Solid::DomainBC<DIM> dbc{};
+  dbc.low(0) = Solid::PRESSURE_PERIODIC_INLET;   // x = 0
+  dbc.high(0) = Solid::PRESSURE_PERIODIC_OUTLET; // x = nx-1
+  dbc.low(1) = Solid::BB_RIGID_WALL;             // y = 0
+  dbc.high(1) = Solid::BB_RIGID_WALL;            // y = ny-1
 
   // --- 4. CREA MASCHERA --------------------------------------------------
-  types::boundary_mask_t boundary_mask =
-      Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
+  // Nessun ostacolo immerso nel fluido: la maschera e' tutta types::FLUID.
+  types::solid_mask_t solid_mask =
+      Solid::compute_solid_mask<DIM>({}, grid_size);
 
   // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
   // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
@@ -99,9 +80,18 @@ int main(int argc, char **argv) {
   std::shared_ptr<VtkWriter> writer =
       std::make_shared<VtkWriter>(cfg.frames_out);
 
+  const CollisionParams<DIM, COLLISION> params(cfg.reynolds, grid_size, cfg.u0);
+  // Salto di pressione che sostiene il flusso: ricavato dalla soluzione di
+  // Poiseuille per il canale, non e' un parametro libero.
+  const double pout = 1;
+  const double pin =
+      pout +
+      numbers::invcs_2 *
+          (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) * 8 *
+          params.nu * params.init_vel.dx;
+
   LBMSimulation<DIM, D2Q9, COLLISION> simulation(
-      grid_size, boundary_mask,
-      CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, cfg.u0));
+      grid_size, std::move(solid_mask), {}, dbc, params, pin, pout);
   simulation.attachListener(writer);
 
   OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);

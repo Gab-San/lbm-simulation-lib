@@ -1,11 +1,11 @@
 #ifndef __LBM_SIM_SOLVER_SOLVER_2D
 #define __LBM_SIM_SOLVER_SOLVER_2D
 
-#include "lbm-sim/backend.hpp"
-#include "lbm-sim/boundaries.hpp"
+#include "lbm-sim/boundaries/boundary-conditions.hpp"
+#include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
 #include "lbm-sim/core/operators.hpp"
+#include "lbm-sim/metadata.hpp"
 #include "lbm-sim/omp/annotations.hpp"
 #include "lbm-sim/omp/iteration.hpp"
 #include "lbm-sim/solver/solver-base.hpp"
@@ -55,7 +55,7 @@ public:
     LOG_INFO(solver_logger, "The parallel section will run on {} threads.",
              omp_get_max_threads());
 
-    for (auto iter = 0; iter < this->niters; iter++) {
+    for (std::size_t iter = 0; iter < this->niters; iter++) {
       const bool save = iter % this->nskips == 0;
       const bool store_macroscopic = save || (iter + 1 == this->niters);
 
@@ -72,12 +72,12 @@ private:
   inline void init_equilibrium(std::vector<double> &part_stream,
                                const Lattice<dim> &lattice) const {
     const auto ext = lattice.grid.extents();
-    const auto area = lattice.grid.getArea();
+    const auto area = static_cast<std::ptrdiff_t>(lattice.grid.getArea());
 
     using utils::ops::dot;
 
 #pragma omp parallel for shared(lattice, part_stream) schedule(runtime)
-    for (std::size_t cell = 0; cell < area; cell++) {
+    for (int cell = 0; cell < area; cell++) {
 
       const types::Coordinate<dim> p = iteration::unflatten<dim>(cell, ext);
 
@@ -86,7 +86,8 @@ private:
       const double u_sq = dot(u, u);
 
 #pragma omp simd
-      for (auto diridx = 0; diridx < VelocitySet::ndir; ++diridx) {
+      for (std::ptrdiff_t diridx = 0;
+           diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); ++diridx) {
         double cidotu = dot(VelocitySet::dir[diridx], u);
 
         part_stream[lattice.grid.field_index(p, diridx, VelocitySet::ndir)] =
@@ -104,37 +105,58 @@ private:
                         const CollisionStrategy<dim, VelocitySet, cm_t> &cs,
                         const bool store_macroscopic) const {
     const auto ext = lattice.grid.extents();
-    const auto area = lattice.grid.getArea();
+    const auto area = static_cast<std::ptrdiff_t>(lattice.grid.getArea());
 
 #pragma omp parallel for shared(ffrom, fto, cs, lattice, store_macroscopic)    \
     schedule(static)
-    for (std::size_t cell = 0; cell < area; ++cell) {
+    for (int cell = 0; cell < area; ++cell) {
       std::array<double, VelocitySet::ndir> fp;
       const types::Coordinate<dim> p = iteration::unflatten<dim>(cell, ext);
 
+      // Skip solid nodes.
+      //
+      // Test solid_mask, NEVER a BC type: a fluid node sitting on a domain
+      // edge carries a face BC and must not be skipped.
+      //
+      // No solid node's populations are ever read under this scheme --
+      // bounce-back reads the fluid node p, the pressure rescale reads a node
+      // already confirmed fluid, and plain streaming only runs when src is
+      // fluid. So no surface/interior distinction is needed here.
+      //
+      // CAVEAT: interpolated bounce-back (Bouzidi, Filippova-Hanel) and
+      // Guo-style extrapolation DO read the solid node. Adding either brings
+      // the surface solid-node distinction back and this line has to change
+      // with it.
+      if (lattice.solid_mask[cell] != types::FLUID)
+        continue;
+
       double r_wall = 0.0;
       UNROLL_FULL
-      for (auto i = 0; i < VelocitySet::ndir; ++i) {
-        // calculate local rho on wall before boundary conditions
-        r_wall += ffrom[lattice.grid.field_index(p, i, VelocitySet::ndir)];
+      for (std::ptrdiff_t diridx = 0;
+           diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); ++diridx) {
+        // calculate local rho on wall before boundary conddiridxtions
+        r_wall += ffrom[lattice.grid.field_index(p, diridx, VelocitySet::ndir)];
       }
 
       // STREAMING + HALFWAY COLLISION
       UNROLL_FULL
-      for (auto diridx = 0; diridx < VelocitySet::ndir; ++diridx) {
-        const types::Coordinate<dim> src = p - VelocitySet::dir[diridx];
+      for (std::ptrdiff_t diridx = 0;
+           diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); ++diridx) {
+        // One resolve_link per direction: domain faces, periodic wrap and
+        // immersed obstacles are all decided in there, per link, not per node.
+        const auto link = Solid::resolve_link<dim>(
+            lattice.grid, lattice.domain_bc, lattice.solid_mask.data(),
+            lattice.obstacles.data(), p, VelocitySet::dir[diridx]);
 
-        if (!lattice.grid.contains(src)) {
-          // if source node is external it is on a boundary node
-          Solid::apply_boundary_condition<dim, VelocitySet>(
-              fp.data(), ffrom.data(), diridx, lattice.grid,
-              lattice.boundary_mask.data(), lattice.rho.data(),
-              lattice.u.data(), p, r_wall, cs.params.init_vel, lattice.pin,
-              lattice.pout);
+        if (link.bc == Solid::NONE) {
+          // source node is fluid and in range: plain streaming.
+          fp[diridx] = ffrom[lattice.grid.field_index(link.src, diridx,
+                                                      VelocitySet::ndir)];
         } else {
-          // if source node is internal stream it.
-          fp[diridx] =
-              ffrom[lattice.grid.field_index(src, diridx, VelocitySet::ndir)];
+          Solid::apply_boundary_condition<dim, VelocitySet>(
+              fp.data(), ffrom.data(), diridx, lattice.grid, link,
+              lattice.obstacles.data(), lattice.rho.data(), lattice.u.data(), p,
+              r_wall, cs.params.init_vel, lattice.pin, lattice.pout);
         }
       }
 
@@ -147,9 +169,10 @@ private:
       utils::Vector<double, dim> u;
 
 #pragma omp simd
-      for (auto i = 0; i < VelocitySet::ndir; ++i) {
-        r += fp[i];
-        u += VelocitySet::dir[i] * fp[i];
+      for (std::ptrdiff_t diridx = 0;
+           diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); ++diridx) {
+        r += fp[diridx];
+        u += VelocitySet::dir[diridx] * fp[diridx];
       }
 
       // u = (sum_i fi * ci) / rho
@@ -157,8 +180,7 @@ private:
 
       // STORE computed macroscopic values
       if (store_macroscopic ||
-          lattice.boundary_mask[cell] == Solid::PRESSURE_PERIODIC_INLET ||
-          lattice.boundary_mask[cell] == Solid::PRESSURE_PERIODIC_OUTLET) {
+          Solid::on_pressure_face(lattice.grid, lattice.domain_bc, p)) {
         lattice.rho[cell] = r;
         lattice.u[cell] = u;
       }
@@ -172,8 +194,10 @@ private:
 
       // COPY LOCAL DENSITY TO GRID
 #pragma omp simd
-      for (auto i = 0; i < VelocitySet::ndir; i++) {
-        fto[lattice.grid.field_index(p, i, VelocitySet::ndir)] = fp[i];
+      for (std::ptrdiff_t diridx = 0;
+           diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); diridx++) {
+        fto[lattice.grid.field_index(p, diridx, VelocitySet::ndir)] =
+            fp[diridx];
       }
     }
   };

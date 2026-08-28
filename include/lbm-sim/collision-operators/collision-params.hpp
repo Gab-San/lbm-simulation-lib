@@ -9,7 +9,6 @@
 
 #include "lbm-sim/metadata.hpp"
 
-// FIXME: RENAME TO COLLISIONPARAMS
 namespace lbm {
 
 template <unsigned short int dim, enum CollisionModel cm_t>

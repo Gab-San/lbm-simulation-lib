@@ -1,15 +1,17 @@
 #ifndef __LBM_SIM_SOLVER_CUDA_SOLVER_CUH
 #define __LBM_SIM_SOLVER_CUDA_SOLVER_CUH
 
-#include "lbm-sim/backend.hpp"
 #include "lbm-sim/backend/cuda/properties.cuh"
-#include "lbm-sim/boundaries.hpp"
+#include "lbm-sim/boundaries/boundary-conditions.hpp"
+#include "lbm-sim/boundaries/utils.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
 #include "lbm-sim/constants.hpp"
 #include "lbm-sim/core/vector.hpp"
+#include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/cuda/structs.cuh"
 #include "lbm-sim/cuda/utils.cuh"
+#include "lbm-sim/metadata.hpp"
 #include "lbm-sim/solver/solver-base.hpp"
 
 // CUDA LIB
@@ -52,8 +54,10 @@ init_equilibrium(double *__restrict__ part_stream,
 template <types::dim_t dim, typename VelocitySet, enum CollisionModel cm_t>
 __global__ void update_stream_collide(
     const double *__restrict__ const ffrom, double *__restrict__ fto,
-    const types::boundary_t *__restrict__ boundary_mask,
-    float *__restrict__ norms, double *__restrict__ lattice_rho,
+    const types::obstacle_id_t *__restrict__ solid_mask,
+    const Solid::ObstacleData<dim> *__restrict__ obstacles,
+    const Solid::DomainBC<dim> dbc, float *__restrict__ norms,
+    double *__restrict__ lattice_rho,
     utils::Vector<double, dim> *__restrict__ lattice_u, const Grid<dim> grid,
     const CollisionStrategy<dim, VelocitySet, cm_t> cs, const double pin,
     const double pout, const bool store_macroscopic) {
@@ -67,6 +71,12 @@ __global__ void update_stream_collide(
     return;
   }
 
+  // Skip solid nodes -- same rule as the OpenMP solver: test solid_mask, never
+  // a BC type, because a fluid node on a domain edge carries a face BC.
+  if (solid_mask[grid.scalar_index(p)] != types::FLUID) {
+    return;
+  }
+
   double r_wall = 0.0;
   for (auto diridx = 0; diridx < VelocitySet::ndir; diridx++) {
     r_wall += ffrom[grid.field_index(p, diridx, VelocitySet::ndir)];
@@ -74,17 +84,17 @@ __global__ void update_stream_collide(
 
   // STREAMING + HALFWAY COLLISION
   for (auto diridx = 0; diridx < VelocitySet::ndir; diridx++) {
-    const types::Coordinate<dim> src =
-        p - cuda::vs_dir<dim, VelocitySet>[diridx];
+    const auto link =
+        Solid::resolve_link<dim>(grid, dbc, solid_mask, obstacles, p,
+                                 cuda::vs_dir<dim, VelocitySet>[diridx]);
 
-    if (!grid.contains(src)) {
-      // if source node is external it is on a boundary node
-      Solid::apply_boundary_condition<dim, VelocitySet>(
-          fp, ffrom, diridx, grid, boundary_mask, lattice_rho, lattice_u, p,
-          r_wall, cs.params.init_vel, pin, pout);
+    if (link.bc == Solid::NONE) {
+      // source node is fluid and in range: plain streaming.
+      fp[diridx] = ffrom[grid.field_index(link.src, diridx, VelocitySet::ndir)];
     } else {
-      // if source node is internal stream it.
-      fp[diridx] = ffrom[grid.field_index(src, diridx, VelocitySet::ndir)];
+      Solid::apply_boundary_condition<dim, VelocitySet>(
+          fp, ffrom, diridx, grid, link, obstacles, lattice_rho, lattice_u, p,
+          r_wall, cs.params.init_vel, pin, pout);
     }
   }
 
@@ -107,9 +117,7 @@ __global__ void update_stream_collide(
 
   // Store macroscopic fields for requested frames and for the final state.
   const auto s_idx = grid.scalar_index(p);
-  if (store_macroscopic ||
-      boundary_mask[s_idx] == Solid::PRESSURE_PERIODIC_INLET ||
-      boundary_mask[s_idx] == Solid::PRESSURE_PERIODIC_OUTLET) {
+  if (store_macroscopic || Solid::on_pressure_face(grid, dbc, p)) {
     lattice_rho[s_idx] = r;
     lattice_u[s_idx] = u;
   }
@@ -126,44 +134,45 @@ __global__ void update_stream_collide(
   }
 }
 
-/// Pair of CUDA events with a destructor, so that an exception thrown between
-/// the two records -- `LBM_CUDA_CHECK` throws -- does not leak them.
-class EventPair {
-public:
-  EventPair() : start(nullptr), stop(nullptr) {
-    LBM_CUDA_CHECK(cudaEventCreate(&start));
-    LBM_CUDA_CHECK(cudaEventCreate(&stop));
-  }
-
-  ~EventPair() {
-    if (stop)
-      cudaEventDestroy(stop);
-    if (start)
-      cudaEventDestroy(start);
-  }
-
-  EventPair(const EventPair &) = delete;
-  EventPair &operator=(const EventPair &) = delete;
-
-  void record_start(cudaStream_t stream) const {
-    LBM_CUDA_CHECK(cudaEventRecord(start, stream));
-  }
-
-  void record_stop(cudaStream_t stream) const {
-    LBM_CUDA_CHECK(cudaEventRecord(stop, stream));
-  }
-
-  /// Milliseconds between the two records. Blocks until `stop` is reached.
-  float elapsed_ms() const {
-    LBM_CUDA_CHECK(cudaEventSynchronize(stop));
-    float ms = 0.0f;
-    LBM_CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
-    return ms;
-  }
-
-private:
-  cudaEvent_t start, stop;
-};
+// /// Pair of CUDA events with a destructor, so that an exception thrown
+// between
+// /// the two records -- `LBM_CUDA_CHECK` throws -- does not leak them.
+// class EventPair {
+// public:
+//   EventPair() : start(nullptr), stop(nullptr) {
+//     LBM_CUDA_CHECK(cudaEventCreate(&start));
+//     LBM_CUDA_CHECK(cudaEventCreate(&stop));
+//   }
+//
+//   ~EventPair() {
+//     if (stop)
+//       cudaEventDestroy(stop);
+//     if (start)
+//       cudaEventDestroy(start);
+//   }
+//
+//   EventPair(const EventPair &) = delete;
+//   EventPair &operator=(const EventPair &) = delete;
+//
+//   void record_start(cudaStream_t stream) const {
+//     LBM_CUDA_CHECK(cudaEventRecord(start, stream));
+//   }
+//
+//   void record_stop(cudaStream_t stream) const {
+//     LBM_CUDA_CHECK(cudaEventRecord(stop, stream));
+//   }
+//
+//   /// Milliseconds between the two records. Blocks until `stop` is reached.
+//   float elapsed_ms() const {
+//     LBM_CUDA_CHECK(cudaEventSynchronize(stop));
+//     float ms = 0.0f;
+//     LBM_CUDA_CHECK(cudaEventElapsedTime(&ms, start, stop));
+//     return ms;
+//   }
+//
+// private:
+//   cudaEvent_t start, stop;
+// };
 
 } // namespace cuda_detail
 
@@ -189,7 +198,11 @@ public:
 
     cuda::DeviceBuffer<double> ffrom(area * VelocitySet::ndir);
     cuda::DeviceBuffer<double> fto(area * VelocitySet::ndir);
-    cuda::DeviceBuffer<types::boundary_t> d_boundary_mask(area);
+    cuda::DeviceBuffer<types::obstacle_id_t> d_solid_mask(area);
+    // Read-only side table; empty when no body is immersed, in which case the
+    // pointer is never dereferenced (no mask entry differs from types::FLUID).
+    cuda::DeviceBuffer<Solid::ObstacleData<dim>> d_obstacles(
+        lattice.obstacles.size());
     cuda::DeviceBuffer<float> norms(area);
     cuda::DeviceBuffer<double> d_rho(area);
     cuda::DeviceBuffer<utils::Vector<double, dim>> d_u(area);
@@ -199,7 +212,8 @@ public:
     // ----- DATA STRUCTURES INITIALIZATION -------
     d_rho.upload_async(lattice.rho, stream);
     d_u.upload_async(lattice.u, stream);
-    d_boundary_mask.upload_async(lattice.boundary_mask, stream);
+    d_solid_mask.upload_async(lattice.solid_mask, stream);
+    d_obstacles.upload_async(lattice.obstacles, stream);
     // -----------------------------------------
 
     const auto &props =
@@ -227,10 +241,10 @@ public:
     // warm-up -- it also pays for the lazy module load of the first launch --
     // and would flatter or spoil the number depending on how many iterations
     // it is amortized over.
-    const cuda_detail::EventPair timer;
-    timer.record_start(stream);
+    // const cuda_detail::EventPair timer;
+    // timer.record_start(stream);
 
-    for (auto iter = 0; iter < this->niters; iter++) {
+    for (std::size_t iter = 0; iter < this->niters; iter++) {
       // Benchmark mode keeps the host sync, the download and the frame write
       // out of the loop entirely; the macroscopic fields are still computed on
       // the last iteration and downloaded once, after the timer stops.
@@ -239,10 +253,10 @@ public:
 
       cuda_detail::update_stream_collide<dim, VelocitySet, cm_t>
           <<<grid_dims, block, 0, stream>>>(
-              ffrom.data(), fto.data(), d_boundary_mask.data(), norms.data(),
-              d_rho.data(), d_u.data(), lattice.grid,
-              CollisionStrategy<dim, VelocitySet, cm_t>(params_), lattice.pin,
-              lattice.pout, store_macroscopic);
+              ffrom.data(), fto.data(), d_solid_mask.data(), d_obstacles.data(),
+              lattice.domain_bc, norms.data(), d_rho.data(), d_u.data(),
+              lattice.grid, CollisionStrategy<dim, VelocitySet, cm_t>(params_),
+              lattice.pin, lattice.pout, store_macroscopic);
 
       LBM_CUDA_CHECK(cudaGetLastError());
       std::swap(ffrom, fto);
@@ -254,25 +268,25 @@ public:
       }
     }
 
-    timer.record_stop(stream);
+    // timer.record_stop(stream);
 
     // MLUPS = million lattice updates per second: every cell is updated once
     // per iteration, so the update count is area * niters.
-    const float elapsed_ms = timer.elapsed_ms();
-    const double mlups =
-        static_cast<double>(area) * this->niters / (elapsed_ms * 1.0e3);
-
-    if (benchmarking) {
-      LOG_NOTICE(solver_logger, "{} cells x {} iters in {} ms -> {} MLUPS",
-                 area, this->niters, elapsed_ms, mlups);
-    } else {
-      // Frames were written from inside the loop, so this figure covers the
-      // host syncs and the I/O too. Use benchmark mode for a throughput
-      // number worth quoting.
-      LOG_INFO(solver_logger,
-               "{} cells x {} iters in {} ms -> {} MLUPS (frame I/O included)",
-               area, this->niters, elapsed_ms, mlups);
-    }
+    // const float elapsed_ms = timer.elapsed_ms();
+    // const double mlups =
+    //     static_cast<double>(area) * this->niters / (elapsed_ms * 1.0e3);
+    //
+    // if (benchmarking) {
+    //   LOG_NOTICE(solver_logger, "{} cells x {} iters in {} ms -> {} MLUPS",
+    //              area, this->niters, elapsed_ms, mlups);
+    // } else {
+    //   // Frames were written from inside the loop, so this figure covers the
+    //   // host syncs and the I/O too. Use benchmark mode for a throughput
+    //   // number worth quoting.
+    //   LOG_INFO(solver_logger,
+    //            "{} cells x {} iters in {} ms -> {} MLUPS (frame I/O
+    //            included)", area, this->niters, elapsed_ms, mlups);
+    // }
 
     // The final iteration always stores rho/u even when it is not a frame.
     download_macroscopic(d_rho, d_u, lattice, stream);

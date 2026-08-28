@@ -1,8 +1,8 @@
 // LBM SIM LIB
 #include "lbm-sim/analysis/exact-solution.hpp"
-#include "lbm-sim/boundaries.hpp"
+#include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
@@ -14,7 +14,6 @@
 #include "quill/LogMacros.h"
 
 // C++ STD LIB
-#include <unordered_map>
 #include <vector>
 
 static constexpr unsigned short int DIM = 2;
@@ -46,7 +45,11 @@ template <> struct Config<2> {
 
   const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
 
-  const std::unordered_map<unsigned int, uint8_t> obst_type_map;
+  /// Tabella laterale: id ostacolo -> {tipo di BC, velocita' di parete}.
+  const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data;
+
+  /// BC delle facce del dominio: le pareti non sono piu' ostacoli.
+  const lbm::Solid::DomainBC<DIM> domain_bc;
 
   Config<2>(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
@@ -54,12 +57,24 @@ template <> struct Config<2> {
       const lbm::utils::Vector<double, 2> init_vel_,
       const std::string c_out_frames, const std::string c_out_data,
       const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles_,
-      const std::unordered_map<unsigned int, uint8_t> obst_type_map_)
+      const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data_,
+      const lbm::Solid::DomainBC<DIM> domain_bc_)
       : grid_size(grid_size_), iters(c_iters), frames(c_frames),
         reyn_num(c_reyn_num), init_vel(init_vel_), out_frames(c_out_frames),
         out_data(c_out_data), obstacles(std::move(obstacles_)),
-        obst_type_map(std::move(obst_type_map_)) {}
+        obstacle_data(std::move(obstacle_data_)), domain_bc(domain_bc_) {}
 };
+
+/// Canale di Poiseuille: pressione imposta su ingresso e uscita, pareti
+/// rigide sopra e sotto.
+static lbm::Solid::DomainBC<DIM> make_channel_bc() {
+  lbm::Solid::DomainBC<DIM> dbc{};
+  dbc.low(0) = lbm::Solid::PRESSURE_PERIODIC_INLET;   // x = 0
+  dbc.high(0) = lbm::Solid::PRESSURE_PERIODIC_OUTLET; // x = nx-1
+  dbc.low(1) = lbm::Solid::BB_RIGID_WALL;             // y = 0
+  dbc.high(1) = lbm::Solid::BB_RIGID_WALL;            // y = ny-1
+  return dbc;
+}
 
 int main() {
   using namespace lbm;
@@ -73,28 +88,12 @@ int main() {
   const Coordinate<2> D129(128, 0);
 
   std::vector<Config<2>> configs{
-      Config<2>(
-          {129, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
-          /*init_vel*/ {0.1, 0}, "out/norms_poiseuille_cuda_129_100_01_trt.bin",
-          "out/data_poiseuille_cuda_129_100_01_trt.bin",
-          {
-              CollisionDetection::CollisionArea(
-                  ZERO,
-                  {CollisionDetection::Segment(ZERO, D129),   // bottom (y=0)
-                   CollisionDetection::Segment(B129, C129)}), // top (y=128)
-              CollisionDetection::CollisionArea(              // LEFT WALL
-                  ZERO,
-                  {CollisionDetection::Segment(ZERO + Vector<int, DIM>(0, 1),
-                                               B129 - Vector<int, DIM>(0, 1))}),
-              CollisionDetection::CollisionArea( // RIGHT WALL
-                  ZERO,
-                  {CollisionDetection::Segment(C129 - Vector<int, DIM>(0, 1),
-                                               D129 + Vector<int, DIM>(0, 1))}),
-          },
-          {{0, Solid::BB_RIGID_WALL}, // fixed top and bottom wall
-           {1, Solid::PRESSURE_PERIODIC_INLET},
-           {2, Solid::PRESSURE_PERIODIC_OUTLET}}), // right and left
-                                                   // periodic bc
+      Config<2>({129, 129}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 100.0,
+                /*init_vel*/ {0.1, 0},
+                "out/norms_poiseuille_cuda_129_100_01_trt.bin",
+                "out/data_poiseuille_cuda_129_100_01_trt.bin", {}, {},
+                make_channel_bc()),
+      // periodic bc
   };
 
   logging::setup_quill();
@@ -103,10 +102,10 @@ int main() {
   constexpr auto CollisionType = CollisionModel::TRT;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
-  for (auto confidx = 0; confidx < configs.size(); confidx++) {
+  for (std::size_t confidx = 0; confidx < configs.size(); confidx++) {
     const auto conf = configs[confidx];
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
-                 obstacles, obst_type_map] = conf;
+                 obstacles, obstacle_data, domain_bc] = conf;
 
     LOG_INFO(
         main_logger,
@@ -115,8 +114,8 @@ int main() {
         "frames: {}\n",
         confidx, grid_size, reyn, init_vel, iters, frames);
 
-    types::boundary_mask_t boundary_mask =
-        Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
+    types::solid_mask_t solid_mask =
+        Solid::compute_solid_mask<DIM>(obstacles, grid_size);
 
     std::shared_ptr<VtkWriter> writer =
         std::make_shared<VtkWriter>(conf.out_frames);
@@ -126,7 +125,8 @@ int main() {
     const double pin =
         pout + (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
                    8 * params.nu * params.init_vel.dx;
-    Simulation simulation(grid_size, boundary_mask, params, pin, pout);
+    Simulation simulation(grid_size, std::move(solid_mask), obstacle_data,
+                          domain_bc, params, pin, pout);
 
     simulation.attachListener(writer);
 

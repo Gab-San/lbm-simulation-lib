@@ -1,8 +1,8 @@
 #ifndef __LBM_SIM_CONFIG_CONFIG_PARSER_HPP
 #define __LBM_SIM_CONFIG_CONFIG_PARSER_HPP
 
-#include "lbm-sim/backend.hpp"
 #include "lbm-sim/config/simulation-config.hpp"
+#include "lbm-sim/metadata.hpp"
 
 #include <toml++/toml.hpp>
 
@@ -174,7 +174,8 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
 }
 
 template <types::dim_t dim>
-std::vector<SimulationConfig<dim>> parse_config(const std::filesystem::path &path) {
+std::vector<SimulationConfig<dim>>
+parse_config(const std::filesystem::path &path) {
   if (!std::filesystem::exists(path))
     throw ConfigError("file di configurazione inesistente: " + path.string());
 
@@ -183,12 +184,13 @@ std::vector<SimulationConfig<dim>> parse_config(const std::filesystem::path &pat
     tbl = toml::parse_file(path.string());
   } catch (const toml::parse_error &err) {
     throw ConfigError("TOML malformato in " + path.string() + ": " +
-                       std::string(err.description()));
+                      std::string(err.description()));
   }
 
   const auto *arr = tbl["conf"].as_array();
   if (!arr)
-    throw ConfigError("campo 'conf' mancante o non è un array in " + path.string());
+    throw ConfigError("campo 'conf' mancante o non è un array in " +
+                      path.string());
 
   std::vector<SimulationConfig<dim>> configs;
   configs.reserve(arr->size());

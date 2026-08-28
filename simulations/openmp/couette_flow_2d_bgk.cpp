@@ -1,11 +1,10 @@
 // LBM SIM LIB
 #include "lbm-sim/analysis/exact-solution.hpp"
-#include "lbm-sim/boundaries.hpp"
-#include "lbm-sim/collision-detection/collision-area.hpp"
-#include "lbm-sim/collision-operators/metadata.hpp"
+#include "lbm-sim/boundaries/utils.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/vtk-writer.hpp"
+#include "lbm-sim/data/async-binary-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
@@ -18,7 +17,6 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 static constexpr lbm::types::dim_t DIM = 2;
@@ -57,45 +55,36 @@ int main(int argc, char **argv) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
 
     LOG_INFO(main_logger,
-             "Simulation:\n\tGrid dimensions: {}\n\tReynolds number: "
+             "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
              "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
              "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-             grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
+             cfg.name, grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
              cfg.frames_out, cfg.profile_out);
 
-    const int x_max = static_cast<int>(grid_size.x) - 1;
-    const int y_max = static_cast<int>(grid_size.y) - 1;
+    // --- 3. CREA OSTACOLI --------------------------------------------------
+    // Couette: parete inferiore rigida, parete superiore mobile, lati sinistro
+    // e destro periodici. Gli angoli restano alle orizzontali come prima: il
+    // wrap su x avviene per primo, poi la faccia y rivendica il link.
+    Solid::DomainBC<DIM> dbc{};
+    dbc.low(0) = Solid::PERIODIC;        // x = 0
+    dbc.high(0) = Solid::PERIODIC;       // x = nx-1
+    dbc.low(1) = Solid::BB_RIGID_WALL;   // y = 0
+    dbc.high(1) = Solid::BB_MOVING_WALL; // y = ny-1
 
-    const Coordinate<2> A(0, 0);
-    const Coordinate<2> B(0, y_max);
-    const Coordinate<2> C(x_max, y_max);
-    const Coordinate<2> D(x_max, 0);
+    // --- 4. CREA MASCHERA --------------------------------------------------
+    // Nessun ostacolo immerso nel fluido: la maschera e' tutta types::FLUID.
+    types::solid_mask_t solid_mask =
+        Solid::compute_solid_mask<DIM>({}, grid_size);
 
-    const std::vector<CollisionDetection::CollisionArea<DIM>> obstacles{
-        CollisionDetection::CollisionArea(A,
-                                          {CollisionDetection::Segment(A, D)}),
-        CollisionDetection::CollisionArea(A,
-                                          {CollisionDetection::Segment(B, C)}),
-        CollisionDetection::CollisionArea(
-            A, {CollisionDetection::Segment(A + Vector<int, DIM>(0, 1),
-                                            B - Vector<int, DIM>(0, 1)),
-                CollisionDetection::Segment(C - Vector<int, DIM>(0, 1),
-                                            D + Vector<int, DIM>(0, 1))}),
-    };
-
-    const std::unordered_map<unsigned int, uint8_t> obst_type_map{
-        {0, Solid::BB_RIGID_WALL},
-        {1, Solid::BB_MOVING_WALL},
-        {2, Solid::PERIODIC}};
-
-    types::boundary_mask_t boundary_mask =
-        Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
-
-    std::shared_ptr<VtkWriter> writer =
-        std::make_shared<VtkWriter>(cfg.frames_out);
+    // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
+    // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
+    // configurazione, cosi' run diversi nella stessa cartella non si
+    // sovrascrivono a vicenda.
+    std::shared_ptr<AsyncBinaryWriter> writer =
+        std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
 
     LBMSimulation<DIM, D2Q9, COLLISION> simulation(
-        grid_size, boundary_mask,
+        grid_size, std::move(solid_mask), {}, dbc,
         CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, cfg.u0));
     simulation.attachListener(writer);
 

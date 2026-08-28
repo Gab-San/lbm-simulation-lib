@@ -2,10 +2,11 @@
 #define __CORE_POINT_HPP
 
 #include "lbm-sim/cuda/annotations.hpp"
-#include "lbm-sim/types/base.hpp"
+#include "lbm-sim/types/fwd.hpp"
 
 // C++ STANDARD LIB
 #include <iostream>
+#include <type_traits>
 
 namespace lbm {
 
@@ -15,12 +16,11 @@ template <unsigned short int dim> constexpr bool always_false = false;
 
 namespace utils {
 
-template <typename T, types::dim_t dim> struct Point;
-
 template <typename T> struct Point<T, 2> {
-  const T x, y;
+  T x, y;
 
   LBM_HD_FUNC constexpr Point(const T x_, const T y_) : x(x_), y(y_) {}
+  Point() = default;
 
   template <typename U>
   LBM_HD_FUNC explicit Point(const Point<U, 2> &other)
@@ -33,10 +33,11 @@ template <typename T> struct Point<T, 2> {
 };
 
 template <typename T> struct Point<T, 3> {
-  const T x, y, z;
+  T x, y, z;
 
   LBM_HD_FUNC constexpr Point(const T x_, const T y_, const T z_)
-      : x(x_), y(y_), z(z_){};
+      : x(x_), y(y_), z(z_) {}
+  Point() = default;
 
   template <typename U>
   LBM_HD_FUNC explicit Point(const Point<U, 3> &other)
