@@ -1,7 +1,6 @@
 #ifndef __LBM_SIM_SOLVER_CUDA_SOLVER_CUH
 #define __LBM_SIM_SOLVER_CUDA_SOLVER_CUH
 
-#include "lbm-sim/backend.hpp"
 #include "lbm-sim/backend/cuda/properties.cuh"
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/boundaries/utils.hpp"
@@ -12,6 +11,7 @@
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/cuda/structs.cuh"
 #include "lbm-sim/cuda/utils.cuh"
+#include "lbm-sim/metadata.hpp"
 #include "lbm-sim/solver/solver-base.hpp"
 
 // CUDA LIB

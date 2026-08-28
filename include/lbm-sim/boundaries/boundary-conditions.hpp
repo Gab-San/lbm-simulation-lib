@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lbm-sim/backend.hpp"
+#include "lbm-sim/backend/utils.hpp"
 #include "lbm-sim/boundaries/types.hpp"
 #include "lbm-sim/constants.hpp"
 #include "lbm-sim/core/grid.hpp"

@@ -6,8 +6,6 @@
 
 #include "lbm-sim/core/operators.hpp"
 
-#include "lbm-sim/backend.hpp"
-
 namespace lbm {
 
 template <types::dim_t dim, typename VelocitySet, enum CollisionModel cm_t>

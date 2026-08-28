@@ -42,8 +42,10 @@
 //     chunk_size = chunk_size_;
 //   }
 
-//   /// With dynamic adjustment on, the runtime is free to hand a parallel region
-//   /// *fewer* threads than asked for, which makes a timing run unreproducible.
+//   /// With dynamic adjustment on, the runtime is free to hand a parallel
+//   region
+//   /// *fewer* threads than asked for, which makes a timing run
+//   unreproducible.
 //   /// Defaults to off; turn it back on only to measure that behaviour on
 //   /// purpose.
 //   void setDynamicThreads(const bool dynamic_threads_) noexcept {
@@ -62,13 +64,15 @@
 //     omp_set_schedule(schedule, chunk_size);
 //   }
 
-//   /// RAII counterpart of `apply()`: snapshots the runtime's ICVs, applies the
+//   /// RAII counterpart of `apply()`: snapshots the runtime's ICVs, applies
+//   the
 //   /// stored properties, and restores the snapshot on scope exit. Use it to
 //   /// keep a profiled region from leaking its settings into whatever runs
 //   /// next:
 //   ///
 //   ///     {
-//   ///       const auto scope = BackendProperties<OPEN_MP>::get().scopedApply();
+//   ///       const auto scope =
+//   BackendProperties<OPEN_MP>::get().scopedApply();
 //   ///       simulation.solve(solver);
 //   ///     } // runtime is back to what it was
 //   ///

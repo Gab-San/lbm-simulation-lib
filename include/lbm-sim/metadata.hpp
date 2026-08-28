@@ -4,8 +4,7 @@
 
 namespace lbm {
 
-// FIXME: DECOMMENT AND REWIRE
-// enum ExecutionBackend { CUDA, OPEN_MP };
+enum ExecutionBackend { CUDA, OPEN_MP };
 
 enum CollisionModel { BGK, TRT, MRT };
 

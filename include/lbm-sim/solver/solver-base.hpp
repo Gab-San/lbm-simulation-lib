@@ -2,11 +2,11 @@
 #define __LBM_SIM_SOLVER_SOLVER_BASE_HPP
 
 // LIB SIM LIB
-#include "lbm-sim/backend.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/data-observable.hpp"
 #include "lbm-sim/lattice.hpp"
+#include "lbm-sim/metadata.hpp"
 
 namespace lbm {
 template <types::dim_t dim, typename VelocitySet, enum CollisionModel cm_t,
