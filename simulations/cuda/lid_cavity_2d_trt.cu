@@ -13,7 +13,6 @@
 #include "quill/LogMacros.h"
 
 // C++ STD LIB
-#include <unordered_map>
 
 static constexpr unsigned short int DIM = 2;
 
@@ -71,7 +70,11 @@ template <> struct Config<2> {
 
   const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
 
-  const std::unordered_map<unsigned int, uint8_t> obst_type_map;
+  /// Tabella laterale: id ostacolo -> {tipo di BC, velocita' di parete}.
+  const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data;
+
+  /// BC delle facce del dominio: le pareti non sono piu' ostacoli.
+  const lbm::Solid::DomainBC<DIM> domain_bc;
 
   Config<2>(
       const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
@@ -79,12 +82,23 @@ template <> struct Config<2> {
       const lbm::utils::Vector<double, 2> init_vel_,
       const std::string c_out_frames, const std::string c_out_data,
       const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles_,
-      const std::unordered_map<unsigned int, uint8_t> obst_type_map_)
+      const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data_,
+      const lbm::Solid::DomainBC<DIM> domain_bc_)
       : grid_size(grid_size_), iters(c_iters), frames(c_frames),
         reyn_num(c_reyn_num), init_vel(init_vel_), out_frames(c_out_frames),
         out_data(c_out_data), obstacles(std::move(obstacles_)),
-        obst_type_map(std::move(obst_type_map_)) {}
+        obstacle_data(std::move(obstacle_data_)), domain_bc(domain_bc_) {}
 };
+
+/// Lid-driven cavity: tre pareti rigide + il lid mobile in alto.
+static lbm::Solid::DomainBC<DIM> make_cavity_bc() {
+  lbm::Solid::DomainBC<DIM> dbc{};
+  dbc.low(0) = lbm::Solid::BB_RIGID_WALL;   // x = 0
+  dbc.high(0) = lbm::Solid::BB_RIGID_WALL;  // x = nx-1
+  dbc.low(1) = lbm::Solid::BB_RIGID_WALL;   // y = 0
+  dbc.high(1) = lbm::Solid::BB_MOVING_WALL; // il lid, y = ny-1
+  return dbc;
+}
 
 int main() {
   using namespace lbm;
@@ -103,28 +117,13 @@ int main() {
           /*reyn*/ 100.0, /*init_vel*/ {0.1, 0},
           "out/norms_lid_cavity_cuda_129_100_01_trt.bin",
           "out/data_lid_cavity_cuda_129_100_01_trt.bin",
-          {CollisionDetection::CollisionArea(
-               ZERO,
-               {CollisionDetection::Segment(ZERO, Coordinate<DIM>(0, 128)),
-                CollisionDetection::Segment(ZERO, Coordinate<DIM>(128, 0)),
-                CollisionDetection::Segment(Coordinate<DIM>(128, 0),
-                                            Coordinate<DIM>(128, 128))}),
-           CollisionDetection::CollisionArea(
-               ZERO, {CollisionDetection::Segment(Coordinate<DIM>(0, 128),
-                                                  Coordinate<DIM>(128, 128))})},
-          {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
+          {}, {}, make_cavity_bc()),
 
       Config<DIM>({200, 200}, /*iters*/ 30000, /*frames*/ 100,
                   /*reyn*/ 1000.0, /*init_vel*/ {0.1, 0},
                   "out/norms_lid_cavity_cuda_200_1000_01_trt.bin",
                   "out/data_lid_cavity_cuda_200_1000_01_trt.bin",
-                  {CollisionDetection::CollisionArea(
-                       ZERO, {CollisionDetection::Segment(ZERO, B200),
-                              CollisionDetection::Segment(ZERO, D200),
-                              CollisionDetection::Segment(D200, C200)}),
-                   CollisionDetection::CollisionArea(
-                       ZERO, {CollisionDetection::Segment(B200, C200)})},
-                  {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
+                  {}, {}, make_cavity_bc()),
 
 #if 0
       Config<DIM>(
@@ -132,34 +131,14 @@ int main() {
           /*init_vel*/ {0.2, 0},
           "out/norms_lid_cavity_cuda_2000_7500_02_trt.bin",
           "out/data_lid_cavity_cuda_2000_7500_02_trt.bin",
-          {CollisionDetection::CollisionArea(
-               ZERO,
-               {CollisionDetection::Segment(ZERO, Coordinate<DIM>(0, 1999)),
-                CollisionDetection::Segment(ZERO, Coordinate<DIM>(1999, 0)),
-                CollisionDetection::Segment(Coordinate<DIM>(1999, 0),
-                                            Coordinate<DIM>(1999, 1999))}),
-           CollisionDetection::CollisionArea(
-               ZERO,
-               {CollisionDetection::Segment(Coordinate<DIM>(0, 1999),
-                                            Coordinate<DIM>(1999, 1999))})},
-          {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
+          {}, {}, make_cavity_bc()),
 
       Config<DIM>(
           {5000, 5000}, /*iters*/ 100000, /*frames*/ 250,
           /*reyn*/ 50000.0, /*init_vel*/ {0.1, 0},
           "out/norms_lid_cavity_cuda_5000_50000_01_trt.bin",
           "out/data_lid_cavity_cuda_5000_50000_01_trt.bin",
-          {CollisionDetection::CollisionArea(
-               ZERO,
-               {CollisionDetection::Segment(ZERO, Coordinate<DIM>(0, 4999)),
-                CollisionDetection::Segment(ZERO, Coordinate<DIM>(4999, 0)),
-                CollisionDetection::Segment(Coordinate<DIM>(4999, 0),
-                                            Coordinate<DIM>(4999, 4999))}),
-           CollisionDetection::CollisionArea(
-               ZERO,
-               {CollisionDetection::Segment(Coordinate<DIM>(0, 4999),
-                                            Coordinate<DIM>(4999, 4999))})},
-          {{0, Solid::BB_RIGID_WALL}, {1, Solid::BB_MOVING_WALL}}),
+          {}, {}, make_cavity_bc()),
 #endif
   };
 
@@ -175,7 +154,7 @@ int main() {
   for (auto confidx = 0; confidx < configs.size(); confidx++) {
     const auto conf = configs[confidx];
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
-                 obstacles, obst_type_map] = conf;
+                 obstacles, obstacle_data, domain_bc] = conf;
 
     LOG_INFO(
         main_logger,
@@ -184,14 +163,14 @@ int main() {
         "frames: {}\n",
         confidx, grid_size, reyn, init_vel, iters, frames);
 
-    types::boundary_mask_t obstacle_mask =
-        Solid::compute_boundary_mask<DIM>(obst_type_map, obstacles, grid_size);
+    types::solid_mask_t solid_mask =
+        Solid::compute_solid_mask<DIM>(obstacles, grid_size);
 
     std::shared_ptr<VtkWriter> writer =
         std::make_shared<VtkWriter>(out_frames);
 
     Simulation simulation(
-        grid_size, obstacle_mask,
+        grid_size, std::move(solid_mask), obstacle_data, domain_bc,
         CollisionParams<DIM, CollisionType>(reyn, grid_size, init_vel));
 
     simulation.attachListener(writer);

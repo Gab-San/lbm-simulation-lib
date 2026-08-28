@@ -3,185 +3,144 @@
 
 #include "lbm-sim/types/common.hpp"
 
+#include "lbm-sim/core/operators.hpp"
 #include "lbm-sim/core/vector.hpp"
 
 #include "lbm-sim/collision-detection/algorithms/collision.hpp"
-#include "lbm-sim/collision-detection/algorithms/rasterization.hpp"
 
 // C++ STANDARD LIB
 #include <cmath>
+#include <initializer_list>
 #include <stdexcept>
+#include <utility>
 #include <vector>
-
-// FIXME: Should be extendible to 3D
 
 namespace lbm {
 namespace CollisionDetection {
 
+/// Integer bounding box of a shape. INCLUSIVE on both ends and unclamped:
+/// Solid::compute_solid_mask() clamps it against the grid.
+template <types::dim_t dim> struct AABB {
+  types::Coordinate<dim> min, max;
+};
+
+namespace detail {
+
+/// Component-wise hull of two inclusive boxes.
+template <types::dim_t dim>
+inline AABB<dim> merge(const AABB<dim> &a, const AABB<dim> &b) {
+  using utils::ops::axis;
+
+  AABB<dim> out = a;
+  for (types::dim_t d = 0; d < dim; ++d) {
+    int &lo = axis(out.min, d);
+    int &hi = axis(out.max, d);
+    if (axis(b.min, d) < lo)
+      lo = axis(b.min, d);
+    if (axis(b.max, d) > hi)
+      hi = axis(b.max, d);
+  }
+  return out;
+}
+
+/// Inclusive box spanning a handful of points.
+template <types::dim_t dim>
+inline AABB<dim> hull(std::initializer_list<types::Coordinate<dim>> pts) {
+  using utils::ops::axis;
+
+  AABB<dim> box{*pts.begin(), *pts.begin()};
+  for (const types::Coordinate<dim> &v : pts) {
+    for (types::dim_t d = 0; d < dim; ++d) {
+      int &lo = axis(box.min, d);
+      int &hi = axis(box.max, d);
+      if (axis(v, d) < lo)
+        lo = axis(v, d);
+      if (axis(v, d) > hi)
+        hi = axis(v, d);
+    }
+  }
+  return box;
+}
+
+} // namespace detail
+
 template <types::dim_t dim, class DerivedShape> class Shape {
 public:
-  bool isCollidingWith(const types::Coordinate<dim> &point) const {
-    return static_cast<DerivedShape *>(this)->isCollidingWith(point);
-  };
-
+  /// True when the lattice node `point` is inside the solid.
   bool contains(const types::Coordinate<dim> &point) const {
-    return static_cast<DerivedShape *>(this)->contains(point);
+    return static_cast<const DerivedShape *>(this)->contains(point);
   };
 
-  std::vector<types::Coordinate<dim>> &getPerimeter() const {
-    return static_cast<DerivedShape *>(this)->getPerimeter();
+  /// Inclusive integer bounding box, in the same frame as contains().
+  AABB<dim> aabb() const {
+    return static_cast<const DerivedShape *>(this)->aabb();
   };
 
 protected:
   Shape() = default;
 };
 
+/**
+ * Zero-measure shape, and the one documented exception to the
+ * "contains() is an exact inequality" rule: nothing is strictly inside a 1-D
+ * set, so a rasterized line test stands in for it. This is not licence to
+ * reintroduce Bresenham for shapes that do have an interior.
+ */
 template <types::dim_t dim> class Segment : public Shape<dim, Segment<dim>> {
   const types::Coordinate<dim> A, B;
-  mutable std::vector<types::Coordinate<dim>> cached_perimeter;
-  const double dist_x, dist_y;
 
 public:
   Segment(const types::Coordinate<dim> A_, const types::Coordinate<dim> B_)
-      : A(A_), B(B_), dist_x(static_cast<double>(B.x - A.x)),
-        dist_y(static_cast<double>(B.y - A.y)) {}
+      : A(A_), B(B_) {}
 
   ~Segment() = default;
 
-  bool isCollidingWith(const types::Coordinate<dim> &point) const {
-    // const auto &perimeter = getPerimeter();
-    // return std::find(perimeter.begin(), perimeter.end(), point) !=
-    // perimeter.end();
-
-    return algorithms::bounding_box_check(A, B, point) &&
-           algorithms::brasenham_collision(A, B, point);
-  }
-
   bool contains(const types::Coordinate<dim> &point) const {
-    return isCollidingWith(point);
-  }
-
-  std::vector<types::Coordinate<dim>> &getPerimeter() const {
-    if (!cached_perimeter.empty()) {
-      return cached_perimeter;
-    }
-
-    const utils::Vector<int, dim> AB(A, B);
-
-    // FIXME: This needs to be extended to 3D case
-    if (AB.dx < 0) {
-      cached_perimeter = algorithms::brasenham_rasterisation<2>(B, A);
+    if constexpr (dim == 2) {
+      return algorithms::bounding_box_check(A, B, point) &&
+             algorithms::brasenham_collision(A, B, point);
     } else {
-      cached_perimeter = algorithms::brasenham_rasterisation<2>(A, B);
+      // Reachable only if a Segment<3> ends up in an obstacle list: the visit
+      // in CollisionArea::contains() instantiates every alternative, so this
+      // has to compile, but the line rasterizer is 2D-only.
+      throw std::runtime_error("Segment<3>::contains() : segment collision "
+                               "detection in 3D not yet implemented!");
     }
-
-    return cached_perimeter;
   }
+
+  AABB<dim> aabb() const { return detail::hull<dim>({A, B}); }
 };
 
 template <types::dim_t dim> class Circle : public Shape<dim, Circle<dim>> {
   const types::Coordinate<dim> center;
   const unsigned int radius;
-  mutable std::vector<types::Coordinate<dim>> cached_perimeter;
 
 public:
   Circle(const types::Coordinate<dim> center_, const unsigned int radius_)
       : center(center_), radius(radius_) {}
 
-  bool isCollidingWith(const types::Coordinate<dim> &point) const {
-    if constexpr (dim == 2) {
-      // return checkCollisionWith(point);
-      return contains(point);
-    } else {
-      return checkCollisionWith(point);
-    }
-  }
-
+  /// Exact integer test: dist^2 <= r^2. No sqrt, and no `==` against r^2 --
+  /// essentially no lattice point sits exactly on the circle.
   bool contains(const types::Coordinate<dim> &point) const {
-    const int center_point_dist_x = center.x - point.x;
-    const unsigned int dist_x = center_point_dist_x * center_point_dist_x;
-    const int center_point_dist_y = center.y - point.y;
-    const unsigned int dist_y = center_point_dist_y * center_point_dist_y;
-
-    // Contains so we use "<=" for the inner points
-    return dist_x + dist_y <= radius * radius;
-  }
-
-  // std::vector<types::Coordinate<dim>> &getPerimeter() const {
-  //   if (!cached_perimeter.empty()) {
-  //     return cached_perimeter;
-  //   }
-  //   cached_perimeter.clear();
-  //   int x = -radius;
-  //   int y = 0;
-  //   cached_perimeter.push_back(center + types::Coordinate<dim>(x, y));
-  //   cached_perimeter.push_back(center + types::Coordinate<dim>(-x, y));
-  //   cached_perimeter.push_back(center + types::Coordinate<dim>(0, radius));
-  //   cached_perimeter.push_back(center + types::Coordinate<dim>(0, -radius));
-  //   while (x < static_cast<int>(radius)) {
-  //     if (x < 0) {
-  //       if (x * x + (y + 1) * (y + 1) > radius * radius) {
-  //         x++;
-  //       } else {
-  //         y++;
-  //       }
-  //     } else {
-  //       if ((x + 1) * (x + 1) + y * y > radius * radius) {
-  //         y--;
-  //       } else {
-  //         x++;
-  //       }
-  //     }
-  //     if (y == -y) {
-  //       continue;
-  //     }
-  //     cached_perimeter.push_back(center + types::Coordinate<dim>(x, y));
-  //     cached_perimeter.push_back(center + types::Coordinate<dim>(x, -y));
-  //   }
-  //   return cached_perimeter;
-  // }
-
-  std::vector<types::Coordinate<dim>> &getPerimeter() const {
-    if (!cached_perimeter.empty()) {
-      return cached_perimeter;
-    }
-
-    cached_perimeter.clear();
-
+    const types::Direction<dim> d(center, point);
     const int r = static_cast<int>(radius);
-    const unsigned int r2 = radius * radius;
+    return utils::ops::dot(d, d) <= r * r;
+  }
 
-    for (int dx = -r; dx <= r; ++dx) {
-      for (int dy = -r; dy <= r; ++dy) {
-        if (static_cast<unsigned int>(dx * dx + dy * dy) <= r2) {
-          cached_perimeter.push_back(center + types::Coordinate<dim>(dx, dy));
-        }
-      }
+  AABB<dim> aabb() const {
+    const int r = static_cast<int>(radius);
+    if constexpr (dim == 2) {
+      return {{center.x - r, center.y - r}, {center.x + r, center.y + r}};
+    } else {
+      return {{center.x - r, center.y - r, center.z - r},
+              {center.x + r, center.y + r, center.z + r}};
     }
-
-    return cached_perimeter;
-  }
-
-private:
-  bool checkCollisionWith(const types::Coordinate<2> &point) const {
-    const int center_point_dist_x = center.x - point.x;
-    const unsigned int dist_x = center_point_dist_x * center_point_dist_x;
-    const int center_point_dist_y = center.y - point.y;
-    const unsigned int dist_y = center_point_dist_y * center_point_dist_y;
-
-    return dist_x + dist_y <= radius * radius;
-  }
-
-  bool checkCollisionWith(const types::Coordinate<3> &point) const {
-    throw std::runtime_error("Circle::checkCollisionWith(utils::Point<3>&) : "
-                             "Collision Detection in 3D not yet implemented!");
   }
 };
 
 template <types::dim_t dim>
 class Parallelogram : public Shape<dim, Parallelogram<dim>> {
   const types::Coordinate<dim> A, B, C, D;
-  mutable std::vector<types::Coordinate<dim>> cached_perimeter;
 
 public:
   Parallelogram(const types::Coordinate<dim> A_,
@@ -190,22 +149,10 @@ public:
                 const types::Coordinate<dim> D_)
       : A(A_), B(B_), C(C_), D(D_) {
     utils::Vector<int, dim> AB(A_, B_), BC(B_, C_), CD(C_, D_), DA(D_, A_);
-    if (cross(AB, CD) != 0 || cross(BC, DA) != 0) {
+    if (!is_parallel(AB, CD) || !is_parallel(BC, DA)) {
       throw std::invalid_argument(
           "Parallelogram : opposite sides not parallel");
     }
-  }
-
-  bool isCollidingWith(const types::Coordinate<dim> &point) const {
-    Segment<dim> sideAB(A, B);
-    Segment<dim> sideBC(B, C);
-    Segment<dim> sideCD(C, D);
-    Segment<dim> sideDA(D, A);
-
-    bool hit = sideAB.isCollidingWith(point) || sideBC.isCollidingWith(point) ||
-               sideCD.isCollidingWith(point) || sideDA.isCollidingWith(point);
-
-    return hit;
   }
 
   bool contains(const types::Coordinate<dim> &point) const {
@@ -229,37 +176,19 @@ public:
            dotAP_AD <= dotAD_AD;
   }
 
-  std::vector<types::Coordinate<dim>> &getPerimeter() const {
-    if (!cached_perimeter.empty()) {
-      return cached_perimeter;
-    }
+  AABB<dim> aabb() const { return detail::hull<dim>({A, B, C, D}); }
 
-    cached_perimeter.clear();
-    Segment<dim> sideAB(A, B);
-    Segment<dim> sideBC(B, C);
-    Segment<dim> sideCD(C, D);
-    Segment<dim> sideDA(D, A);
-
-    for (const auto &p : sideAB.getPerimeter()) {
-      cached_perimeter.push_back(p);
+private:
+  /// cross() is a scalar in 2D and a vector in 3D, so the zero test has to be
+  /// written once per case.
+  static bool is_parallel(const utils::Vector<int, dim> &lhs,
+                          const utils::Vector<int, dim> &rhs) {
+    if constexpr (dim == 2) {
+      return utils::ops::cross(lhs, rhs) == 0;
+    } else {
+      const auto c = utils::ops::cross(lhs, rhs);
+      return utils::ops::dot(c, c) == 0;
     }
-    for (const auto &p : sideBC.getPerimeter()) {
-      if (p == B)
-        continue;
-      cached_perimeter.push_back(p);
-    }
-    for (const auto &p : sideCD.getPerimeter()) {
-      if (p == C)
-        continue;
-      cached_perimeter.push_back(p);
-    }
-    for (const auto &p : sideDA.getPerimeter()) {
-      if (p == D || p == A)
-        continue;
-      cached_perimeter.push_back(p);
-    }
-
-    return cached_perimeter;
   }
 };
 
@@ -274,7 +203,6 @@ class Airfoil : public Shape<dim, Airfoil<dim>> {
   const double camber_pos;               // P/10 (es. 0.4 per NACA 2412)
   const double aoa_rad;                  // angolo di attacco in radianti
 
-  mutable std::vector<types::Coordinate<dim>> cached_perimeter;
   mutable std::vector<std::pair<double, double>>
       cached_polygon; // punti normalizzati (x,y) del contorno chiuso
 
@@ -326,18 +254,6 @@ class Airfoil : public Shape<dim, Airfoil<dim>> {
       cached_polygon.push_back(*it);
   }
 
-  // ruota e scala un punto normalizzato -> coordinate assolute di griglia
-  types::Coordinate<dim> toGrid(double xn, double yn) const {
-    // scala per la corda
-    double xs = xn * chord;
-    double ys = yn * chord;
-    // ruota per angolo di attacco (attorno al leading edge, origine locale)
-    double xr = xs * std::cos(aoa_rad) + ys * std::sin(aoa_rad);
-    double yr = -xs * std::sin(aoa_rad) + ys * std::cos(aoa_rad);
-    return position + types::Coordinate<dim>(static_cast<int>(std::round(xr)),
-                                             static_cast<int>(std::round(yr)));
-  }
-
   // point-in-polygon (ray casting) in coordinate normalizzate
   bool containsNormalized(double xn, double yn) const {
     buildPolygon();
@@ -367,9 +283,6 @@ public:
     types::Coordinate<dim> rel = point - position;
     double xr = static_cast<double>(rel.x);
     double yr = static_cast<double>(rel.y);
-    // rotazione inversa
-    // double xs = xr * std::cos(aoa_rad) - yr * std::sin(aoa_rad);
-    // double ys = xr * std::sin(aoa_rad) + yr * std::cos(aoa_rad);
 
     // rotazione inversa corretta: stessa forma di toGrid()
     double xs = xr * std::cos(aoa_rad) + yr * std::sin(aoa_rad);
@@ -379,30 +292,12 @@ public:
     return containsNormalized(xn, yn);
   }
 
-  bool isCollidingWith(const types::Coordinate<dim> &point) const {
-    return contains(point);
-  }
-
-  std::vector<types::Coordinate<dim>> &getPerimeter() const {
-    if (!cached_perimeter.empty())
-      return cached_perimeter;
-    buildPolygon();
-
-    cached_perimeter.clear();
-
-    // bounding box in coordinate di griglia (con margine per rotazione/camber)
-    int half = static_cast<int>(std::ceil(chord)) + 2;
-    for (int dx = -half; dx <= half; ++dx) {
-      for (int dy = -half; dy <= half; ++dy) {
-        const types::Coordinate<dim> p =
-            position + types::Coordinate<dim>(dx, dy);
-        if (contains(p)) {
-          cached_perimeter.push_back(p);
-        }
-      }
-    }
-
-    return cached_perimeter;
+  /// Stesso riquadro che il vecchio getPerimeter() scandiva: una corda per
+  /// lato, piu' due celle di margine per rotazione e camber.
+  AABB<dim> aabb() const {
+    const int half = static_cast<int>(std::ceil(chord)) + 2;
+    return {{position.x - half, position.y - half},
+            {position.x + half, position.y + half}};
   }
 };
 

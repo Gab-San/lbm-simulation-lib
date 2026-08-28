@@ -7,7 +7,7 @@
 // LBMSimulation e OpenMPSolver sono templati sul VelocitySet, quindi
 // l'unica differenza col main D3Q19 e' il tipo passato ai due template.
 
-#include "lbm-sim/boundaries.hpp"
+#include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
 #include "lbm/config/config-parser.hpp"
 #include "lbm-sim/core/grid.hpp"
@@ -52,10 +52,11 @@ void print_usage(const char *exe) {
       << "  output_txt    file col profilo ux(z) lungo la verticale centrale\n";
 }
 
-/// Maschera dei confini per una cavita' Nx*Ny*Nz: 5 pareti rigide
-/// (bounce-back semplice) + 1 parete mobile (il "lid", bounce-back con
-/// velocita' imposta) sulla faccia superiore z = Nz-1.
+/// Confini di una cavita' Nx*Ny*Nz: 5 pareti rigide (bounce-back semplice)
+/// + 1 parete mobile (il "lid", bounce-back con velocita' imposta) sulla
+/// faccia superiore z = Nz-1.
 ///
+<<<<<<< HEAD
 /// A differenza del 2D non passiamo da Solid::compute_boundary_mask(): il
 /// modulo collision-detection lavora su Segment/Circle nel piano (x,y) e
 /// non e' ancora esteso a 3D. Per un dominio a scatola non serve comunque
@@ -86,9 +87,18 @@ build_boundary_mask(const lbm::types::DimPoint<3> &size) {
                                          : lbm::Solid::BB_RIGID_WALL;
       }
     }
+=======
+/// Non serve piu' scorrere le facce nodo per nodo: sono esattamente le sei
+/// facce del dominio, sei byte in tutto.
+lbm::Solid::DomainBC<3> build_domain_bc() {
+  lbm::Solid::DomainBC<3> dbc{};
+  for (lbm::types::dim_t a = 0; a < 3; ++a) {
+    dbc.low(a) = lbm::Solid::BB_RIGID_WALL;
+    dbc.high(a) = lbm::Solid::BB_RIGID_WALL;
+>>>>>>> 34ab65d (steps from 1 to 10(do not compile))
   }
-
-  return mask;
+  dbc.high(2) = lbm::Solid::BB_MOVING_WALL; // il lid, z = nz-1
+  return dbc;
 }
 
 } // namespace
@@ -136,8 +146,10 @@ int main(int argc, char **argv) {
            cfg.nframes, cfg.frames_out, cfg.profile_out);
 
   // --- 3./4. CREA OSTACOLI E MASCHERA ------------------------------------
-  // In 3D i due passi coincidono: le pareti sono le facce del dominio.
-  const types::boundary_mask_t boundary_mask = build_boundary_mask(grid_size);
+  // Le pareti sono le facce del dominio; nessun ostacolo immerso nel fluido,
+  // quindi la maschera e' tutta types::FLUID.
+  const Solid::DomainBC<3> dbc = build_domain_bc();
+  types::solid_mask_t solid_mask = Solid::compute_solid_mask<DIM>({}, grid_size);
 
   // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
   // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
@@ -151,7 +163,7 @@ int main(int argc, char **argv) {
       std::make_shared<VtkWriter>(cfg.frames_out, cfg.name);
 
   LBMSimulation<DIM, D3Q27, COLLISION> simulation(
-      grid_size, boundary_mask,
+      grid_size, std::move(solid_mask), {}, dbc,
       CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, lid_velocity));
   simulation.attachListener(writer);
 

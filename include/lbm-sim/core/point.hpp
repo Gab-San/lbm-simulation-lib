@@ -16,9 +16,14 @@ template <unsigned short int dim> constexpr bool always_false = false;
 namespace utils {
 
 template <typename T> struct Point<T, 2> {
-  const T x, y;
+  // Non-const on purpose: utils::ops::axis() hands out a T& into these and
+  // Solid::resolve_link() wraps one component of a coordinate in place. const
+  // members would also delete copy-assignment, keeping Point out of any
+  // container that reassigns.
+  T x, y;
 
   LBM_HD_FUNC constexpr Point(const T x_, const T y_) : x(x_), y(y_) {}
+  LBM_HD_FUNC Point() = default;
 
   template <typename U>
   LBM_HD_FUNC explicit Point(const Point<U, 2> &other)
@@ -27,10 +32,11 @@ template <typename T> struct Point<T, 2> {
 };
 
 template <typename T> struct Point<T, 3> {
-  const T x, y, z;
+  T x, y, z;
 
   LBM_HD_FUNC constexpr Point(const T x_, const T y_, const T z_)
       : x(x_), y(y_), z(z_){};
+  LBM_HD_FUNC Point() = default;
 
   template <typename U>
   LBM_HD_FUNC explicit Point(const Point<U, 3> &other)

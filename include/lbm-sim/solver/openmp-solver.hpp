@@ -2,7 +2,7 @@
 #define __LBM_SIM_SOLVER_SOLVER_2D
 
 #include "lbm-sim/backend.hpp"
-#include "lbm-sim/boundaries.hpp"
+#include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/collision-operators/metadata.hpp"
 #include "lbm-sim/core/operators.hpp"
@@ -112,11 +112,23 @@ private:
       std::array<double, VelocitySet::ndir> fp;
       const types::Coordinate<dim> p = iteration::unflatten<dim>(cell, ext);
 
-      // If p is a Inner boundary node, we skip the streaming and collision step
-      if (lattice.boundary_mask[lattice.grid.scalar_index(p)] ==
-          Solid::BB_INNER) {
+      // Skip solid nodes.
+      //
+      // Test solid_mask, NEVER a BC type: a fluid node sitting on a domain
+      // edge carries a face BC and must not be skipped.
+      //
+      // No solid node's populations are ever read under this scheme --
+      // bounce-back reads the fluid node p, the pressure rescale reads a node
+      // already confirmed fluid, and plain streaming only runs when src is
+      // fluid. So no surface/interior distinction is needed here.
+      //
+      // CAVEAT: interpolated bounce-back (Bouzidi, Filippova-Hanel) and
+      // Guo-style extrapolation DO read the solid node. Adding either brings
+      // the surface solid-node distinction back and this line has to change
+      // with it.
+      if (lattice.solid_mask[cell] != types::FLUID)
         continue;
-      }
+
       double r_wall = 0.0;
       UNROLL_FULL
       for (auto i = 0; i < VelocitySet::ndir; ++i) {
@@ -127,25 +139,21 @@ private:
       // STREAMING + HALFWAY COLLISION
       UNROLL_FULL
       for (auto diridx = 0; diridx < VelocitySet::ndir; ++diridx) {
-        const types::Coordinate<dim> src = p - VelocitySet::dir[diridx];
+        // One resolve_link per direction: domain faces, periodic wrap and
+        // immersed obstacles are all decided in there, per link, not per node.
+        const auto link = Solid::resolve_link<dim>(
+            lattice.grid, lattice.domain_bc, lattice.solid_mask.data(),
+            lattice.obstacles.data(), p, VelocitySet::dir[diridx]);
 
-        // if source node is external it is on a boundary node
-        // BUT THIS ALSO HAS TO APPLY TO INTERNAL OBJECTS, WHICH ARE ALSO
-        // BOUNDARY NODES!!!
-        if (!lattice.grid.contains(src) ||
-            lattice.boundary_mask[lattice.grid.scalar_index(src)] ==
-                Solid::BB_INNER) {
-          // if source node is external it is on a
-          // boundary node
-          Solid::apply_boundary_condition<dim, VelocitySet>(
-              fp.data(), ffrom.data(), diridx, lattice.grid,
-              lattice.boundary_mask.data(), lattice.rho.data(),
-              lattice.u.data(), p, r_wall, cs.params.init_vel, lattice.pin,
-              lattice.pout);
+        if (link.bc == Solid::NONE) {
+          // source node is fluid and in range: plain streaming.
+          fp[diridx] = ffrom[lattice.grid.field_index(link.src, diridx,
+                                                      VelocitySet::ndir)];
         } else {
-          // if source node is internal stream it.
-          fp[diridx] =
-              ffrom[lattice.grid.field_index(src, diridx, VelocitySet::ndir)];
+          Solid::apply_boundary_condition<dim, VelocitySet>(
+              fp.data(), ffrom.data(), diridx, lattice.grid, link,
+              lattice.obstacles.data(), lattice.rho.data(), lattice.u.data(), p,
+              r_wall, cs.params.init_vel, lattice.pin, lattice.pout);
         }
       }
 
@@ -168,8 +176,7 @@ private:
 
       // STORE computed macroscopic values
       if (store_macroscopic ||
-          lattice.boundary_mask[cell] == Solid::PRESSURE_PERIODIC_INLET ||
-          lattice.boundary_mask[cell] == Solid::PRESSURE_PERIODIC_OUTLET) {
+          Solid::on_pressure_face(lattice.grid, lattice.domain_bc, p)) {
         lattice.rho[cell] = r;
         lattice.u[cell] = u;
       }

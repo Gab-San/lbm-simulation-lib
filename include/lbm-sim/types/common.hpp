@@ -1,5 +1,11 @@
 #pragma once
 
+// The aliases below name Point/Vector as complete types, so pull in the
+// definitions, not just types/fwd.hpp: every user of Coordinate<dim> et al.
+// would otherwise have to remember to include core/point.hpp itself. Neither
+// header includes this one, so there is no cycle.
+#include "lbm-sim/core/point.hpp"
+#include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/types/base.hpp"
 #include "lbm-sim/types/fwd.hpp"
 
