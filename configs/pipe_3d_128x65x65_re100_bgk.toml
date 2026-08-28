@@ -1,0 +1,42 @@
+# Flusso in un tubo (Hagen-Poiseuille 3D), condotto circolare 128x65x65, BGK.
+#
+# La presenza di [grid].nz e' cio' che rende 3D questa configurazione:
+# passandola a un binario 2D viene rifiutata con un errore esplicito.
+#
+# Il salto di pressione fra inlet e outlet NON si mette qui: lo calcola il
+# main dalla soluzione analitica del tubo (pin - pout = 4*nu*u*Nx/R^2 in
+# unita' di pressione, invcs_2 volte tanto in densita'), quindi non e' un
+# parametro libero. Nemmeno il raggio del condotto e' un campo di config:
+# la geometria della parete la costruisce il main con una CylindricalShell.
+
+[problem]
+type = "poiseuille"
+
+[grid]
+nx = 128
+ny = 65
+nz = 65
+
+[physics]
+collision = "BGK"
+reynolds = 100.0
+
+# init_vel_x non muove nessuna parete: e' la velocita' caratteristica con
+# cui si ricava nu = u*Ny/Re, e da nu il tau del collision operator, ed e'
+# la velocita' sull'asse che il salto di pressione deve riprodurre.
+# Con questi valori:
+#   nu  = 0.1 * 65 / 100 = 0.065
+#   tau = 0.5 + 3*nu     = 0.695
+# dentro l'intervallo di stabilita' (0.55 - 1.2): nessun warning atteso.
+init_vel_x = 0.1
+init_vel_y = 0.0
+init_vel_z = 0.0
+
+[solver]
+# Transitorio diffusivo, dell'ordine di D^2/nu = 61^2/0.065 ~ 5.7e4 passi:
+# sotto le ~1e5 iterazioni il profilo non e' ancora a regime e l'errore L2
+# contro HagenPoiseuilleSolution3D resta alto senza che ci sia niente di
+# sbagliato.
+niters = 100000
+nframes = 200
+backend = "openmp"

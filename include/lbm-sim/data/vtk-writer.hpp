@@ -40,6 +40,8 @@ public:
     if (worker_.joinable()) {
       worker_.join();
     }
+    // Final .pvd: written once, after the worker has drained the queue.
+    write_pvd();
   }
 
   void acceptData(std::vector<char> data) override {
@@ -51,6 +53,11 @@ public:
   }
 
 private:
+  // The "appended raw" format dumps the float bytes exactly as they sit in
+  // memory, so it assumes a little-endian host -- which is what the XML
+  // header declares. On a big-endian host the bytes would need swapping.
+  static_assert(sizeof(float) == 4, "VtkWriter assumes 32-bit float");
+
   /// "out/norms_lid_cavity.bin" -> "norms_lid_cavity"
   static std::string basename_from_path(const std::string &path) {
     return std::filesystem::path(path).stem().string();
@@ -85,12 +92,12 @@ private:
     }
   }
 
-  // Primo chunk atteso: 2 o 3 int32 (nx,ny[,nz]).
+  // First chunk expected: 2 or 3 int32 values (nx, ny[, nz]).
   void parse_header(const std::vector<char> &data) {
     const std::size_t n_ints = data.size() / sizeof(int32_t);
     if (n_ints != 2 && n_ints != 3) {
-      std::cerr << "[VtkWriter] header inatteso (" << data.size()
-                << " byte), ignorato" << std::endl;
+      std::cerr << "[VtkWriter] unexpected header (" << data.size()
+                << " bytes), ignored" << std::endl;
       return;
     }
 
@@ -107,21 +114,23 @@ private:
     have_dims_ = true;
   }
 
-  // Frame successivi: array di float (velocity magnitude), uno per nodo,
-  // nello stesso ordine usato da Grid::scalar_index. Ogni frame diventa
-  // un file .vti (ImageData XML) con un unico campo scalare in PointData.
+  // Subsequent frames: an array of floats (velocity magnitude), one per node,
+  // in the same order used by Grid::scalar_index. Each frame becomes a .vti
+  // file (ImageData XML) holding a single scalar field in PointData.
+  //
+  // The data goes into <AppendedData encoding="raw">: the payload is the
+  // exact binary image of the buffer, preceded by a UInt32 byte count
+  // (header_type="UInt32"). No numeric parsing on the ParaView side, no
+  // conversion on the writer side -- the chunk is dumped as-is.
   void write_frame(const std::vector<char> &data) {
     const std::size_t n_points = nx_ * ny_ * nz_;
     const std::size_t expected_bytes = n_points * sizeof(float);
     if (data.size() != expected_bytes) {
-      std::cerr << "[VtkWriter] frame " << frame_count_ << ": ricevuti "
-                << data.size() << " byte, attesi " << expected_bytes
-                << ", frame ignorato" << std::endl;
+      std::cerr << "[VtkWriter] frame " << frame_count_ << ": received "
+                << data.size() << " bytes, expected " << expected_bytes
+                << ", frame ignored" << std::endl;
       return;
     }
-
-    std::vector<float> values(n_points);
-    std::memcpy(values.data(), data.data(), data.size());
 
     std::ostringstream fname;
     fname << basename_ << "_" << std::setw(5) << std::setfill('0')
@@ -129,9 +138,10 @@ private:
     const std::filesystem::path frame_path =
         std::filesystem::path(output_dir_) / fname.str();
 
-    std::ofstream out(frame_path);
+    // binary: no newline translation applied to the payload.
+    std::ofstream out(frame_path, std::ios::binary);
     if (!out.is_open()) {
-      std::cerr << "[VtkWriter] impossibile aprire " << frame_path << std::endl;
+      std::cerr << "[VtkWriter] cannot open " << frame_path << std::endl;
       return;
     }
 
@@ -147,27 +157,39 @@ private:
         << "    <Piece Extent=\"" << extent << "\">\n"
         << "      <PointData Scalars=\"velocity_magnitude\">\n"
         << "        <DataArray type=\"Float32\" "
-           "Name=\"velocity_magnitude\" format=\"ascii\">\n";
-
-    for (std::size_t i = 0; i < n_points; ++i) {
-      out << values[i] << " ";
-    }
-
-    out << "\n        </DataArray>\n"
+           "Name=\"velocity_magnitude\" format=\"appended\" offset=\"0\"/>\n"
         << "      </PointData>\n"
         << "    </Piece>\n"
         << "  </ImageData>\n"
+        << "  <AppendedData encoding=\"raw\">\n"
+        << "_";
+
+    // Nothing may sit between '_' and the bytes, not even a space.
+    const std::uint32_t nbytes = static_cast<std::uint32_t>(expected_bytes);
+    out.write(reinterpret_cast<const char *>(&nbytes), sizeof(nbytes));
+    out.write(data.data(), static_cast<std::streamsize>(data.size()));
+
+    out << "\n  </AppendedData>\n"
         << "</VTKFile>\n";
     out.close();
 
     frame_files_.push_back(fname.str());
-    write_pvd();
+
+    // The .pvd is rewritten every pvd_stride_ frames instead of every frame:
+    // the series stays openable mid-run without paying N rewrites.
+    if (frame_count_ % pvd_stride_ == 0) {
+      write_pvd();
+    }
+
     ++frame_count_;
   }
 
-  // Riscrive il .pvd (piccolo XML) con tutti i frame prodotti finora, cosi'
-  // la serie e' apribile in ParaView anche a simulazione ancora in corso.
+  // Rewrites the .pvd (a small XML file) listing every frame produced so far,
+  // so the series can be opened in ParaView while the simulation is running.
   void write_pvd() const {
+    if (frame_files_.empty())
+      return;
+
     const std::filesystem::path pvd_path =
         std::filesystem::path(output_dir_) / (basename_ + ".pvd");
 
@@ -188,6 +210,8 @@ private:
     out << "  </Collection>\n"
         << "</VTKFile>\n";
   }
+
+  static constexpr std::size_t pvd_stride_ = 10;
 
   const std::string output_dir_, basename_;
 
