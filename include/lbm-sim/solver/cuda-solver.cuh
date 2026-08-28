@@ -263,7 +263,7 @@ public:
     cuda::upload_lattice_constants<dim, VelocitySet>();
 
     std::size_t area = lattice.grid.getArea();
-    // std::size_t allocation_size = area * sizeof(double) * VelocitySet::ndir;
+    std::size_t allocation_size = area * sizeof(double) * VelocitySet::ndir;
 
     cuda::DeviceBuffer<double> ffrom(area * VelocitySet::ndir);
     cuda::DeviceBuffer<double> fto(area * VelocitySet::ndir);
