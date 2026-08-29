@@ -1,14 +1,14 @@
 #ifndef __LBM_SIM_SOLVER_SOLVER_2D
 #define __LBM_SIM_SOLVER_SOLVER_2D
 
+#include "lbm-sim/backend/omp/annotations.hpp"
+#include "lbm-sim/backend/omp/iteration.hpp"
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/core/operators.hpp"
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/metadata.hpp"
-#include "lbm-sim/omp/annotations.hpp"
-#include "lbm-sim/omp/iteration.hpp"
 #include "lbm-sim/profiling.hpp"
 #include "lbm-sim/solver/solver-base.hpp"
 
