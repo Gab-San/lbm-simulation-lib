@@ -1,0 +1,33 @@
+#!/bin/bash
+#PBS -N lbm_properties
+#PBS -q cpu
+#PBS -l select=1:ncpus=16
+#PBS -l walltime=00:30:00
+#PBS -j oe
+
+cd "$PBS_O_WORKDIR" || exit 1
+
+# Se il binario non esiste ancora lo compiliamo (build gia' fatta una volta:
+# le run successive lo trovano pronto in build/simulations e saltano questo passo)
+if [ ! -x build/simulations/properties_test ]; then
+  cd build
+  cmake --build . --target properties_test -j"$(nproc)"
+  cd ..
+fi
+
+# Scratch locale del nodo: piu' veloce di NFS per I/O
+WORKDIR=/scratch_local/${PBS_JOBID}
+mkdir -p "$WORKDIR"
+cp build/simulations/properties_test "$WORKDIR"/
+cp configs/profiling.toml "$WORKDIR"/
+cd "$WORKDIR" || exit 1
+
+mkdir -p out
+./properties_test profiling.toml
+
+# Copia i risultati indietro: cartella dedicata a questo job (JOBID unico)
+mkdir -p "$PBS_O_WORKDIR"/results/"${PBS_JOBID}"
+cp -r out/* "$PBS_O_WORKDIR"/results/"${PBS_JOBID}"/
+
+cd "$PBS_O_WORKDIR" || exit 1
+rm -rf "$WORKDIR"
