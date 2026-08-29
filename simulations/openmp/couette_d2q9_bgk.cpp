@@ -11,15 +11,12 @@
 #include "lbm-sim/solver/openmp-solver.hpp"
 
 // C++ STD LIB
-#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
 
 static constexpr lbm::types::dim_t DIM = 2;
-
 static constexpr lbm::CollisionModel COLLISION = lbm::CollisionModel::BGK;
-static constexpr lbm::ExecutionBackend BACKEND = lbm::ExecutionBackend::OPEN_MP;
 
 int main(int argc, char **argv) {
   using namespace lbm;
@@ -27,25 +24,22 @@ int main(int argc, char **argv) {
   using types::DimPoint;
   using utils::Vector;
 
-  // --- 1. LEGGI CONFIGURAZIONI --------------------------------------------
   if (argc < 2) {
     config::print_usage(argv[0]);
     return 1;
   }
 
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
+
   std::vector<config::SimulationConfig<DIM>> configs;
   try {
     configs = config::parse_config<DIM>(argv[1]);
   } catch (const config::ConfigError &err) {
-    std::cerr << "Errore di configurazione: " << err.what() << "\n";
+    LBM_LOG_ERROR(main_logger, "Config Error {}", err.what());
     return 1;
   }
 
-  // --- 2. ISTANZIA LOGGER --------------------------------------------------
-  logging::setup();
-  logging::Logger *main_logger = logging::create_or_get_logger("main");
-
-  // --- 3. ESEGUI UNA SIMULAZIONE PER OGNI CONFIG ---------------------------
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
 

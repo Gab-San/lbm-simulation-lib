@@ -70,11 +70,6 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
 
   cfg.name = name;
 
-  cfg.collision = parse_collision_model(
-      tbl["collision"].value_or<std::string>("BGK"), where);
-  cfg.backend = parse_execution_backend(
-      tbl["backend"].value_or<std::string>("openmp"), where);
-
   // --- [lattice] ------------------------------------------------------------
 
   if (auto arr = tbl["lattice"]["size"].as_array()) {
@@ -169,7 +164,10 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
   }
 
   // --- [backend] ---------------------------------------------------------
-  // TODO: Add backend specifics
+
+  {
+    cfg.n_threads = tbl["backend"]["n_threads"].value_or<unsigned int>(0);
+  }
 }
 
 template <types::dim_t dim>
