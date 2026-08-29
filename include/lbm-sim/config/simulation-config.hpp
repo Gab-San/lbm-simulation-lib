@@ -1,5 +1,4 @@
-#ifndef __LBM_SIM_CONFIG_SIMULATION_CONFIG_HPP
-#define __LBM_SIM_CONFIG_SIMULATION_CONFIG_HPP
+#pragma once
 
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/metadata.hpp"
@@ -97,5 +96,3 @@ template <types::dim_t dim> struct SimulationConfig {
 };
 
 } // namespace lbm::config
-
-#endif // __LBM_SIM_CONFIG_SIMULATION_CONFIG_HPP

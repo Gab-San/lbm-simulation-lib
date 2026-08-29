@@ -93,7 +93,7 @@ inline std::ostream &operator<<(std::ostream &out, const Vector<T, dim> &v) {
   if constexpr (dim == 2) {
     return out << "Vector(" << v.dx << "," << v.dy << ")";
   } else {
-    return out << "Vector(" << v.dx << "," << v.dy << v.dz << ")";
+    return out << "Vector(" << v.dx << "," << v.dy << "," << v.dz << ")";
   }
 }
 

@@ -24,11 +24,8 @@
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
-#include "lbm/logging.hpp"
-
-// QUILL LIB
-#include "quill/LogMacros.h"
 
 // C++ STD LIB
 #include <memory>
@@ -70,8 +67,8 @@ int main(int argc, char **argv) {
   cfg.profile_out = "output/pipe_flow_3d_bgk_profile.dat";
 
   // --- 2. INSTANTIATE LOGGER ---------------------------------------------
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   const DimPoint<DIM> grid_size(cfg.grid_size);
 
@@ -84,13 +81,14 @@ int main(int argc, char **argv) {
   const int cz = nz / 2;
   const unsigned int radius = 30;
 
-  LOG_INFO(main_logger,
-           "Simulation '{}':\n\tGrid dimensions: {}\n\tPipe axis: (y,z) = "
-           "({},{}), radius {}\n\tReynolds number: {}\n\tReference velocity: "
-           "{}\n\tNumber of Iterations: {}\n\tNumber of frames: {}\n\tFrames "
-           "output: {}\n\tProfile output: {}",
-           cfg.name, grid_size, cy, cz, radius, cfg.reynolds, cfg.u0,
-           cfg.niters, cfg.nframes, cfg.frames_out, cfg.profile_out);
+  LBM_LOG_INFO(
+      main_logger,
+      "Simulation '{}':\n\tGrid dimensions: {}\n\tPipe axis: (y,z) = "
+      "({},{}), radius {}\n\tReynolds number: {}\n\tReference velocity: "
+      "{}\n\tNumber of Iterations: {}\n\tNumber of frames: {}\n\tFrames "
+      "output: {}\n\tProfile output: {}",
+      cfg.name, grid_size, cy, cz, radius, cfg.reynolds, cfg.u0, cfg.niters,
+      cfg.nframes, cfg.frames_out, cfg.profile_out);
 
   // --- 3. CREATE OBSTACLES -----------------------------------------------
   // Inlet and outlet are pressure-imposed on the two x faces; the other four
@@ -170,8 +168,8 @@ int main(int argc, char **argv) {
   const double err_l2 =
       simulation.compute_error(analysis::NormType::L2, exact_solution);
 
-  LOG_NOTICE(main_logger, "{} error: {}",
-             analysis::to_string(analysis::NormType::L2), err_l2);
+  LBM_LOG_NOTICE(main_logger, "{} error: {}",
+                 analysis::to_string(analysis::NormType::L2), err_l2);
 
   simulation.detachListener(writer);
   solver.detachListener(writer);

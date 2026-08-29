@@ -12,9 +12,7 @@
 
 #include "lbm-sim/analysis/benchmarks.hpp"
 #include "lbm-sim/analysis/error.hpp"
-#include "lbm/logging.hpp"
-
-#include "quill/LogMacros.h"
+#include "lbm-sim/logging.hpp"
 
 // C++ STANDARD LIB
 #include <cstdint>
@@ -53,16 +51,16 @@ public:
 
   template <enum ExecutionBackend backend_t>
   void solve(SolverBase<dim, VelocitySet, cm_t, backend_t> &solver) {
-    quill::Logger *simulation_logger =
+    logging::Logger *simulation_logger =
         logging::create_or_get_logger("simulation");
 
-    LOG_DEBUG(simulation_logger, "Initializing Simulation...");
+    LBM_LOG_DEBUG(simulation_logger, "Initializing Simulation...");
 
     write_header(lattice.grid);
 
     solver.solve(lattice, params);
 
-    LOG_DEBUG(simulation_logger, "Finished Simulation.");
+    LBM_LOG_DEBUG(simulation_logger, "Finished Simulation.");
   };
 
   /**
@@ -122,7 +120,7 @@ public:
                   extract_profile) {
     using namespace std::filesystem;
 
-    quill::Logger *data_logger = logging::create_or_get_logger("data_log");
+    logging::Logger *data_logger = logging::create_or_get_logger("data_log");
 
     path outpath(filepath);
     path parent = outpath.parent_path();
@@ -135,13 +133,13 @@ public:
 
     // FIXME: Should throw error?
     if (!fout.is_open()) {
-      LOG_ERROR(data_logger, "Failed to create file: {}", filepath);
+      LBM_LOG_ERROR(data_logger, "Failed to create file: {}", filepath);
       return;
     }
 
     std::vector<double> profile = extract_profile(lattice);
 
-    LOG_DEBUG(data_logger, "Writing header to file {}", filepath);
+    LBM_LOG_DEBUG(data_logger, "Writing header to file {}", filepath);
 
     std::string header = "%%profile " + collision_model_to_string(cm_t) + " " +
                          std::to_string(profile.size()) + " " +
@@ -175,8 +173,8 @@ private:
       std::memcpy(buf.data() + 2 * sizeof(int32_t), &nz32, sizeof(int32_t));
     }
 
-    LOG_DEBUG(logging::create_or_get_logger("data_log"),
-              "Writing norms header...");
+    LBM_LOG_DEBUG(logging::create_or_get_logger("data_log"),
+                  "Writing norms header...");
 
     this->notifyListeners(std::move(buf));
   }

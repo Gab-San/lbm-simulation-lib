@@ -12,11 +12,8 @@
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
-#include "lbm/logging.hpp"
-
-// QUILL LIB
-#include "quill/LogMacros.h"
 
 // C++ STD LIB
 #include <iostream>
@@ -73,8 +70,8 @@ int main(int argc, char **argv) {
   cfg.profile_out = "output/lid_cavity_d3q27_bgk_profile.dat";
 
   // --- 2. ISTANZIA LOGGER ------------------------------------------------
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   const DimPoint<DIM> grid_size(cfg.grid_size);
   const utils::Vector<double, DIM> lid_velocity = cfg.u0;
@@ -82,12 +79,12 @@ int main(int argc, char **argv) {
   // ATTENZIONE: in 3D il numero di nodi cresce come N^3 e il costo per nodo
   // e' 19/9 volte quello di D2Q9. Una cavita' 128^3 ha gia' oltre 2M di
   // nodi: conviene validare su 32^3 o 48^3 prima di scalare.
-  LOG_INFO(main_logger,
-           "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
-           "{}\n\tLid velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
-           "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-           cfg.name, grid_size, cfg.reynolds, lid_velocity, cfg.niters,
-           cfg.nframes, cfg.frames_out, cfg.profile_out);
+  LBM_LOG_INFO(main_logger,
+               "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
+               "{}\n\tLid velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
+               "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
+               cfg.name, grid_size, cfg.reynolds, lid_velocity, cfg.niters,
+               cfg.nframes, cfg.frames_out, cfg.profile_out);
 
   // --- 3./4. CREA OSTACOLI E MASCHERA ------------------------------------
   // Le pareti sono le facce del dominio; nessun ostacolo immerso nel fluido,

@@ -3,9 +3,7 @@
 
 #include "lbm-sim/data/data-listener.hpp"
 
-#include "lbm/logging.hpp"
-
-#include "quill/LogMacros.h"
+#include "lbm-sim/logging.hpp"
 
 #include <condition_variable>
 #include <fstream>
@@ -30,14 +28,14 @@ class AsyncBinaryWriter : public IDataListener {
 public:
   // FIXME: Decide whether to throw an error or what.
   AsyncBinaryWriter(const std::string &path) : path(path), stop_(false) {
-    quill::Logger *writer_logger = logging::create_or_get_logger("writer");
+    logging::Logger *writer_logger = logging::create_or_get_logger("writer");
     file_.open(path, std::ios::out | std::ios::binary);
     if (!file_.is_open()) {
-      LOG_CRITICAL(writer_logger, "Cannot open {} for writing", path);
+      LBM_LOG_CRITICAL(writer_logger, "Cannot open {} for writing", path);
       throw std::runtime_error("");
     }
     worker_ = std::thread(&AsyncBinaryWriter::run, this);
-    LOG_DEBUG(writer_logger, "File {} opened for binary writing", path);
+    LBM_LOG_DEBUG(writer_logger, "File {} opened for binary writing", path);
   }
 
   ~AsyncBinaryWriter() override {

@@ -6,11 +6,8 @@
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
-#include "lbm/logging.hpp"
-
-// QUILL LIB
-#include "quill/LogMacros.h"
 
 // C++ STD LIB
 #include <memory>
@@ -18,7 +15,7 @@
 #include <vector>
 
 static constexpr lbm::types::dim_t DIM = 2;
-constexpr auto COLLISION = lbm::CollisionModel::TRT;
+constexpr auto COLLISION = lbm::CollisionModel::BGK;
 constexpr auto BACKEND = lbm::ExecutionBackend::OPEN_MP;
 
 int main(int argc, char **argv) {
@@ -31,7 +28,7 @@ int main(int argc, char **argv) {
   config::SimulationConfig<DIM> cfg;
 
   cfg.backend = lbm::ExecutionBackend::OPEN_MP;
-  cfg.collision = lbm::TRT;
+  cfg.collision = lbm::BGK;
 
   cfg.grid_size = {129, 129};
 
@@ -42,21 +39,22 @@ int main(int argc, char **argv) {
   cfg.niters = 100000;
   cfg.nframes = 200;
 
-  cfg.frames_out = "output/poiseuille_trt_frames";
-  cfg.profile_out = "output/pouisseille_trt_profile.dat";
+  cfg.frames_out = "output/poiseuille_bgk_frames";
+  cfg.profile_out = "output/pouisseille_bgk_profile.dat";
 
   // --- 2. ISTANZIA LOGGER ------------------------------------------------
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   const DimPoint<DIM> grid_size(cfg.grid_size);
 
-  LOG_INFO(main_logger,
-           "Simulation:\n\tGrid dimensions: {}\n\tReynolds number: "
-           "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
-           "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-           grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
-           cfg.frames_out, cfg.profile_out);
+  LBM_LOG_INFO(
+      main_logger,
+      "Simulation:\n\tGrid dimensions: {}\n\tReynolds number: "
+      "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
+      "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
+      grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes, cfg.frames_out,
+      cfg.profile_out);
 
   // --- 3. CREA OSTACOLI --------------------------------------------------
   // Poiseuille: pareti rigide sopra e sotto, ingresso e uscita a pressione
@@ -111,8 +109,8 @@ int main(int argc, char **argv) {
   const double err_l2 =
       simulation.compute_error(analysis::NormType::L2, exact_solution);
 
-  LOG_NOTICE(main_logger, "{} error: {}",
-             analysis::to_string(analysis::NormType::L2), err_l2);
+  LBM_LOG_NOTICE(main_logger, "{} error: {}",
+                 analysis::to_string(analysis::NormType::L2), err_l2);
 
   simulation.detachListener(writer);
   solver.detachListener(writer);

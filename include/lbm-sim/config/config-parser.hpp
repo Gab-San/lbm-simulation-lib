@@ -1,5 +1,4 @@
-#ifndef __LBM_SIM_CONFIG_CONFIG_PARSER_HPP
-#define __LBM_SIM_CONFIG_CONFIG_PARSER_HPP
+#pragma once
 
 #include "lbm-sim/config/simulation-config.hpp"
 #include "lbm-sim/metadata.hpp"
@@ -243,5 +242,3 @@ inline void print_usage(const char *exe) {
 
 } // namespace config
 } // namespace lbm
-
-#endif // __LBM_SIM_CONFIG_CONFIG_PARSER_HPP

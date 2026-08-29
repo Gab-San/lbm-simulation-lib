@@ -5,11 +5,8 @@
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
-#include "lbm/logging.hpp"
-
-// QUILL LIB
-#include "quill/LogMacros.h"
 
 // C++ STD LIB
 #include <memory>
@@ -54,18 +51,19 @@ int main(int argc, char **argv) {
   cfg.profile_out = "output/lid_cavity_trt_profile.dat";
 
   // --- 2. ISTANZIA LOGGER ------------------------------------------------
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   const DimPoint<DIM> grid_size(cfg.grid_size);
   const utils::Vector<double, DIM> init_vel = cfg.u0;
 
-  LOG_INFO(main_logger,
-           "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
-           "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
-           "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-           cfg.name, grid_size, cfg.reynolds, init_vel, cfg.niters, cfg.nframes,
-           cfg.frames_out, cfg.profile_out);
+  LBM_LOG_INFO(
+      main_logger,
+      "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
+      "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
+      "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
+      cfg.name, grid_size, cfg.reynolds, init_vel, cfg.niters, cfg.nframes,
+      cfg.frames_out, cfg.profile_out);
 
   // --- 3. CREA OSTACOLI --------------------------------------------------
   // Per la lid cavity i "confini" non sono ostacoli disegnati sui nodi di
@@ -112,17 +110,17 @@ int main(int argc, char **argv) {
       path_to_benchmark + "data_y_" + formatting::format_reyn(cfg.reynolds) +
       ".txt");
 
-  LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
-             analysis::to_string(analysis::NormType::L2), ghia_y.relative,
-             ghia_y.absolute);
+  LBM_LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
+                 analysis::to_string(analysis::NormType::L2), ghia_y.relative,
+                 ghia_y.absolute);
 
   const auto ghia_x = simulation.compute_ghia_error(
       path_to_benchmark + "data_x_" + formatting::format_reyn(cfg.reynolds) +
       ".txt");
 
-  LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
-             analysis::to_string(analysis::NormType::L2), ghia_x.relative,
-             ghia_x.absolute);
+  LBM_LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
+                 analysis::to_string(analysis::NormType::L2), ghia_x.relative,
+                 ghia_x.absolute);
 
   simulation.detachListener(writer);
   solver.detachListener(writer);
