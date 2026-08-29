@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
         std::string(LBM_BENCHMARKS_DIR) + "/ghia/";
 
     const auto ghia_y = simulation.compute_ghia_error(
-        path_to_benchmark + "data_y_" + formatting::format_reyn(cfg.reynolds) +
+        path_to_benchmark + "data_y_" + format::format_reyn(cfg.reynolds) +
         ".txt");
 
     LBM_LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
                    ghia_y.absolute);
 
     const auto ghia_x = simulation.compute_ghia_error(
-        path_to_benchmark + "data_x_" + formatting::format_reyn(cfg.reynolds) +
+        path_to_benchmark + "data_x_" + format::format_reyn(cfg.reynolds) +
         ".txt");
 
     LBM_LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
@@ -122,11 +122,11 @@ int main(int argc, char **argv) {
 
     simulation.detachListener(writer);
     solver.detachListener(writer);
-  
-       #ifdef LBM_PROFILING
-  lbm::profiling::dump_csv(cfg.profile_out);  
-  lbm::profiling::reset();                    
+
+#ifdef LBM_PROFILING
+    lbm::profiling::dump_csv(cfg.profile_out);
+    lbm::profiling::reset();
 #endif
-    }
+  }
   return 0;
 }

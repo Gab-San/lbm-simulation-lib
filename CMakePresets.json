@@ -1,0 +1,31 @@
+{
+  "version": 3,
+  "configurePresets": [
+    { "name": "base", "hidden": true, "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": { "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                          "CMAKE_BUILD_TYPE": "RelWithDebInfo" } },
+
+    { "name": "quill",   "inherits": "base",
+      "cacheVariables": { "LBM_LOG_BACKEND": "quill", "LBM_LOG_LEVEL": "DEBUG" } },
+    { "name": "ostream", "inherits": "base",
+      "cacheVariables": { "LBM_LOG_BACKEND": "ostream" } },
+    { "name": "silent",  "inherits": "base",
+      "cacheVariables": { "LBM_ENABLE_LOGGING": "OFF" } },
+
+    { "name": "profiling", "inherits": "ostream",
+      "cacheVariables": { "LBM_ENABLE_PROFILING": "ON",
+                          "CMAKE_BUILD_TYPE": "Release" } },
+
+    { "name": "bench", "inherits": "silent",
+      "cacheVariables": { "LBM_ENABLE_PROFILING": "ON",
+                          "CMAKE_BUILD_TYPE": "Release" } }
+  ],
+  "buildPresets": [
+    { "name": "quill", "configurePreset": "quill" },
+    { "name": "ostream", "configurePreset": "ostream" },
+    { "name": "silent", "configurePreset": "silent" },
+    { "name": "profiling", "configurePreset": "profiling" },
+    { "name": "bench", "configurePreset": "bench" }
+  ]
+}

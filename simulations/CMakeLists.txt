@@ -22,9 +22,6 @@ function(lbm_add_data_paths TARGET_NAME)
     LBM_BENCHMARKS_DIR="${PROJECT_SOURCE_DIR}/benchmarks")
 endfunction()
 
-# Un eseguibile per sorgente, con il nome del file. I main sono gli unici a
-# linkare lbm::config: quando LBM_ENABLE_CONFIG=OFF il target esiste comunque
-# ed e' vuoto, quindi qui non serve nessun if().
 function(lbm_add_simulation SOURCE PREFIX)
   get_filename_component(TARGET_NAME ${SOURCE} NAME_WE)
   set(TARGET_NAME "${PREFIX}${TARGET_NAME}")
@@ -38,7 +35,7 @@ function(lbm_add_simulation SOURCE PREFIX)
   endif()
 
   add_executable(${TARGET_NAME} ${SOURCE})
-  target_link_libraries(${TARGET_NAME} PRIVATE ${ARGN} lbm::config)
+  target_link_libraries(${TARGET_NAME} PRIVATE ${ARGN} lbm::sim)
   lbm_add_data_paths(${TARGET_NAME})
 endfunction()
 

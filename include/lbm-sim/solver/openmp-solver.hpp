@@ -12,6 +12,7 @@
 #include "lbm-sim/metadata.hpp"
 #include "lbm-sim/profiling.hpp"
 #include "lbm-sim/solver/solver-base.hpp"
+#include "lbm/format/csv-writer.hpp"
 
 // C++ STANDARD LIB
 #include <array>
@@ -59,7 +60,9 @@ public:
     LBM_LOG_INFO(solver_logger, "System has {} logical processors.",
                  omp_get_num_procs());
     LBM_LOG_INFO(solver_logger, "The parallel section will run on {} threads.",
-                 omp_get_max_threads());
+                 omp_get_max_threads() >= omp_get_num_procs()
+                     ? omp_get_num_procs()
+                     : omp_get_max_threads());
 
     {
       PROFILE_SCOPE("solve_total"); // tempo wall dell'intero loop
@@ -82,12 +85,12 @@ public:
     }
 
 #ifdef LBM_PROFILING
-    logging::Logger *profiling_logger =
-        logging::create_or_get_logger("profiling");
+    auto &profiler = profiling::Profiler<ProfilingSchemaOpenMP>::get();
     for (const auto &[label, e] : profiling::registry()) {
-      LBM_LOG_NOTICE(profiling_logger,
-                     "[PROFILE] {}: total={} ms | avg={} ms | calls={}", label,
-                     e.total_ms, e.total_ms / e.calls, e.calls);
+      profiler.append_row(label, lattice.grid.size,
+                          collision_model_to_string(cm_t),
+                          backend_to_string(OPEN_MP), props.getNumThreads(),
+                          e.total_ms, e.total_ms / e.calls, e.calls);
     }
 #endif
   }

@@ -21,7 +21,7 @@ endif()
 # ------------------------------ OPTIONS -------------------------------------
 
 option(LBM_ENABLE_CUDA      "Build the CUDA backend"                        OFF)
-option(LBM_ENABLE_CONFIG    "Build the TOML configuration parser"           ON)
+option(LBM_ENABLE_CONFIG    "Build the TOML configuration support (toml++)" ON)
 option(LBM_ENABLE_PROFILING "Enable chrono-based profiling instrumentation" OFF)
 
 # LBM_ENABLE_LOGGING, LBM_LOG_BACKEND (quill | ostream | none) and
@@ -39,12 +39,6 @@ option(LBM_BUILD_DOCS       "Configure the docs/ target"
 # unconditionally.
 include(Logging)
 
-# ------------------------------- CONFIG -------------------------------------
-# Defines lbm::config (toml++), or an empty stub when LBM_ENABLE_CONFIG=OFF.
-# Deliberately NOT linked into lbm::sim -- see the note at the bottom of
-# cmake/Config.cmake.
-include(Config)
-
 # -------------------------------- CORE --------------------------------------
 
 set(LBM_SIM_LIB lbm-sim)
@@ -52,11 +46,8 @@ set(LBM_SIM_LIB lbm-sim)
 file(GLOB_RECURSE LBM_CORE_HEADERS CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm-sim/*.hpp")
 
-# include/lbm-sim/config/ belongs to lbm::config, which lists it itself. Leaving
-# it here too would mean the headers stay in the build (in IDEs, in the
-# generated project) after LBM_ENABLE_CONFIG=OFF, which is exactly the coupling
-# the split is meant to remove.
-list(FILTER LBM_CORE_HEADERS EXCLUDE REGEX "/include/lbm-sim/config/")
+file(GLOB_RECURSE LBM_SHARED_HEADERS CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm/format/*.hpp")
 
 add_library(${LBM_SIM_LIB} INTERFACE)
 add_library(lbm::sim ALIAS ${LBM_SIM_LIB})
@@ -64,7 +55,7 @@ add_library(lbm::sim ALIAS ${LBM_SIM_LIB})
 # PRIVATE on an INTERFACE library: the headers show up in IDEs/compile_commands
 # but are not injected as sources into every consumer, which is what the old
 # `add_library(... INTERFACE ${headers})` did.
-target_sources(${LBM_SIM_LIB} PRIVATE ${LBM_CORE_HEADERS})
+target_sources(${LBM_SIM_LIB} PRIVATE ${LBM_CORE_HEADERS} ${LBM_SHARED_HEADERS})
 
 target_include_directories(${LBM_SIM_LIB} INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -94,6 +85,30 @@ endif()
 # it) and nvcc (which needs -Xcompiler for host flags). Fence it in.
 target_compile_options(${LBM_SIM_LIB} INTERFACE
   $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-Wsign-compare>)
+
+# ------------------------- CONFIG (part of the core) ------------------------
+# TOML parsing is a feature of the library, not a separate target: toml++ and
+# include/lbm/config/ are attached straight to lbm::sim. Consumers get it by
+# linking lbm::sim -- there is nothing extra to link.
+#
+# With LBM_ENABLE_CONFIG=OFF nothing is fetched, include/lbm/config/ is not part
+# of the build, LBM_ENABLE_CONFIG is not defined, and code that #includes those
+# headers is expected not to be built either (`#if LBM_ENABLE_CONFIG`).
+if(LBM_ENABLE_CONFIG)
+  include(FetchContent)
+  FetchContent_Declare(
+    tomlplusplus
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG        v3.4.0
+    GIT_SHALLOW    TRUE
+  )
+  FetchContent_MakeAvailable(tomlplusplus)
+
+  target_link_libraries(${LBM_SIM_LIB} INTERFACE tomlplusplus::tomlplusplus)
+
+  # For code that can do without a config file: #if LBM_ENABLE_CONFIG.
+  target_compile_definitions(${LBM_SIM_LIB} INTERFACE LBM_ENABLE_CONFIG)
+endif()
 
 # --------------------------------- CUDA -------------------------------------
 # The module no longer wraps itself in `if(LBM_ENABLE_CUDA)`: the guard lives

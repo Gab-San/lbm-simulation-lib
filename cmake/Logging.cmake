@@ -147,13 +147,3 @@ if(LBM_LOG_BACKEND STREQUAL "quill")
 endif()
 
 message(STATUS "LBM logging: backend=${LBM_LOG_BACKEND} level=${LBM_LOG_LEVEL}")
-
-# The profiling writer is still a quill::CsvWriter, so it needs that backend.
-# Rejected loudly rather than silently dropping a feature that was asked for --
-# and the honest fix is the ofstream CsvWriter fallback, after which this block
-# goes away.
-if(LBM_ENABLE_PROFILING AND NOT LBM_LOG_BACKEND STREQUAL "quill")
-  message(FATAL_ERROR
-    "LBM_ENABLE_PROFILING=ON currently requires LBM_LOG_BACKEND=quill "
-    "(got: ${LBM_LOG_BACKEND}): lbm::profiling writes through quill::CsvWriter.")
-endif()

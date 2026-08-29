@@ -34,18 +34,23 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  config::SimulationConfig<DIM> cfg;
-
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   std::vector<config::SimulationConfig<DIM>> configs;
+
   try {
     configs = config::parse_config<DIM>(argv[1]);
   } catch (const config::ConfigError &err) {
     LBM_LOG_ERROR(main_logger, "Config Error {}", err.what());
     return 1;
   }
+  std::cout << configs[0].name << std::endl;
+
+  auto &prop = profiling::BackendProperties<OPEN_MP>::get();
+  auto &profiler = profiling::Profiler<ProfilingSchemaOpenMP>::get();
+  profiler.open("./prof/" + configs[0].name + ".csv");
+
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
 
@@ -57,8 +62,6 @@ int main(int argc, char **argv) {
         cfg.name, grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
         cfg.frames_out, cfg.profile_out);
 
-    auto &prop = profiling::BackendProperties<OPEN_MP>::get();
-    LBM_LOG_WARNING(main_logger, "NUM THREADS: {}", cfg.n_threads);
     prop.setNumThreads(cfg.n_threads);
     prop.setBenchmarkMode(true);
 
@@ -93,8 +96,13 @@ int main(int argc, char **argv) {
     const std::string path_to_benchmark =
         std::string(LBM_BENCHMARKS_DIR) + "/ghia/";
 
+    format::CsvWriter<analysis::ErrorAnalysisSchema> error_writer(
+        "out/error_" + cfg.name + "_" + format::format_reyn(cfg.reynolds) +
+            ".csv",
+        true);
+
     const auto ghia_y = simulation.compute_ghia_error(
-        path_to_benchmark + "data_y_" + formatting::format_reyn(cfg.reynolds) +
+        path_to_benchmark + "data_y_" + format::format_reyn(cfg.reynolds) +
         ".txt");
 
     LBM_LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
@@ -102,20 +110,35 @@ int main(int argc, char **argv) {
                    ghia_y.absolute);
 
     const auto ghia_x = simulation.compute_ghia_error(
-        path_to_benchmark + "data_x_" + formatting::format_reyn(cfg.reynolds) +
+        path_to_benchmark + "data_x_" + format::format_reyn(cfg.reynolds) +
         ".txt");
 
     LBM_LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
                    analysis::to_string(analysis::NormType::L2), ghia_x.relative,
                    ghia_x.absolute);
 
+    error_writer.append_row("uy", grid_size,
+                            collision_model_to_string(COLLISION), cfg.niters,
+                            analysis::to_string(analysis::NormType::L2),
+                            ghia_y.relative, ghia_y.absolute);
+
+    error_writer.append_row("ux", grid_size,
+                            collision_model_to_string(COLLISION), cfg.niters,
+                            analysis::to_string(analysis::NormType::L2),
+                            ghia_x.relative, ghia_x.absolute);
+
+    error_writer.flush();
+    error_writer.close();
+
     simulation.detachListener(writer);
     solver.detachListener(writer);
-         #ifdef LBM_PROFILING
-  lbm::profiling::dump_csv(cfg.profile_out);  
-  lbm::profiling::reset();                    
+#ifdef LBM_PROFILING
+    profiler.flush();
+    profiling::reset();
 #endif
   }
+
+  profiler.close();
 
   return 0;
 }

@@ -14,6 +14,13 @@
 
 namespace lbm {
 namespace analysis {
+
+struct ErrorAnalysisSchema {
+  static constexpr char const *header =
+      "profile,size,collision_model,niters,type,rel,abs";
+  static constexpr char const *format = "{},{},{},{},{},{:3f},{:3f}";
+};
+
 template <unsigned short int dim> class ErrorEvaluator {
 public:
   static std::vector<double>

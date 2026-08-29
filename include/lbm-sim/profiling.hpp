@@ -1,5 +1,109 @@
 // lbm-sim/omp/profiling.hpp
+
 #pragma once
+
+/// One CSV writer per schema, shared by every call site in the process.
+///
+/// Owns the file's lifetime: open() once at startup, rows from anywhere,
+/// close() at shutdown (or leave it to the destructor). Differences from the
+/// obvious `static Writer` singleton, each of which is load-bearing:
+///
+///   - The writer is held in an optional, not a member of the singleton type.
+///     CsvWriter has no default constructor - it opens a file or throws - so a
+///     singleton that holds one by value cannot be constructed before a path
+///     is known, which is exactly when the Meyers static runs.
+///
+///   - There is no getWriter(). Rows go through append_row(), so no reference
+///     to the writer escapes: it cannot outlive a close(), and the mutex below
+///     actually covers every write.
+///
+///   - append_row() is serialised. Rows are typically written once per run,
+///     but an OpenMP region that records per-thread timings would otherwise
+///     interleave two rows into one line, which corrupts the file rather than
+///     just reordering it.
+///
+/// Cross-process sweeps: open(path, /*append=*/true) from each executable.
+/// The header is written only into an empty file, so one CSV accumulates every
+/// configuration. Within one process, append=false and one open() is simpler.
+
+#include "lbm/format/csv-writer.hpp"
+
+#include <filesystem>
+#include <mutex>
+#include <optional>
+#include <utility>
+
+namespace lbm {
+
+struct ProfilingSchemaOpenMP {
+  static constexpr char const *header =
+      "label,size,collision_model,backend,n_threads,total,avg,calls";
+  static constexpr char const *format = "{},{},{},{},{},{:.2f},{},{}";
+};
+
+namespace profiling {
+
+template <class Schema> class Profiler {
+public:
+  static Profiler &get() {
+    // Thread-safe initialisation since C++11; destroyed at exit, which flushes
+    // and closes the file.
+    static Profiler instance;
+    return instance;
+  }
+
+  Profiler(Profiler const &) = delete;
+  Profiler &operator=(Profiler const &) = delete;
+  Profiler(Profiler &&) = delete;
+  Profiler &operator=(Profiler &&) = delete;
+
+  /// Opens the output file, replacing any file already open. Throws
+  /// std::ios_base::failure if it cannot be opened.
+  void open(std::filesystem::path const &path, bool append = false) {
+    std::lock_guard<std::mutex> const lock(mutex_);
+    writer_.reset(); // close the previous file before opening another
+    std::filesystem::create_directories(path.parent_path());
+    writer_.emplace(path, append);
+  }
+
+  /// Writes one row. A no-op if open() was never called - instrumentation left
+  /// in a build that does not want a profile should cost nothing and say
+  /// nothing, and the LBM_PROFILING macro is the switch that expresses intent.
+  template <class... Ts> void append_row(Ts const &...args) {
+    std::lock_guard<std::mutex> const lock(mutex_);
+    if (writer_) {
+      writer_->append_row(args...);
+    }
+  }
+
+  void flush() {
+    std::lock_guard<std::mutex> const lock(mutex_);
+    if (writer_) {
+      writer_->flush();
+    }
+  }
+
+  /// Idempotent.
+  void close() {
+    std::lock_guard<std::mutex> const lock(mutex_);
+    writer_.reset();
+  }
+
+  [[nodiscard]] bool is_open() const {
+    std::lock_guard<std::mutex> const lock(mutex_);
+    return writer_.has_value() && writer_->is_open();
+  }
+
+private:
+  Profiler() = default;
+  ~Profiler() = default;
+
+  mutable std::mutex mutex_;
+  std::optional<lbm::format::CsvWriter<Schema>> writer_;
+};
+
+} // namespace profiling
+} // namespace lbm
 
 #include <chrono>
 #include <string>
@@ -72,7 +176,6 @@ inline void dump_csv(const std::string &path) {
     out << label << ',' << e.total_ms << ',' << e.calls << ',' << avg << '\n';
   }
 }
-
 } // namespace lbm::profiling
 
 #define PROFILE_SCOPE(name)                                                    \

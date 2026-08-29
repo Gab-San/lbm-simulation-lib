@@ -20,4 +20,14 @@ inline std::string collision_model_to_string(enum CollisionModel cm_t) {
   return std::to_string(cm_t);
 }
 
+inline std::string backend_to_string(enum ExecutionBackend backend_t) {
+  switch (backend_t) {
+  case ExecutionBackend::OPEN_MP:
+    return "OpenMP";
+  case ExecutionBackend::CUDA:
+    return "CUDA";
+  }
+  return std::to_string(backend_t);
+}
+
 } // namespace lbm
