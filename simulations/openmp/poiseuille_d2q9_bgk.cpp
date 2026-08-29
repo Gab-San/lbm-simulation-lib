@@ -111,6 +111,10 @@ for (const auto &cfg : configs) {
 
   simulation.detachListener(writer);
   solver.detachListener(writer);
-  }
+       #ifdef LBM_PROFILING
+  lbm::profiling::dump_csv(cfg.profile_out);  
+  lbm::profiling::reset();                    
+#endif
+}
   return 0;
 }
