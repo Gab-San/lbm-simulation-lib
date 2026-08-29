@@ -36,8 +36,6 @@ int main(int argc, char **argv) {
   std::vector<config::SimulationConfig<DIM>> configs;
   try {
     configs = config::parse_config<DIM>(argv[1]);
-    for (auto &cfg : configs)
-      config::ensure_compatible(cfg, COLLISION, BACKEND);
   } catch (const config::ConfigError &err) {
     std::cerr << "Errore di configurazione: " << err.what() << "\n";
     return 1;

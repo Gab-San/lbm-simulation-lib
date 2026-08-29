@@ -1,9 +1,10 @@
 // LBM SIM LIB
 #include "lbm-sim/analysis/exact-solution.hpp"
+#include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
-#include "lbm-sim/config/simulation-config.hpp"
+#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/vtk-writer.hpp"
+#include "lbm-sim/data/async-binary-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
@@ -25,28 +26,24 @@ int main(int argc, char **argv) {
   using types::DimPoint;
   using utils::Vector;
 
-  config::SimulationConfig<DIM> cfg;
+if (argc < 2) {
+    config::print_usage(argv[0]);
+    return 1;
+  }
 
-  cfg.backend = lbm::ExecutionBackend::OPEN_MP;
-  cfg.collision = lbm::TRT;
-
-  cfg.grid_size = {129, 129};
-
-  cfg.u0 = {0.1, 0};
-
-  cfg.reynolds = 100;
-
-  cfg.niters = 100000;
-  cfg.nframes = 200;
-
-  cfg.frames_out = "output/poiseuille_trt_frames";
-  cfg.profile_out = "output/pouisseille_trt_profile.dat";
-
+  std::vector<config::SimulationConfig<DIM>> configs;
+  try {
+    configs = config::parse_config<DIM>(argv[1]);
+  } catch (const config::ConfigError &err) {
+    std::cerr << "Errore di configurazione: " << err.what() << "\n";
+    return 1;
+  }
   // --- 2. ISTANZIA LOGGER ------------------------------------------------
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
 
-  const DimPoint<DIM> grid_size(cfg.grid_size);
+  for (const auto &cfg : configs) {
+    const DimPoint<DIM> grid_size(cfg.grid_size);
 
   LBM_LOG_INFO(
       main_logger,
@@ -75,8 +72,8 @@ int main(int argc, char **argv) {
   // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
   // configurazione, cosi' run diversi nella stessa cartella non si
   // sovrascrivono a vicenda.
-  std::shared_ptr<VtkWriter> writer =
-      std::make_shared<VtkWriter>(cfg.frames_out);
+  std::shared_ptr<AsyncBinaryWriter> writer =
+        std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
 
   const CollisionParams<DIM, COLLISION> params(cfg.reynolds, grid_size, cfg.u0);
   // Salto di pressione che sostiene il flusso: ricavato dalla soluzione di
@@ -114,6 +111,6 @@ int main(int argc, char **argv) {
 
   simulation.detachListener(writer);
   solver.detachListener(writer);
-
+  }
   return 0;
 }

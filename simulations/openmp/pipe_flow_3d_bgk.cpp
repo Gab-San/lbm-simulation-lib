@@ -1,27 +1,10 @@
-// Pipe flow: 3D Hagen-Poiseuille in a duct of circular cross-section,
-// D3Q19 velocity set, BGK operator, OpenMP backend.
-//
-// This is the 3D sibling of poiseuille_flow_2d_bgk.cpp: same engine
-// (pressure imposed at inlet and outlet, bounce-back on the wall), but the
-// plane channel between two walls becomes a cylindrical duct. The expected
-// profile changes accordingly -- a paraboloid of revolution instead of a
-// parabola in y -- and so does the pressure drop that sustains it:
-//
-//   channel (2D):  u_max = dp * H^2 / (8 * mu * L)
-//   pipe    (3D):  u_max = dp * R^2 / (4 * mu * L)      <- Hagen-Poiseuille
-//
-// The pipe wall is not a domain face but an immersed obstacle: the domain
-// stays a box and the CylindricalShell declares everything beyond the pipe
-// radius solid, carving the duct out of the box. The box corners stay solid
-// and take no part in the flow.
-
 // LBM SIM LIB
 #include "lbm-sim/analysis/exact-solution.hpp"
-#include "lbm-sim/collision-detection/collision-area.hpp"
+#include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
-#include "lbm-sim/config/simulation-config.hpp"
+#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/vtk-writer.hpp"
+#include "lbm-sim/data/async-binary-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
@@ -44,33 +27,25 @@ int main(int argc, char **argv) {
   using utils::Vector;
 
   // --- 1. CONFIGURATION --------------------------------------------------
-  config::SimulationConfig<DIM> cfg;
+  if (argc < 2) {
+    config::print_usage(argv[0]);
+    return 1;
+  }
 
-  cfg.name = "pipe_flow_3d_bgk";
-
-  cfg.backend = BACKEND;
-  cfg.collision = COLLISION;
-
-  // Pipe along x. The cross-section is square and the duct fits inside it
-  // with two cells of margin per side: the wall therefore falls *inside*
-  // the domain, where bounce-back can represent it, and not on the faces.
-  cfg.grid_size = {128, 65, 65};
-
-  cfg.u0 = {0.1, 0, 0};
-
-  cfg.reynolds = 100;
-
-  cfg.niters = 15000;
-  cfg.nframes = 300;
-
-  cfg.frames_out = "output/pipe_flow_3d_bgk_frames";
-  cfg.profile_out = "output/pipe_flow_3d_bgk_profile.dat";
-
+  std::vector<config::SimulationConfig<DIM>> configs;
+  try {
+    configs = config::parse_config<DIM>(argv[1]);
+  } catch (const config::ConfigError &err) {
+    std::cerr << "Errore di configurazione: " << err.what() << "\n";
+    return 1;
+  }
   // --- 2. INSTANTIATE LOGGER ---------------------------------------------
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
 
-  const DimPoint<DIM> grid_size(cfg.grid_size);
+for (const auto &cfg : configs) {
+    const DimPoint<DIM> grid_size(cfg.grid_size);
+  
 
   const int nx = static_cast<int>(grid_size.x);
   const int ny = static_cast<int>(grid_size.y);
@@ -125,8 +100,8 @@ int main(int argc, char **argv) {
   // frames_out is the DIRECTORY; the file basename comes from the config
   // name, so different runs in the same directory do not overwrite each
   // other.
-  std::shared_ptr<VtkWriter> writer =
-      std::make_shared<VtkWriter>(cfg.frames_out, cfg.name);
+  std::shared_ptr<AsyncBinaryWriter> writer =
+        std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
 
   // WARNING: CollisionParams derives nu from the characteristic length
   // num_cells.y, not from the pipe diameter. With ny = 65 and an effective
@@ -173,6 +148,6 @@ int main(int argc, char **argv) {
 
   simulation.detachListener(writer);
   solver.detachListener(writer);
-
+  }
   return 0;
 }

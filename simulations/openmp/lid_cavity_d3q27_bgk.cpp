@@ -1,15 +1,10 @@
-// Lid-driven cavity 3D, velocity set D3Q19, backend OpenMP.
-//
-// D3Q19 usa 19 direzioni invece delle 27 di D3Q27 (niente vicini di
-// vertice): costa meno per nodo a scapito di un po' di isotropia, ed e'
-// una scelta molto comune in letteratura per la lid cavity.
-//
-// LBMSimulation e OpenMPSolver sono templati sul VelocitySet, quindi
-// l'unica differenza col main D3Q27 e' il tipo passato ai due template.
-
+// LBM SIM LIB
+#include "lbm-sim/analysis/exact-solution.hpp"
+#include "lbm-sim/boundaries/utils.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/vtk-writer.hpp"
+#include "lbm-sim/data/async-binary-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
@@ -50,30 +45,23 @@ int main(int argc, char **argv) {
   using namespace lbm;
   using types::DimPoint;
 
-  config::SimulationConfig<DIM> cfg;
+if (argc < 2) {
+    config::print_usage(argv[0]);
+    return 1;
+  }
 
-  cfg.name = "lid_cavity_d3q27_bgk";
-
-  cfg.backend = lbm::ExecutionBackend::OPEN_MP;
-  cfg.collision = lbm::CollisionModel::BGK;
-
-  cfg.grid_size = {129, 129, 129};
-
-  cfg.u0 = {0.1, 0, 0};
-
-  cfg.reynolds = 100;
-
-  cfg.niters = 100000;
-  cfg.nframes = 200;
-
-  cfg.frames_out = "output/lid_cavity_d3q27_bgk_frames";
-  cfg.profile_out = "output/lid_cavity_d3q27_bgk_profile.dat";
-
+  std::vector<config::SimulationConfig<DIM>> configs;
+  try {
+    configs = config::parse_config<DIM>(argv[1]);
+  } catch (const config::ConfigError &err) {
+    std::cerr << "Errore di configurazione: " << err.what() << "\n";
+    return 1;
+  }
   // --- 2. ISTANZIA LOGGER ------------------------------------------------
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
-
-  const DimPoint<DIM> grid_size(cfg.grid_size);
+  for (const auto &cfg : configs) {
+    const DimPoint<DIM> grid_size(cfg.grid_size);
   const utils::Vector<double, DIM> lid_velocity = cfg.u0;
 
   // ATTENZIONE: in 3D il numero di nodi cresce come N^3 e il costo per nodo
@@ -101,8 +89,8 @@ int main(int argc, char **argv) {
   // Lo stesso writer va agganciato sia a `sim` sia a `solver`: il primo
   // notifica l'header con le dimensioni della griglia, il secondo i frame
   // delle norme di velocita', e sono due DataObservable distinti.
-  std::shared_ptr<VtkWriter> writer =
-      std::make_shared<VtkWriter>(cfg.frames_out, cfg.name);
+std::shared_ptr<AsyncBinaryWriter> writer =
+        std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
 
   LBMSimulation<DIM, D3Q27, COLLISION> simulation(
       grid_size, std::move(solid_mask), {}, dbc,
@@ -126,6 +114,6 @@ int main(int argc, char **argv) {
 
   simulation.detachListener(writer);
   solver.detachListener(writer);
-
+  }
   return 0;
 }
