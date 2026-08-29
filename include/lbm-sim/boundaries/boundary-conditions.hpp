@@ -64,6 +64,32 @@ apply_pressure_rescale(double *fp, const double *ffrom,
   fp[diridx] = feq_loc + fi - feq_from;
 }
 
+template <types::dim_t dim, typename VelocitySet>
+LBM_HD_FUNC inline void apply_open_outflow(
+    double *fp, const double *ffrom, const std::size_t diridx,
+    const Grid<dim> &grid, const types::Coordinate<dim> &p,
+    const types::Coordinate<dim> &src) {
+
+  using utils::ops::axis;
+
+  types::Coordinate<dim> upstream = p;
+
+  for (types::dim_t a = 0; a < dim; ++a) {
+    const int n = static_cast<int>(axis(grid.size, a));
+    const int s = axis(src, a);
+    if (s < 0) {
+      axis(upstream, a) += 1; // low face: step toward +axis
+      break;
+    }
+    if (s >= n) {
+      axis(upstream, a) -= 1; // high face: step toward -axis
+      break;
+    }
+  }
+
+  fp[diridx] = ffrom[grid.field_index(upstream, diridx, VelocitySet::ndir)];
+}
+
 /// Dispatch on an already-resolved link: no mask read, no re-derivation of src.
 template <types::dim_t dim, typename VelocitySet>
 LBM_HD_FUNC inline void apply_boundary_condition(
@@ -75,6 +101,11 @@ LBM_HD_FUNC inline void apply_boundary_condition(
     const double pin, const double pout) {
 
   switch (link.bc) {
+
+  case OPEN_OUTFLOW:
+    apply_open_outflow<dim, VelocitySet>(fp, ffrom, diridx, grid, pos, link.src);
+    break;
+
   case BB_RIGID_WALL:
     apply_bb_rigid_wall<dim, VelocitySet>(fp, ffrom, diridx, grid, pos);
     break;

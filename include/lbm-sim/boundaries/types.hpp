@@ -30,6 +30,7 @@ constexpr types::boundary_t BB_MOVING_WALL = 2;
 constexpr types::boundary_t PERIODIC = 3;
 constexpr types::boundary_t PRESSURE_PERIODIC_INLET = 4;
 constexpr types::boundary_t PRESSURE_PERIODIC_OUTLET = 5;
+constexpr types::boundary_t OPEN_OUTFLOW = 6;
 
 LBM_HD_FUNC constexpr bool is_pressure(const types::boundary_t b) {
   return b == PRESSURE_PERIODIC_INLET || b == PRESSURE_PERIODIC_OUTLET;

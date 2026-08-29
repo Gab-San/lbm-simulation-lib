@@ -78,8 +78,11 @@ template <> struct Config<2> {
 /// rigide sopra e sotto.
 static lbm::Solid::DomainBC<DIM> make_channel_bc() {
   lbm::Solid::DomainBC<DIM> dbc{};
-  dbc.low(0) = lbm::Solid::PRESSURE_PERIODIC_INLET;   // x = 0
-  dbc.high(0) = lbm::Solid::PRESSURE_PERIODIC_OUTLET; // x = nx-1
+  //dbc.low(0) = lbm::Solid::PRESSURE_PERIODIC_INLET;   // x = 0
+  //dbc.high(0) = lbm::Solid::PRESSURE_PERIODIC_OUTLET; // x = nx-1
+
+  dbc.low(0) = lbm::Solid::BB_MOVING_WALL; // x = 0
+  dbc.high(0) = lbm::Solid::OPEN_OUTFLOW; // x = nx-1
   dbc.low(1) = lbm::Solid::BB_RIGID_WALL;             // y = 0
   dbc.high(1) = lbm::Solid::BB_RIGID_WALL;            // y = ny-1
   return dbc;
@@ -92,9 +95,9 @@ int main() {
   using utils::Vector;
 
   const Coordinate<2> A(0, 0);
-  const Coordinate<2> B(0, 128);
-  const Coordinate<2> C(639, 128);
-  const Coordinate<2> D(639, 0);
+  const Coordinate<2> B(0, 129 - 1);
+  const Coordinate<2> C(640 - 1, 129 - 1);
+  const Coordinate<2> D(640 - 1, 0);
 
   logging::setup_quill();
   quill::Logger *main_logger = logging::create_or_get_logger("main");
@@ -107,14 +110,68 @@ int main() {
           {
               // Le pareti del canale non sono piu' ostacoli: stanno in
               // make_channel_bc(). Qui resta solo il corpo immerso.
+              
+              // Parallelogramma: 4 vertici, 2 diagonali
+              //CollisionDetection::CollisionArea(
+              //    Coordinate<2>(100, 0), // posizione base (l'offset per le coord del parallelogramma)
+              //    {CollisionDetection::Parallelogram<DIM>(
+              //        // Senso anti-orario dei vertici, rispetto alla posizione base
+              //        Coordinate<2>{0, 0},
+              //        Coordinate<2>{0, 80},
+              //        Coordinate<2>{32, 80},
+              //        Coordinate<2>{32, 0})
+              //    } 
+              //),
+
+              //CollisionDetection::CollisionArea(
+              //  Coordinate<2>(300, 48), // posizione base (l'offset per le coord del parallelogramma)
+              //  {CollisionDetection::Parallelogram<DIM>(
+              //      // Senso anti-orario dei vertici, rispetto alla posizione base
+              //      Coordinate<2>{0, 0},
+              //      Coordinate<2>{0, 80},
+              //      Coordinate<2>{32, 80},
+              //      Coordinate<2>{32, 0})               
+              //  } 
+              //),
+
+              //CollisionDetection::CollisionArea(
+              //   Coordinate<2>(500, 0), // posizione base (l'offset per le coord del parallelogramma)
+              //   {CollisionDetection::Parallelogram<DIM>(
+              //       // Senso anti-orario dei vertici, rispetto alla posizione base
+              //       Coordinate<2>{0, 0},
+              //       Coordinate<2>{0, 80},
+              //       Coordinate<2>{32, 80},
+              //       Coordinate<2>{32, 0})
+              //   } 
+              //),
+
+              //CollisionDetection::CollisionArea(
+              //   Coordinate<2>(0, 0), // posizione base (l'offset per le coord del parallelogramma)
+              //   {CollisionDetection::Parallelogram<DIM>(
+              //       // Senso anti-orario dei vertici, rispetto alla posizione base
+              //       Coordinate<2>{0, 0},
+              //       Coordinate<2>{0, 55},
+              //       Coordinate<2>{2, 55},
+              //       Coordinate<2>{2, 0})
+              //   } 
+              //),
+
+              //CollisionDetection::CollisionArea(
+              //   Coordinate<2>(0, 73), // posizione base (l'offset per le coord del parallelogramma)
+              //   {CollisionDetection::Parallelogram<DIM>(
+              //       // Senso anti-orario dei vertici, rispetto alla posizione base
+              //       Coordinate<2>{0, 0},
+              //       Coordinate<2>{0, 55},
+              //       Coordinate<2>{2, 55},
+              //       Coordinate<2>{2, 0})
+              //   } 
+              //),
+
               // CollisionDetection::CollisionArea(
-              //     Coordinate<2>(
-              //         0,
-              //         0), // posizione base (l'offset per le coord del cerchio)
+              //     Coordinate<2>(0, 0),        // posizione base (l'offset per le coord del cerchio)
               //     {CollisionDetection::Circle<DIM>(
-              //         Coordinate<2>(160,
-              //                       64), // centro relativo alla posizione base
-              //         16)}               // raggio in celle
+              //         Coordinate<2>(160, 64), // centro relativo alla posizione base
+              //         16)}                    // raggio in celle
               // ),
 
               // Profilo Airfoil NACA
@@ -132,7 +189,11 @@ int main() {
     
           },
           // id 0 = il cilindro: parete rigida, ferma.
-          {{Solid::BB_RIGID_WALL, {0.0, 0.0}}}, make_channel_bc()),
+          {{Solid::BB_RIGID_WALL, {0.0, 0.0}},
+           // {Solid::BB_RIGID_WALL, {0.0, 0.0}},
+           // {Solid::BB_RIGID_WALL, {0.0, 0.0}},
+          }, 
+          make_channel_bc()),
   };
 
   constexpr auto CollisionType = CollisionModel::BGK;
@@ -148,15 +209,17 @@ int main() {
         std::make_shared<AsyncBinaryWriter>(conf.out_frames);
 
     CollisionParams<DIM, CollisionType> params(reyn, grid_size, init_vel);
-    const double pout = 1;
-    const double pin =
-        pout +
-        numbers::invcs_2 *
-            (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) * 8 *
-            params.nu * params.init_vel.dx;
+    // const double pout = 1;
+    // const double pin =
+    //     pout +
+    //     numbers::invcs_2 *
+    //         (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) * 8 *
+    //         params.nu * params.init_vel.dx;
+    // Simulation simulation(grid_size, std::move(solid_mask), obstacle_data,
+    //                       domain_bc, params, pin, pout);
 
     Simulation simulation(grid_size, std::move(solid_mask), obstacle_data,
-                          domain_bc, params, pin, pout);
+                          domain_bc, params);
     simulation.attachListener(writer);
 
     CUDASolver<DIM, D2Q9, CollisionType> solver(iters, frames);
