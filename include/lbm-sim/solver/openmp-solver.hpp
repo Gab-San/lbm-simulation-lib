@@ -206,7 +206,7 @@ double sponge_strength(const Grid<dim> &grid, const Solid::DomainBC<dim> &dbc,
       double r = 0.0;
       utils::Vector<double, dim> u;
 
-#pragma omp simd
+      UNROLL_FULL
       for (std::ptrdiff_t diridx = 0;
            diridx < static_cast<std::ptrdiff_t>(VelocitySet::ndir); ++diridx) {
         r += fp[diridx];
