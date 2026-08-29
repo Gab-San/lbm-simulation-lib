@@ -9,9 +9,6 @@
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
 
-// QUILL LIB
-#include "quill/LogMacros.h"
-
 // C++ STD LIB
 #include <memory>
 #include <string>
