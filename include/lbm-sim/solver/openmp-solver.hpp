@@ -3,6 +3,7 @@
 
 #include "lbm-sim/backend/omp/annotations.hpp"
 #include "lbm-sim/backend/omp/iteration.hpp"
+#include "lbm-sim/backend/properties.hpp"
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
@@ -45,6 +46,10 @@ public:
 
     const CollisionStrategy<dim, VelocitySet, cm_t> cs(params_);
 
+    const auto &props =
+        profiling::BackendProperties<ExecutionBackend::OPEN_MP>::get();
+    const bool benchmarking = props.getBenchmarkMode();
+
     {
       PROFILE_SCOPE("init_equilibrium");
       init_equilibrium(ffrom, lattice);
@@ -60,7 +65,7 @@ public:
       PROFILE_SCOPE("solve_total"); // tempo wall dell'intero loop
 
       for (std::size_t iter = 0; iter < this->niters; iter++) {
-        const bool save = iter % this->nskips == 0;
+        const bool save = !benchmarking && iter % this->nskips == 0;
         const bool store_macroscopic = save || (iter + 1 == this->niters);
 
         {
@@ -71,15 +76,16 @@ public:
         std::swap(ffrom, fto);
 
         if (save) {
-          PROFILE_SCOPE("write_norms");
           write_norms(usq);
         }
       }
     }
 
 #ifdef LBM_PROFILING
+    logging::Logger *profiling_logger =
+        logging::create_or_get_logger("profiling");
     for (const auto &[label, e] : profiling::registry()) {
-      LBM_LOG_NOTICE(solver_logger,
+      LBM_LOG_NOTICE(profiling_logger,
                      "[PROFILE] {}: total={} ms | avg={} ms | calls={}", label,
                      e.total_ms, e.total_ms / e.calls, e.calls);
     }
@@ -94,7 +100,7 @@ private:
 
     using utils::ops::dot;
 
-#pragma omp parallel for shared(lattice, part_stream) schedule(runtime)
+#pragma omp parallel for shared(lattice, part_stream) schedule(static)
     for (int cell = 0; cell < area; cell++) {
 
       const types::Coordinate<dim> p = iteration::unflatten<dim>(cell, ext);
