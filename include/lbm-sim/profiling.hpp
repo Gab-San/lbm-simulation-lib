@@ -13,10 +13,6 @@
 
 namespace lbm::profiling {
 
-// --- fix per il bug di token-pasting con __LINE__ ---
-// __LINE__ non viene espanso prima di ## senza un livello di indirezione:
-// senza questa coppia di macro, PROFILE_SCOPE genera sempre la variabile
-// letterale "_prof___LINE__" (redefinition se usata due volte nello stesso scope).
 #define LBM_CONCAT_(a, b) a##b
 #define LBM_CONCAT(a, b) LBM_CONCAT_(a, b)
 
@@ -29,13 +25,6 @@ inline std::unordered_map<std::string, TimingEntry>& registry() {
   static std::unordered_map<std::string, TimingEntry> reg;
   return reg;
 }
-
-// Protegge registry() da accessi concorrenti se PROFILE_SCOPE viene usato
-// dentro una regione #pragma omp parallel (es. per profilare il kernel di
-// collision per-thread). A livello di granularità "per fase" (collision,
-// streaming, BC, halo) la contesa sul mutex è trascurabile; se in futuro
-// si profila a grana più fine (es. per nodo dentro il loop) conviene
-// passare a registry thread_local con merge esplicito a fine run.
 inline std::mutex& registry_mutex() {
   static std::mutex m;
   return m;
@@ -81,27 +70,6 @@ inline void dump_csv(const std::string& path) {
     out << label << ',' << e.total_ms << ',' << e.calls << ',' << avg << '\n';
   }
 }
-
-/* ------------------------------------------------------------------------
- * SAMPLE per estensione futura MPI (non funzionante, solo da adattare):
- * riduce le entry di registry() su rank 0 con min/max/avg per label,
- * per capire il load imbalance tra rank invece del solo tempo locale.
- *
- * inline void report_mpi(int rank, int nranks, std::ostream& os = std::cout) {
- *   for (auto const& [label, e] : registry()) {
- *     double local = e.total_ms;
- *     double sum, min, max;
- *     MPI_Reduce(&local, &sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
- *     MPI_Reduce(&local, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
- *     MPI_Reduce(&local, &max, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
- *     if (rank == 0) {
- *       os << label << ": avg=" << (sum / nranks)
- *          << "ms, min=" << min << "ms, max=" << max
- *          << "ms (imbalance=" << (max - min) << "ms)\n";
- *     }
- *   }
- * }
- * ------------------------------------------------------------------------ */
 
 } // namespace lbm::profiling
 
