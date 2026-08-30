@@ -7,18 +7,15 @@
 #ifndef __LBM_SIM_LBM_SIMULATION_HPP
 #define __LBM_SIM_LBM_SIMULATION_HPP
 
-#include "lbm-sim/types/common.hpp"
-
-#include "lbm-sim/core/grid.hpp"
-
-#include "lbm-sim/collision-operators/collision-params.hpp"
-#include "lbm-sim/metadata.hpp"
-
-#include "lbm-sim/solver/solver-base.hpp"
-
 #include "lbm-sim/analysis/benchmarks.hpp"
 #include "lbm-sim/analysis/error.hpp"
+#include "lbm-sim/collision-operators/collision-params.hpp"
+#include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/lattice.hpp"
 #include "lbm-sim/logging.hpp"
+#include "lbm-sim/metadata.hpp"
+#include "lbm-sim/solver/solver-base.hpp"
+#include "lbm-sim/types/common.hpp"
 
 // C++ STANDARD LIB
 #include <cstdint>

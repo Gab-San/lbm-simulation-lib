@@ -1,7 +1,42 @@
+/**
+ * @file cuda-solver.cuh
+ * @brief CUDASolver: the GPU backend, and the kernels it launches.
+ *
+ * The structure mirrors OpenMPSolver step for step -- initialise the
+ * equilibrium, then loop over a fused stream-collide with a buffer swap --
+ * because the physics is shared: the boundary conditions
+ * (boundaries/boundary-conditions.hpp) and the collision kernels
+ * (collision-operators/collision-strategy.hpp) are @c LBM_HD_FUNC and
+ * compile for both sides. What differs is only the surrounding machinery:
+ *
+ * - one thread per lattice node, in a 2D or 3D block whose shape comes from
+ *   BackendProperties<CUDA>; the grid is rounded up, so a thread outside the
+ *   domain returns immediately;
+ * - the velocity-set tables have to be uploaded to @c __constant__ memory
+ *   once, by lbm::cuda::upload_lattice_constants(), before the first launch;
+ * - the macroscopic fields live on the device and are downloaded only when a
+ *   frame is due or the run ends, so a frame step costs a stream
+ *   synchronisation the OpenMP path does not pay.
+ *
+ * In benchmark mode the host synchronisation, the download and the frame
+ * write are kept out of the loop entirely; the fields are still computed on
+ * the last iteration and downloaded once afterwards.
+ *
+ * @warning This header does not currently compile. It includes
+ *          `lbm-sim/cuda/structs.cuh` and `lbm-sim/cuda/utils.cuh`, a
+ *          directory that no longer exists -- the files moved to
+ *          `lbm-sim/backend/cuda/` -- and the timing block plus the MLUPS
+ *          reporting are commented out. The CUDA backend is off by default
+ *          (`LBM_ENABLE_CUDA=OFF`), which is why the build stays green. Fix
+ *          the include paths before relying on anything documented here.
+ */
+
 #ifndef __LBM_SIM_SOLVER_CUDA_SOLVER_CUH
 #define __LBM_SIM_SOLVER_CUDA_SOLVER_CUH
 
 #include "lbm-sim/backend/cuda/properties.cuh"
+#include "lbm-sim/backend/cuda/structs.cuh"
+#include "lbm-sim/backend/cuda/utils.cuh"
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
@@ -9,8 +44,7 @@
 #include "lbm-sim/constants.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/cuda/structs.cuh"
-#include "lbm-sim/cuda/utils.cuh"
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/metadata.hpp"
 #include "lbm-sim/solver/solver-base.hpp"
 
@@ -25,6 +59,8 @@
 namespace lbm {
 namespace cuda_detail {
 
+/// @brief One thread per node: writes the equilibrium of the initial fields.
+/// The device counterpart of OpenMPSolver::init_equilibrium().
 template <types::dim_t dim, typename VelocitySet>
 __global__ void
 init_equilibrium(double *__restrict__ part_stream,
@@ -51,6 +87,19 @@ init_equilibrium(double *__restrict__ part_stream,
   }
 }
 
+/**
+ * @brief One time step, one thread per node: stream, moments, collide.
+ *
+ * Same sequence as OpenMPSolver::update_stream_collide() and sharing its
+ * boundary and collision kernels; only the iteration mechanism differs.
+ * Threads outside the domain return immediately, since the launch grid is
+ * rounded up.
+ *
+ * @warning Reads the velocity-set tables from @c __constant__ memory. They
+ *          must have been uploaded by
+ *          lbm::cuda::upload_lattice_constants() first, or every direction
+ *          reads as zero -- with no diagnostic.
+ */
 template <types::dim_t dim, typename VelocitySet, enum CollisionModel cm_t>
 __global__ void update_stream_collide(
     const double *__restrict__ const ffrom, double *__restrict__ fto,
@@ -176,17 +225,47 @@ __global__ void update_stream_collide(
 
 } // namespace cuda_detail
 
+/**
+ * @brief GPU solver.
+ *
+ * @tparam dim         Spatial dimension (2 or 3).
+ * @tparam VelocitySet Discrete velocity set.
+ * @tparam cm_t        Collision model.
+ *
+ * @see OpenMPSolver for the CPU counterpart, and the file-level note above
+ *      for the include paths that currently need fixing.
+ */
 template <types::dim_t dim, typename VelocitySet, enum CollisionModel cm_t>
 class CUDASolver
     : public SolverBase<dim, VelocitySet, cm_t, ExecutionBackend::CUDA> {
   using Base = SolverBase<dim, VelocitySet, cm_t, ExecutionBackend::CUDA>;
 
 public:
+  /**
+   * @brief Forwards to SolverBase.
+   * @param iters_  Number of time steps.
+   * @param frames_ Number of frames to emit; @c 0 disables frame output.
+   */
   CUDASolver(const unsigned int iters_, const unsigned int frames_)
       : Base(iters_, frames_) {};
 
   ~CUDASolver() = default;
 
+  /**
+   * @brief Runs the time loop on the device.
+   *
+   * Uploads the velocity-set constants and the lattice state, allocates the
+   * device buffers, initialises the equilibrium, then iterates the fused
+   * kernel with a buffer swap per step. A frame step costs a stream
+   * synchronisation plus a download; the final iteration always stores the
+   * macroscopic fields, which are downloaded once when the loop ends.
+   *
+   * @param[in,out] lattice State to evolve; @c u and @c rho are written back.
+   * @param[in]     params_ Relaxation parameters.
+   *
+   * @note The block shape and the benchmark switch come from
+   *       BackendProperties<CUDA>, read once before the loop.
+   */
   __host__ void
   solve(Lattice<dim> &lattice,
         const CollisionParams<dim, cm_t> &params_) const override {
@@ -223,11 +302,12 @@ public:
     const dim3 block = props.getBlock<dim>();
     const dim3 grid_dims = cuda::ceil_div(lattice.grid.size, block);
 
-    quill::Logger *solver_logger = logging::create_or_get_logger("solver");
+    logging::Logger *solver_logger = logging::create_or_get_logger("solver");
     cuda::log_device_info(solver_logger);
 
-    LOG_INFO(solver_logger, "Launching {}x{}x{} blocks over a {}x{}x{} grid.",
-             block.x, block.y, block.z, grid_dims.x, grid_dims.y, grid_dims.z);
+    LBM_LOG_INFO(solver_logger,
+                 "Launching {}x{}x{} blocks over a {}x{}x{} grid.", block.x,
+                 block.y, block.z, grid_dims.x, grid_dims.y, grid_dims.z);
 
     cuda_detail::init_equilibrium<dim, VelocitySet>
         <<<grid_dims, block, 0, stream>>>(ffrom.data(), d_rho.data(),
@@ -235,7 +315,7 @@ public:
 
     LBM_CUDA_CHECK(cudaGetLastError());
 
-    LOG_DEBUG(solver_logger, "Equilibrium Initialized...");
+    LBM_LOG_DEBUG(solver_logger, "Equilibrium Initialized...");
 
     // Timed region: the iteration loop only. `init_equilibrium` above is
     // warm-up -- it also pays for the lazy module load of the first launch --
@@ -277,13 +357,14 @@ public:
     //     static_cast<double>(area) * this->niters / (elapsed_ms * 1.0e3);
     //
     // if (benchmarking) {
-    //   LOG_NOTICE(solver_logger, "{} cells x {} iters in {} ms -> {} MLUPS",
+    //   LBM_LOG_NOTICE(solver_logger, "{} cells x {} iters in {} ms -> {}
+    //   MLUPS",
     //              area, this->niters, elapsed_ms, mlups);
     // } else {
     //   // Frames were written from inside the loop, so this figure covers the
     //   // host syncs and the I/O too. Use benchmark mode for a throughput
     //   // number worth quoting.
-    //   LOG_INFO(solver_logger,
+    //   LBM_LOG_INFO(solver_logger,
     //            "{} cells x {} iters in {} ms -> {} MLUPS (frame I/O
     //            included)", area, this->niters, elapsed_ms, mlups);
     // }
@@ -293,6 +374,7 @@ public:
   }
 
 private:
+  /// @brief Copies @c rho and @c u back into the host lattice, on @p stream.
   __host__ inline void download_macroscopic(
       const cuda::DeviceBuffer<double> &d_rho,
       const cuda::DeviceBuffer<utils::Vector<double, dim>> &d_u,
@@ -302,6 +384,9 @@ private:
     LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
   }
 
+  /// @brief Downloads one frame of velocity norms and hands it to the
+  ///        attached listeners, in the layout the "Output formats" page
+  ///        describes.
   __host__ inline void write_norms(const cuda::DeviceBuffer<float> &d_norms,
                                    Grid<dim> grid, cudaStream_t stream) const {
     // Norm vector on host

@@ -106,9 +106,9 @@ def main():
 
     nx, ny, data = read_data(args.input_file)
 
-    # print("Stampo la norma delle velocità:\n", data)
+    # print("Velocity norms:\n", data)
     vmax = data.max()
-    # il numero di iterazioni è guale alla lunghezza dei dati diviso nx*ny
+    # The iteration count is the data length divided by nx*ny.
     num_iterations = int(len(data) // (nx * ny))
     create_frames(
         nx,

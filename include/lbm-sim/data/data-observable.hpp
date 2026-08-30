@@ -1,3 +1,12 @@
+/**
+ * @file data-observable.hpp
+ * @brief DataObservable: the subject half of the listener pattern.
+ *
+ * Mixed into LBMSimulation and SolverBase, which are two *separate*
+ * observables: the simulation emits the grid header, the solver emits the
+ * frames. A listener that needs the whole stream has to be attached to both.
+ */
+
 #ifndef __LBM_SIM_DATA_DATA_OBSERVABLE
 #define __LBM_SIM_DATA_DATA_OBSERVABLE
 
@@ -9,14 +18,15 @@
 
 namespace lbm {
 
-// Mixin per il ruolo di "observer/subject" nel pattern Observer/Listener.
-// Solver e LBMSimulation ereditano (anche multiplo) da questa classe per
-// poter notificare uno o piu' IDataListener (es. AsyncBinaryWriter) ogni
-// volta che c'e' un nuovo chunk di dati da scrivere (header, norme, ...).
+// Mixin providing the "subject" role of the Observer/Listener pattern.
+// Solver and LBMSimulation inherit from this class (possibly through
+// multiple inheritance) so they can notify one or more IDataListener
+// (e.g. AsyncBinaryWriter) whenever a new chunk of data has to be written
+// (header, norms, ...).
 //
-// Nota: non gestisce l'ownership dei listener, solo puntatori non
-// proprietari — chi crea il listener (tipicamente LBMSimulation) resta
-// responsabile della sua vita.
+// Note: it does not own the listeners, it only keeps non-owning handles --
+// whoever creates the listener (typically LBMSimulation) stays responsible
+// for its lifetime.
 
 /// Attach/detach and notify are NOT thread-safe with respect to each other.
 // Contract: all attachListener()/detachListener() calls must happen

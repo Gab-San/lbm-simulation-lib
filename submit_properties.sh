@@ -1,5 +1,5 @@
 #!/bin/bash
-# Lanciare DAL LOGIN NODE con: bash submit_properties.sh [N]
+# Run FROM THE LOGIN NODE with: bash submit_properties.sh [N]
 N_JOBS=${1:-10}
 
 for i in $(seq 1 "$N_JOBS"); do
@@ -7,4 +7,4 @@ for i in $(seq 1 "$N_JOBS"); do
   echo "  run $i -> ${JOBID}"
 done
 
-echo "Fatto. Controlla con: qstat -u \$(whoami)"
+echo "Done. Check with: qstat -u \$(whoami)"

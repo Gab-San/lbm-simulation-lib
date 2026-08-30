@@ -1,6 +1,5 @@
 #include "lbm-sim/backend/properties.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
-#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
@@ -8,15 +7,16 @@
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
+#include "lbm/config/config-parser.hpp"
 
 // C++ STD LIB
 #include <memory>
 #include <string>
 #include <vector>
 
-// Path ai benchmark di Ghia, iniettato da CMake (vedi
-// simulations/CMakeLists.txt) per non dipendere dalla working directory.
-// Il fallback vale solo se si compila fuori da CMake.
+// Path to the Ghia benchmarks, injected by CMake (see
+// simulations/CMakeLists.txt) so it does not depend on the working directory.
+// The fallback only applies when building outside CMake.
 #ifndef LBM_BENCHMARKS_DIR
 #define LBM_BENCHMARKS_DIR "benchmarks"
 #endif
@@ -53,13 +53,14 @@ int main(int argc, char **argv) {
 
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
+    const utils::Vector<double, DIM> u0(cfg.u0);
 
     LBM_LOG_INFO(
         main_logger,
         "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
         "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
         "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-        cfg.name, grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
+        cfg.name, grid_size, cfg.reynolds, u0, cfg.niters, cfg.nframes,
         cfg.frames_out, cfg.profile_out);
 
     prop.setNumThreads(cfg.n_threads);
@@ -69,7 +70,7 @@ int main(int argc, char **argv) {
     dbc.low(0) = Solid::BB_RIGID_WALL;   // x = 0
     dbc.high(0) = Solid::BB_RIGID_WALL;  // x = nx-1
     dbc.low(1) = Solid::BB_RIGID_WALL;   // y = 0
-    dbc.high(1) = Solid::BB_MOVING_WALL; // il lid, y = ny-1
+    dbc.high(1) = Solid::BB_MOVING_WALL; // the lid, y = ny-1
 
     types::solid_mask_t solid_mask =
         Solid::compute_solid_mask<DIM>({}, grid_size);
@@ -79,7 +80,7 @@ int main(int argc, char **argv) {
 
     LBMSimulation<DIM, D2Q9, COLLISION> simulation(
         grid_size, std::move(solid_mask), {}, dbc,
-        CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, cfg.u0));
+        CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, u0));
     simulation.attachListener(writer);
 
     OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
