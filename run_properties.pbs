@@ -12,8 +12,6 @@
 # "logs/" is resolved relative to the directory qsub was run from
 # (submit_properties.sh creates it and cd's there before calling qsub).
 
-EXE=$1
-
 cd "$PBS_O_WORKDIR"
 
 # The binary must already exist: submit_properties.sh builds it ONCE,

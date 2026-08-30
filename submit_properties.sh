@@ -23,7 +23,7 @@ if [ ! -x ${EXE} ]; then
 fi
 
 for i in $(seq 1 "$N_JOBS"); do
-  JOBID=$(qsub run_properties.pbs -F ${EXE})
+  JOBID=$(qsub -v "EXE=${EXE}" run_properties.pbs)
   echo "  run $i -> ${JOBID}"
 done
 
