@@ -41,3 +41,12 @@ visualizer.pyZone.Identifier
 *.xlsx
 *.gif
 *.mp4
+
+# PBS job results (one directory per JOBID, plus the shared times.dat)
+results/
+
+# Third-party sources cloned by submit_properties.sh for the offline build
+vendor/
+
+# PBS job output (<jobname>.o<jobid>)
+logs/

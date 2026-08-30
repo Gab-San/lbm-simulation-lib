@@ -12,5 +12,5 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/frames.bin"
-profile = "out/profile.bin"
+frames  = "out/frames.out"
+profile = "out/profile.dat"

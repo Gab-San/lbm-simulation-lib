@@ -4,6 +4,7 @@
 #include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/async-binary-writer.hpp"
+#include "lbm-sim/formatting.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"

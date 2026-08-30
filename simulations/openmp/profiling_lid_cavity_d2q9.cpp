@@ -2,7 +2,7 @@
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/vtk-writer.hpp"
+#include "lbm-sim/formatting.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
@@ -45,11 +45,17 @@ int main(int argc, char **argv) {
     LBM_LOG_ERROR(main_logger, "Config Error {}", err.what());
     return 1;
   }
-  std::cout << configs[0].name << std::endl;
 
   auto &prop = profiling::BackendProperties<OPEN_MP>::get();
   auto &profiler = profiling::Profiler<ProfilingSchemaOpenMP>::get();
-  profiler.open("./prof/" + configs[0].name + ".csv");
+  // Under out/ rather than ./prof/: on the cluster the job runs in
+  // /scratch_local and copies back only out/, so a profile written anywhere
+  // else would vanish with the scratch directory when the job ends.
+  std::string job_id = "";
+  if (argc == 3) {
+    job_id += "_" + std::string(argv[2]);
+  }
+  profiler.open("out/prof/" + configs[0].name + job_id + ".csv");
 
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
@@ -75,16 +81,11 @@ int main(int argc, char **argv) {
     types::solid_mask_t solid_mask =
         Solid::compute_solid_mask<DIM>({}, grid_size);
 
-    std::shared_ptr<VtkWriter> writer =
-        std::make_shared<VtkWriter>(cfg.frames_out, cfg.name);
-
     LBMSimulation<DIM, D2Q9, COLLISION> simulation(
         grid_size, std::move(solid_mask), {}, dbc,
         CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, u0));
-    simulation.attachListener(writer);
 
     OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
-    solver.attachListener(writer);
 
     {
       const auto scope = prop.scopedApply();
@@ -118,12 +119,12 @@ int main(int argc, char **argv) {
                    analysis::to_string(analysis::NormType::L2), ghia_x.relative,
                    ghia_x.absolute);
 
-    error_writer.append_row("uy", grid_size,
+    error_writer.append_row("uy", format::csv_format(grid_size),
                             collision_model_to_string(COLLISION), cfg.niters,
                             analysis::to_string(analysis::NormType::L2),
                             ghia_y.relative, ghia_y.absolute);
 
-    error_writer.append_row("ux", grid_size,
+    error_writer.append_row("ux", format::csv_format(grid_size),
                             collision_model_to_string(COLLISION), cfg.niters,
                             analysis::to_string(analysis::NormType::L2),
                             ghia_x.relative, ghia_x.absolute);
@@ -131,8 +132,6 @@ int main(int argc, char **argv) {
     error_writer.flush();
     error_writer.close();
 
-    simulation.detachListener(writer);
-    solver.detachListener(writer);
 #ifdef LBM_PROFILING
     profiler.flush();
     profiling::reset();

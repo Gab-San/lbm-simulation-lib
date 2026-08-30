@@ -23,6 +23,7 @@
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/core/operators.hpp"
+#include "lbm-sim/formatting.hpp"
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/metadata.hpp"
 #include "lbm-sim/profiling.hpp"
@@ -34,6 +35,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#include <string>
 #include <vector>
 
 // OMP LIB
@@ -140,7 +142,7 @@ public:
 #ifdef LBM_PROFILING
     auto &profiler = profiling::Profiler<ProfilingSchemaOpenMP>::get();
     for (const auto &[label, e] : profiling::registry()) {
-      profiler.append_row(label, lattice.grid.size,
+      profiler.append_row(label, format::csv_format(lattice.grid.size),
                           collision_model_to_string(cm_t),
                           backend_to_string(OPEN_MP), props.getNumThreads(),
                           e.total_ms, e.total_ms / e.calls, e.calls);

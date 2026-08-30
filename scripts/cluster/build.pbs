@@ -1,0 +1,80 @@
+#!/bin/bash
+#PBS -N lbm_build
+#PBS -q cpu
+#PBS -l select=1:ncpus=8
+#PBS -l walltime=00:20:00
+#PBS -j oe
+
+# Build properties_test with the timers enabled, once.
+#
+# The build gets its own job rather than living inside run_properties.pbs
+# because the run jobs start in parallel: if each of them compiled, they would
+# all write into the same build directory at the same time. The run jobs depend
+# on this one with -W depend=afterok, so they find the binary ready.
+#
+# Not on the login node: the guide (2, "Important rules") forbids computation
+# there and kills processes above 20% of one core.
+#
+# PBS_O_WORKDIR is only set for batch jobs, so this also runs by hand inside an
+# interactive session -- the quickest way to watch a build fail, instead of
+# hunting for where PBS filed the log:
+#
+#   qsub -I -l select=1:ncpus=8 -l walltime=00:30:00
+#   cd /work/$USER/lbm-simulation-lib && bash scripts/cluster/build.pbs
+#
+# The walltime is not optional there: an interactive request without one picks
+# up a default that the cpu queue rejects outright ("Job violates queue and/or
+# server resource limits").
+
+set -u
+
+cd "${PBS_O_WORKDIR:-$PWD}" || exit 1
+
+BUILD_DIR=${BUILD_DIR:-build/profiling}
+
+# Toolchain banner first. A configure that dies here is otherwise
+# indistinguishable from one that dies compiling, and this job's output file is
+# all there is to go on afterwards.
+echo "=== toolchain on $(hostname) ==="
+for t in cmake make g++ git ninja; do
+  printf '%-6s %s\n' "$t" "$(command -v "$t" 2>/dev/null || echo '** NOT FOUND **')"
+done
+cmake --version 2>/dev/null | head -1
+g++ --version 2>/dev/null | head -1
+echo
+
+if ! command -v cmake >/dev/null 2>&1; then
+  echo "cmake non trovato sul nodo: caricalo con spack (guida 3.2.2)" >&2
+  exit 1
+fi
+
+# No CMakePresets here: the presets ask for the Ninja generator, which is not
+# among the software the guide lists as locally installed, so `cmake --preset`
+# fails at configure time on a compute node. These cache variables are exactly
+# what the "profiling" preset sets, minus the generator.
+CMAKE_ARGS=(
+  -S . -B "$BUILD_DIR"
+  -DCMAKE_BUILD_TYPE=Release
+  -DLBM_ENABLE_PROFILING=ON
+  -DLBM_LOG_BACKEND=ostream
+)
+
+# LBM_ENABLE_CONFIG is ON by default, and it makes FetchContent clone toml++
+# from GitHub while configuring. Compute nodes have no outbound network, so the
+# clone has to happen earlier, on the login node: submit_properties.sh puts it
+# in vendor/ and this hands FetchContent that copy instead of the URL.
+if [ -d vendor/tomlplusplus ]; then
+  echo "toml++: uso la copia locale in vendor/tomlplusplus"
+  CMAKE_ARGS+=(-DFETCHCONTENT_SOURCE_DIR_TOMLPLUSPLUS="$PWD/vendor/tomlplusplus")
+else
+  echo "attenzione: vendor/tomlplusplus assente, il configure provera' a" \
+       "clonare da GitHub e fallira' se il nodo non ha rete" >&2
+fi
+
+cmake "${CMAKE_ARGS[@]}" || exit 1
+# PBS sets NCPUS to what the job actually reserved. Hardcoding -j8 would
+# oversubscribe a smaller reservation -- and interactive sessions often get one,
+# since the queue caps them lower than batch jobs.
+cmake --build "$BUILD_DIR" --target properties_test -j"${NCPUS:-4}" || exit 1
+
+ls -l "$BUILD_DIR/simulations/properties_test"
