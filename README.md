@@ -622,10 +622,22 @@ cmake --build build --target lbm-docs-full
 ```
 
 - `lbm-sim-docs` -- the library headers alone;
-- `lbm-docs-full` -- the whole portal, using
-  [`docs/mainpage.md`](docs/mainpage.md) as the main page.
+- `lbm-docs-full` -- the whole portal: the API reference plus the narrative
+  pages, using [`docs/mainpage.md`](docs/mainpage.md) as the main page.
 
-Output lands in `docs/doxygen/`.
+Output lands in `docs/doxygen/`. The narrative pages are written to be read
+either rendered or as plain Markdown:
+
+- [Architecture](docs/pages/architecture.md) -- how lattice, solver,
+  boundaries, collision and listeners fit together;
+- [Configuration files](docs/pages/configuration.md) -- the TOML schema the
+  parser actually reads, field by field;
+- [Output formats](docs/pages/output-formats.md) -- the frame stream, the
+  profile file, the VTK series and the profiling CSV, byte by byte;
+- [Validation](docs/pages/validation.md) -- the benchmark cases, the error
+  norms, and the pitfalls behind a converged run that still scores badly;
+- [Extending the library](docs/pages/extending.md) -- adding a velocity set, a
+  collision operator, an obstacle shape or an output listener.
 
 Reference material used throughout the project is collected in
 [`docs/references/`](docs/references) (the assignment proposal and the Ghia et

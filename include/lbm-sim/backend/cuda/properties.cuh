@@ -1,3 +1,8 @@
+/**
+ * @file properties.cuh
+ * @brief BackendProperties<CUDA>: device selection and launch geometry.
+ */
+
 #pragma once
 
 #include "lbm-sim/backend/cuda/utils.cuh"

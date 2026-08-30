@@ -7,15 +7,15 @@
 
 cd "$PBS_O_WORKDIR" || exit 1
 
-# Se il binario non esiste ancora lo compiliamo (build gia' fatta una volta:
-# le run successive lo trovano pronto in build/simulations e saltano questo passo)
+# Build the binary if it does not exist yet (once the build has been done, the
+# following runs find it ready in build/simulations and skip this step).
 if [ ! -x build/simulations/properties_test ]; then
   cd build
   cmake --build . --target properties_test -j"$(nproc)"
   cd ..
 fi
 
-# Scratch locale del nodo: piu' veloce di NFS per I/O
+# Node-local scratch: faster than NFS for I/O.
 WORKDIR=/scratch_local/${PBS_JOBID}
 mkdir -p "$WORKDIR"
 cp build/simulations/properties_test "$WORKDIR"/
@@ -25,7 +25,7 @@ cd "$WORKDIR" || exit 1
 mkdir -p out
 ./properties_test profiling.toml
 
-# Copia i risultati indietro: cartella dedicata a questo job (JOBID unico)
+# Copy the results back: one directory per job (JOBID is unique).
 mkdir -p "$PBS_O_WORKDIR"/results/"${PBS_JOBID}"
 cp -r out/* "$PBS_O_WORKDIR"/results/"${PBS_JOBID}"/
 

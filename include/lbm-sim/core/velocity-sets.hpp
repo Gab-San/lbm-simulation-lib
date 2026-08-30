@@ -1,10 +1,34 @@
+/**
+ * @file velocity-sets.hpp
+ * @brief The discrete velocity sets, and their upload to CUDA constant
+ *        memory.
+ *
+ * A velocity set is a plain struct of @c constexpr tables -- no base class,
+ * no inheritance. Anything exposing @c dim, @c ndir, @c wi, @c dir and
+ * @c opp can be used as the @c VelocitySet template argument of
+ * LBMSimulation and of a solver.
+ *
+ * Three are provided: D2Q9, D3Q19 and D3Q27. Index @c 0 is the rest
+ * direction in all of them, and @c opp[i] is the index of the direction
+ * opposite to @c i, which is what bounce-back reflects into --
+ * @c dir[opp[i]] @c == @c -dir[i] must hold, or the walls leak instead of
+ * failing loudly.
+ *
+ * The @c lbm::cuda section at the bottom mirrors the tables into
+ * @c __constant__ memory. Device code does not read the @c constexpr arrays;
+ * it goes through the accessors in backend/utils.hpp, which pick the right
+ * storage for the side they are compiled for.
+ *
+ * @see the interactive direction viewers under `docs/assets/`.
+ */
+
 #pragma once
 
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/types/common.hpp"
 
 #ifdef __CUDACC__
-#include "lbm-sim/cuda/utils.cuh"
+#include "lbm-sim/backend/cuda/utils.cuh"
 
 #include <cuda_runtime.h>
 #endif
@@ -206,8 +230,8 @@ template <typename VelocitySet> __constant__ double vs_wi[VelocitySet::ndir];
 
 template <typename VelocitySet>
 __constant__ std::size_t
-    vs_opp[VelocitySet::ndir]; // indice della direzione
-                               // opposta (per il bounce-back)
+    vs_opp[VelocitySet::ndir]; // index of the opposite
+                               // direction (used by bounce-back)
 
 template <unsigned short int dim, typename VelocitySet>
 inline void upload_lattice_constants() {

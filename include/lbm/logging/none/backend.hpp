@@ -1,3 +1,8 @@
+/**
+ * @file backend.hpp
+ * @brief The no-op logging backend.
+ */
+
 #pragma once
 
 // No-op backend. Included by lbm/logging/logging.hpp; never include directly.

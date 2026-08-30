@@ -1,3 +1,8 @@
+/**
+ * @file properties.hpp
+ * @brief Umbrella header for the BackendProperties specialisations.
+ */
+
 #pragma once
 
 #include "lbm-sim/metadata.hpp"

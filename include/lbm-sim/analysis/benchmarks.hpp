@@ -1,3 +1,30 @@
+/**
+ * @file benchmarks.hpp
+ * @brief Reader and comparator for the Ghia et al. (1982) lid-driven cavity
+ *        tables.
+ *
+ * The reference for the 2D lid cavity: 17 tabulated points along a
+ * centreline, per Reynolds number. The file format expected here is the one
+ * under `benchmarks/ghia/`:
+ *
+ * @verbatim
+   %% <name> <axis> <reynolds>
+   <coord> <value>
+   ...  (exactly 17 rows)
+   @endverbatim
+ *
+ * where @c axis is @c "y" for the vertical centreline (u_x sampled along y)
+ * and anything else for the horizontal one. The header's Reynolds number is
+ * checked against the simulation's and a mismatch is an error, so a run
+ * cannot silently be scored against the wrong table.
+ *
+ * Ghia's values are already normalised by the lid velocity, so the simulated
+ * profile is divided by it before the comparison rather than the tables
+ * being rescaled.
+ *
+ * @note Only 2D. There is no tabulated 3D equivalent in this library.
+ */
+
 #ifndef __LBM_SIM_ANALYSIS_GHIA_BENCHMARK_HPP
 #define __LBM_SIM_ANALYSIS_GHIA_BENCHMARK_HPP
 
