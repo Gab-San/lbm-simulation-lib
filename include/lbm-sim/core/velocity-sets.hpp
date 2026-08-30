@@ -28,7 +28,7 @@
 #include "lbm-sim/types/common.hpp"
 
 #ifdef __CUDACC__
-#include "lbm-sim/cuda/utils.cuh"
+#include "lbm-sim/backend/cuda/utils.cuh"
 
 #include <cuda_runtime.h>
 #endif
