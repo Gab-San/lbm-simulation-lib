@@ -139,6 +139,7 @@ int main() {
   for (auto &conf : configs) {
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obstacle_data, domain_bc] = conf;
+
     types::solid_mask_t solid_mask =
         Solid::compute_solid_mask<DIM>(obstacles, grid_size);
 

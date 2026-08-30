@@ -396,7 +396,9 @@ public:
           const double camber_pos_ = 0.0, const double aoa_deg_ = 0.0)
       : position(position_), chord(chord_), thickness(thickness_),
         max_camber(max_camber_), camber_pos(camber_pos_),
-        aoa_rad(aoa_deg_ * 3.14159265358979323846 / 180.0) {}
+        aoa_rad(aoa_deg_ * 3.14159265358979323846 / 180.0) {
+    buildPolygon();
+  }
 
   bool contains(const types::Coordinate<dim> &point) const {
     // trasforma point in coordinate normalizzate locali (inversa di toGrid)
