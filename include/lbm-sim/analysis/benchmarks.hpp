@@ -39,22 +39,10 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
-#include <sstream>
 #include <stdexcept>
 #include <vector>
 
-namespace lbm {
-namespace format {
-
-inline std::string format_reyn(double reyn) {
-  std::ostringstream oss;
-  oss << reyn;
-  return oss.str();
-}
-
-} // namespace format
-
-namespace analysis {
+namespace lbm::analysis {
 
 namespace detail {
 
@@ -227,7 +215,6 @@ compute_ghia_error(const std::string &filepath_in, const Lattice<2> &lattice,
   return NormErrorResult{u_abs_err / u_ref_norm, u_abs_err, norm_type};
 }
 
-} // namespace analysis
-} // namespace lbm
+} // namespace lbm::analysis
 
 #endif // __LBM_SIM_ANALYSIS_GHIA_BENCHMARK_HPP

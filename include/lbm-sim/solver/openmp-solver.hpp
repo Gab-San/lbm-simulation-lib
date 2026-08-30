@@ -23,6 +23,7 @@
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/core/operators.hpp"
+#include "lbm-sim/formatting.hpp"
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/metadata.hpp"
 #include "lbm-sim/profiling.hpp"
@@ -139,20 +140,10 @@ public:
     }
 
 #ifdef LBM_PROFILING
-    // `size` lands in a CSV column, and Point<>::operator<< prints
-    // "Point(129,129)": those commas split the row into phantom fields and
-    // shift every column after it. Serialise the extents as "129x129", which
-    // stays readable and carries no separator.
-    std::string size_tag;
-    for (const std::size_t n : lattice.grid.extents()) {
-      if (!size_tag.empty())
-        size_tag += 'x';
-      size_tag += std::to_string(n);
-    }
-
     auto &profiler = profiling::Profiler<ProfilingSchemaOpenMP>::get();
     for (const auto &[label, e] : profiling::registry()) {
-      profiler.append_row(label, size_tag, collision_model_to_string(cm_t),
+      profiler.append_row(label, format::csv_format(lattice.grid.size),
+                          collision_model_to_string(cm_t),
                           backend_to_string(OPEN_MP), props.getNumThreads(),
                           e.total_ms, e.total_ms / e.calls, e.calls);
     }
