@@ -26,3 +26,7 @@ else
     echo "  run $i -> ${JOBID}"
   done
 fi
+
+echo "Done. Check with: qstat -u \$(whoami)"
+echo "Check where it is running with: pbsnoodes -aSj"
+echo "Logs will appear in: $(pwd)/logs/lbm_properties.o<jobid>"
