@@ -330,9 +330,6 @@ class Airfoil : public Shape<dim, Airfoil<dim>> {
   // Builds the closed contour (upper side, then lower side reversed) in
   // chord-normalised [0,1] coordinates.
   void buildPolygon() const {
-    if (!cached_polygon.empty())
-      return;
-
     constexpr int N = 100; // resolution: higher = more accurate
     std::vector<std::pair<double, double>> upper, lower;
 
@@ -376,7 +373,6 @@ class Airfoil : public Shape<dim, Airfoil<dim>> {
 
   // Point-in-polygon test (ray casting) in normalised coordinates.
   bool containsNormalized(double xn, double yn) const {
-    buildPolygon();
     bool inside = false;
     size_t n = cached_polygon.size();
     for (size_t i = 0, j = n - 1; i < n; j = i++) {
