@@ -1,0 +1,16 @@
+[[conf]]
+
+[conf.lattice]
+size = [129, 129]
+
+[conf.physics]
+reynolds = 100.0
+size     = [0.1, 0.0]
+
+[conf.solver]
+niters  = 100000
+nframes = 200
+
+[conf.output]
+frames  = "out/frames.bin"
+profile = "out/profile.bin"
