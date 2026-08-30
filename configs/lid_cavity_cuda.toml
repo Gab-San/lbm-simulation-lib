@@ -33,5 +33,5 @@ niters  = 300000
 nframes = 200
 
 [conf.output]
-frames  = "out/frames_lid_cavity_d2q9_2000_2000_7500_bgk.bin"
-profile = "out/profile_lid_cavity_d2q9_2000_2000_7500_bgk.bin"
+frames  = "out/frames_lid_cavity_d2q9_5000_5000_10000_bgk.bin"
+profile = "out/profile_lid_cavity_d2q9_5000_5000_10000_bgk.bin"
