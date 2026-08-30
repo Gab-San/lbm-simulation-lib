@@ -1,3 +1,23 @@
+/**
+ * @file utils.hpp
+ * @brief Painting the obstacle mask once, and resolving one link at a time.
+ *
+ * The two halves of the boundary machinery:
+ *
+ * - compute_solid_mask() runs once at setup and rasterises the obstacle
+ *   geometry into a per-node id field;
+ * - resolve_link() runs in the inner loop and answers, for a single
+ *   @c (node, direction) pair, where the population comes from and what --
+ *   if anything -- happens to it on the way.
+ *
+ * Splitting the decision per link rather than per node is what makes
+ * mixed boundaries work; the commentary on resolve_link() gives the worked
+ * example and records the corner-priority choice the Ghia comparison is
+ * sensitive to.
+ *
+ * @see boundary-conditions.hpp, which applies what resolve_link() decided.
+ */
+
 #pragma once
 
 #include "lbm-sim/boundaries/types.hpp"

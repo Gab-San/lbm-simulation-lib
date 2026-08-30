@@ -1,3 +1,15 @@
+/**
+ * @file functions.hpp
+ * @brief Ready-made profile extractors for LBMSimulation::output().
+ *
+ * Each reduces a lattice to the 1D velocity profile along a centreline --
+ * the quantity the analytical solutions and the Ghia tables are compared
+ * against. Any callable with the same signature works, so these are a
+ * convenience, not an interface.
+ *
+ * @see the "Output formats" page for what output() does with the result.
+ */
+
 #ifndef __LBM_SIM_FUNCTIONS_HPP
 #define __LBM_SIM_FUNCTIONS_HPP
 
@@ -29,12 +41,13 @@ extract_dy_profile_along_x_center(const Lattice<2> &lattice) {
 }
 
 /**
- * \brief Analogo 3D di extract_dx_profile_along_y_center(): estrae ux lungo
- * la verticale centrale del dominio (x = nx/2, y = ny/2), al variare di z.
+ * \brief 3D counterpart of extract_dx_profile_along_y_center(): extracts ux
+ * along the central vertical line of the domain (x = nx/2, y = ny/2), as z
+ * varies.
  *
- * E' il profilo con cui si confronta di solito la lid cavity cubica: il lid
- * si muove lungo x sulla faccia z = nz-1, quindi ux(z) sulla colonna
- * centrale e' la controparte diretta del profilo 2D lungo y.
+ * This is the profile the cubic lid cavity is usually compared against: the
+ * lid moves along x on the z = nz-1 face, so ux(z) on the central column is
+ * the direct counterpart of the 2D profile along y.
  */
 inline std::vector<double>
 extract_dx_profile_along_z_center(const Lattice<3> &lattice) {

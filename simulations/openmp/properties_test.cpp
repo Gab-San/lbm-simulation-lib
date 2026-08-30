@@ -14,9 +14,9 @@
 #include <string>
 #include <vector>
 
-// Path ai benchmark di Ghia, iniettato da CMake (vedi
-// simulations/CMakeLists.txt) per non dipendere dalla working directory.
-// Il fallback vale solo se si compila fuori da CMake.
+// Path to the Ghia benchmarks, injected by CMake (see
+// simulations/CMakeLists.txt) so it does not depend on the working directory.
+// The fallback only applies when building outside CMake.
 #ifndef LBM_BENCHMARKS_DIR
 #define LBM_BENCHMARKS_DIR "benchmarks"
 #endif
@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
     dbc.low(0) = Solid::BB_RIGID_WALL;   // x = 0
     dbc.high(0) = Solid::BB_RIGID_WALL;  // x = nx-1
     dbc.low(1) = Solid::BB_RIGID_WALL;   // y = 0
-    dbc.high(1) = Solid::BB_MOVING_WALL; // il lid, y = ny-1
+    dbc.high(1) = Solid::BB_MOVING_WALL; // the lid, y = ny-1
 
     types::solid_mask_t solid_mask =
         Solid::compute_solid_mask<DIM>({}, grid_size);

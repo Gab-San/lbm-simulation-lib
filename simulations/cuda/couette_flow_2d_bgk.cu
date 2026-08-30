@@ -47,10 +47,10 @@ template <> struct Config<2> {
 
   const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
 
-  /// Tabella laterale: id ostacolo -> {tipo di BC, velocita' di parete}.
+  /// Side table: obstacle id -> {BC type, wall velocity}.
   const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data;
 
-  /// BC delle facce del dominio: le pareti non sono piu' ostacoli.
+  /// BCs of the domain faces: the walls are no longer obstacles.
   const lbm::Solid::DomainBC<DIM> domain_bc;
 
   Config<2>(
@@ -67,7 +67,7 @@ template <> struct Config<2> {
         obstacle_data(std::move(obstacle_data_)), domain_bc(domain_bc_) {}
 };
 
-/// Couette: parete inferiore rigida, superiore mobile, lati periodici.
+/// Couette: rigid bottom wall, moving top wall, periodic sides.
 static lbm::Solid::DomainBC<DIM> make_couette_bc() {
   lbm::Solid::DomainBC<DIM> dbc{};
   dbc.low(0) = lbm::Solid::PERIODIC;        // x = 0
@@ -128,10 +128,10 @@ int main() {
     simulation.output(out_data.c_str(),
                       functional::extract_dx_profile_along_y_center);
 
-    // H = altezza canale (parete inferiore a y=0, superiore a y=grid_size.y-1);
-    // Umax = velocita' di riferimento (parete mobile per Couette).
-    // Stessi valori gia' usati per costruire la simulazione: nessuna
-    // duplicazione, flow_type sceglie la Function<2> corretta.
+    // H = channel height (bottom wall at y=0, top at y=grid_size.y-1);
+    // Umax = reference velocity (the moving wall, for Couette).
+    // The same values already used to build the simulation: no duplication,
+    // flow_type picks the right Function<2>.
     const double H = static_cast<double>(grid_size.y - 1);
     const auto exact_solution = analysis::CouetteSolution2D(H, init_vel.dx);
     const double err_l2 =

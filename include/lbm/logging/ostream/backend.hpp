@@ -1,3 +1,8 @@
+/**
+ * @file backend.hpp
+ * @brief The std::ostream logging backend.
+ */
+
 #pragma once
 
 // std::ostream backend. Included by lbm/logging/logging.hpp; never include
@@ -28,9 +33,12 @@
 
 namespace lbm::logging {
 
+/// @brief This backend's Logger: a name and a run-time threshold, nothing
+///        more. Owned by the backend and reached only through
+///        create_or_get_logger().
 struct Logger {
-  std::string name;
-  LogLevel level;
+  std::string name; ///< Shown on every line of this logger.
+  LogLevel level;   ///< Statements below this are dropped at run time.
 };
 
 namespace detail {
@@ -39,14 +47,19 @@ namespace detail {
 // that knows how to stream it. No allocation, no std::function.
 using ArgPrinter = void (*)(std::ostream &, void const *, std::string_view);
 
+/// @brief One type-erased log argument: where the value is, and how to
+///        stream it.
 struct Arg {
-  void const *value;
-  ArgPrinter print;
+  void const *value; ///< Points at the caller's object; never owns it.
+  ArgPrinter print;  ///< The instantiation of print_arg() for its type.
 };
 
 // Applies what of the format spec we understand to the stream.
 void apply_spec(std::ostream &os, std::string_view spec);
 
+/// @brief Streams one argument under @p spec, restoring the stream's flags
+///        and precision afterwards so one specifier cannot leak into the
+///        next.
 template <class T>
 void print_arg(std::ostream &os, void const *value, std::string_view spec) {
   auto const flags = os.flags();
@@ -57,6 +70,9 @@ void print_arg(std::ostream &os, void const *value, std::string_view spec) {
   os.flags(flags);
 }
 
+/// @brief Pairs a value with the printer for its type.
+/// @warning Stores a pointer, so @p value must outlive the Arg. It does:
+///          every Arg lives inside a single log_line() call.
 template <class T> Arg make_arg(T const &value) noexcept {
   return Arg{static_cast<void const *>(std::addressof(value)), &print_arg<T>};
 }
@@ -67,6 +83,9 @@ void vformat_to(std::ostream &os, std::string_view fmt, Arg const *args,
 void write_line(Logger const &logger, char const *level_tag,
                 std::string const &message);
 
+/// @brief Formats one line and writes it. Everything happens on the calling
+///        thread: nothing is queued, so no line is lost by skipping
+///        shutdown().
 template <class... Ts>
 void log_line(Logger const &logger, char const *level_tag, std::string_view fmt,
               Ts const &...args) {

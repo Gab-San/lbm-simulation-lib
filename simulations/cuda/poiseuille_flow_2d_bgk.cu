@@ -36,8 +36,8 @@ template <> struct Config<2> {
   /// Reynold number
   const double reyn_num;
 
-  /// Velocita' di riferimento, usata solo per calcolare nu/tau
-  /// NON muove piu' nessuna parete in Poiseuille!!!
+  /// Reference velocity, used only to compute nu/tau.
+  /// It no longer moves any wall in Poiseuille!
   const lbm::utils::Vector<double, 2> init_vel;
 
   /// Output path for frames
@@ -48,10 +48,10 @@ template <> struct Config<2> {
 
   const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
 
-  /// Tabella laterale: id ostacolo -> {tipo di BC, velocita' di parete}.
+  /// Side table: obstacle id -> {BC type, wall velocity}.
   const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data;
 
-  /// BC delle facce del dominio: le pareti non sono piu' ostacoli.
+  /// BCs of the domain faces: the walls are no longer obstacles.
   const lbm::Solid::DomainBC<DIM> domain_bc;
 
   Config<2>(
@@ -68,8 +68,8 @@ template <> struct Config<2> {
         obstacle_data(std::move(obstacle_data_)), domain_bc(domain_bc_) {}
 };
 
-/// Canale di Poiseuille: pressione imposta su ingresso e uscita, pareti
-/// rigide sopra e sotto.
+/// Poiseuille channel: pressure imposed at inlet and outlet, rigid top and
+/// bottom walls.
 static lbm::Solid::DomainBC<DIM> make_channel_bc() {
   lbm::Solid::DomainBC<DIM> dbc{};
   dbc.low(0) = lbm::Solid::PRESSURE_PERIODIC_INLET;   // x = 0

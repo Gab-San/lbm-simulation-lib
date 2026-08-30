@@ -1,3 +1,13 @@
+/**
+ * @file utils.cuh
+ * @brief CUDA error checking and the stream/launch helpers.
+ *
+ * @c LBM_CUDA_CHECK() wraps a runtime call and turns a non-success status
+ * into a @c std::runtime_error naming the call site. It is used on every
+ * allocation, copy and launch: CUDA errors are sticky and otherwise surface
+ * far from their cause.
+ */
+
 #ifndef __LBM_SIM_BACKEND_CUDA_UTILS_CUH
 #define __LBM_SIM_BACKEND_CUDA_UTILS_CUH
 
@@ -14,7 +24,11 @@
 
 namespace lbm {
 
-// Error checks for async errors
+/// @brief Runs a CUDA runtime call and turns a failure into a
+///        @c std::runtime_error naming the file and line.
+///
+/// Used on every allocation, copy and launch: CUDA errors are sticky, so an
+/// unchecked failure surfaces later and somewhere else.
 #define LBM_CUDA_CHECK(expr)                                                   \
   do {                                                                         \
     const cudaError_t _lbm_err = (expr);                                       \
@@ -28,6 +42,10 @@ namespace lbm {
 
 namespace cuda {
 
+/// @brief The lattice node this thread is responsible for, from its block
+///        and thread indices.
+/// @warning The launch grid is rounded up, so the result may lie outside the
+///          domain: every kernel checks Grid::contains() before doing work.
 template <types::dim_t dim>
 __device__ inline types::Coordinate<dim> thread_coordinate() {
   if constexpr (dim == 2) {
@@ -40,10 +58,13 @@ __device__ inline types::Coordinate<dim> thread_coordinate() {
   }
 }
 
+/// @brief Integer division rounding up.
 inline unsigned int ceil_div(unsigned int a, unsigned int b) {
   return (a + b - 1) / b;
 }
 
+/// @brief The launch grid that covers @p size with blocks of shape @p b,
+///        rounding up on every axis.
 template <types::dim_t dim>
 inline dim3 ceil_div(types::DimPoint<dim> size, dim3 b) {
   if constexpr (dim == 2) {
@@ -54,6 +75,10 @@ inline dim3 ceil_div(types::DimPoint<dim> size, dim3 b) {
   }
 }
 
+/// @brief A cubic block of side @p n: @c n*n threads in 2D, @c n*n*n in 3D.
+/// @warning The product must stay within the device's maximum threads per
+///          block -- 1024 on every architecture the project targets, so
+///          @c n <= 10 in 3D.
 template <types::dim_t dim> inline dim3 create_block_of(unsigned int n) {
   if constexpr (dim == 2) {
     return dim3(n, n);
@@ -62,6 +87,7 @@ template <types::dim_t dim> inline dim3 create_block_of(unsigned int n) {
   }
 }
 
+/// @brief Logs the visible devices and their headline limits, once per run.
 inline void log_device_info(quill::Logger *logger) {
   int deviceCount = 0;
   LBM_CUDA_CHECK(cudaGetDeviceCount(&deviceCount));

@@ -41,8 +41,8 @@ template <> struct Config<2> {
   /// Reynold number
   const double reyn_num;
 
-  /// Velocita' di riferimento, usata solo per calcolare nu/tau
-  /// NON muove piu' nessuna parete in Poiseuille!!!
+  /// Reference velocity, used only to compute nu/tau.
+  /// It no longer moves any wall in Poiseuille!
   const lbm::utils::Vector<double, 2> init_vel;
 
   /// Output path for frames
@@ -51,13 +51,13 @@ template <> struct Config<2> {
   /// Output path for benchmark data
   const std::string out_data;
 
-  /// Solo i corpi immersi nel fluido: le pareti del canale sono in domain_bc.
+  /// Only bodies immersed in the fluid: the channel walls live in domain_bc.
   const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
 
-  /// Tabella laterale: id ostacolo -> {tipo di BC, velocita' di parete}.
+  /// Side table: obstacle id -> {BC type, wall velocity}.
   const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data;
 
-  /// BC delle quattro facce del dominio.
+  /// BCs of the four domain faces.
   const lbm::Solid::DomainBC<DIM> domain_bc;
 
   Config<2>(
@@ -74,8 +74,8 @@ template <> struct Config<2> {
         obstacle_data(std::move(obstacle_data_)), domain_bc(domain_bc_) {}
 };
 
-/// Canale di Poiseuille: pressione imposta su ingresso e uscita, pareti
-/// rigide sopra e sotto.
+/// Poiseuille channel: pressure imposed at inlet and outlet, rigid top and
+/// bottom walls.
 static lbm::Solid::DomainBC<DIM> make_channel_bc() {
   lbm::Solid::DomainBC<DIM> dbc{};
   dbc.low(0) = lbm::Solid::PRESSURE_PERIODIC_INLET;   // x = 0
@@ -105,33 +105,33 @@ int main() {
           /*init_vel*/ {0.05, 0}, "out/norms_obstacle_129_100_01_bgk.bin",
           "out/data_obstacle_129_100_01_bgk.bin",
           {
-              // Le pareti del canale non sono piu' ostacoli: stanno in
-              // make_channel_bc(). Qui resta solo il corpo immerso.
+              // The channel walls are no longer obstacles: they live in
+              // make_channel_bc(). Only the immersed body is left here.
               // CollisionDetection::CollisionArea(
               //     Coordinate<2>(
               //         0,
-              //         0), // posizione base (l'offset per le coord del cerchio)
+              //         0), // base position (offset of the circle coordinates)
               //     {CollisionDetection::Circle<DIM>(
               //         Coordinate<2>(160,
-              //                       64), // centro relativo alla posizione base
-              //         16)}               // raggio in celle
+              //                       64), // centre relative to base position
+              //         16)}               // radius in cells
               // ),
 
-              // Profilo Airfoil NACA
+              // NACA airfoil profile
               CollisionDetection::CollisionArea(
                     Coordinate<2>(0, 0),
                     {CollisionDetection::Airfoil<DIM>(
-                        Coordinate<2>(100, 64), // leading edge del profilo
-                        100.0,                  // corda in celle
-                        0.12,                   // spessore         0.12 -> NACA XX12
-                        0.02,                   // camber massimo   0.02 -> NACA 2XXX
-                        0.4,                    // posizione camber 0.40 -> NACA X4XX
-                        5.0)}                   // angolo di attacco
+                        Coordinate<2>(100, 64), // leading edge of the profile
+                        100.0,                  // chord, in cells
+                        0.12,                   // thickness    0.12 -> NACA XX12
+                        0.02,                   // max camber   0.02 -> NACA 2XXX
+                        0.4,                    // camber pos.  0.40 -> NACA X4XX
+                        5.0)}                   // angle of attack
               ),
               
     
           },
-          // id 0 = il cilindro: parete rigida, ferma.
+          // id 0 = the cylinder: rigid wall, stationary.
           {{Solid::BB_RIGID_WALL, {0.0, 0.0}}}, make_channel_bc()),
   };
 

@@ -1,3 +1,9 @@
+/**
+ * @file properties.hpp
+ * @brief BackendProperties<OPEN_MP>: the OpenMP runtime knobs, as one
+ *        process-wide object.
+ */
+
 #pragma once
 
 #include "lbm-sim/backend/fwd.hpp"
@@ -26,14 +32,24 @@ public:
   BackendProperties(BackendProperties &&) = delete;
   BackendProperties &operator=(BackendProperties &&) = delete;
 
+  /// Thread count that apply() will request. Defaults to whatever the
+  /// runtime reported at start-up.
   unsigned int getNumThreads() const noexcept { return num_threads; }
+
+  /// Whether the runtime is allowed to vary the team size. Defaults to false.
   bool getDynamicThreads() const noexcept { return dynamic_threads; }
+
+  /// When true the solver emits no frames at all, so a timing run measures
+  /// the solver and not the writer.
   bool getBenchmarkMode() const noexcept { return benchmark_mode; }
 
+  /// @copydoc getBenchmarkMode
   void setBenchmarkMode(bool benchmark_mode_) noexcept {
     this->benchmark_mode = benchmark_mode_;
   }
 
+  /// Sets the thread count. Takes effect on the next apply() or
+  /// scopedApply(), not on assignment.
   void setNumThreads(const unsigned int num_threads_) noexcept {
     this->num_threads = num_threads_;
   }

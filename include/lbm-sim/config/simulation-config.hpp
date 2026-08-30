@@ -1,3 +1,16 @@
+/**
+ * @file simulation-config.hpp
+ * @brief SimulationConfig: one run's worth of settings, and the error type
+ *        that reports a bad one.
+ *
+ * The struct is a plain data carrier -- the parsing and the validation live
+ * in config-parser.hpp. It holds only what the file actually supplies: the
+ * dimension, the collision operator and the backend are compile-time
+ * parameters of the binary, not fields.
+ *
+ * @see the "Configuration files" page for the TOML schema.
+ */
+
 #pragma once
 
 #include "lbm-sim/core/vector.hpp"
@@ -10,18 +23,17 @@
 namespace lbm::config {
 
 /**
- * \brief Errore di configurazione.
+ * \brief Configuration error.
  *
- * Copre tutto cio' che rende una configurazione inutilizzabile *prima* che
- * la simulazione parta: file illeggibile, TOML malformato, campo
- * obbligatorio mancante, valore fuori range, oppure una configurazione
- * coerente in se' ma incompatibile con il binario che la sta leggendo
- * (dimensione, tipo di problema, operatore di collisione, backend).
+ * Covers everything that makes a configuration unusable *before* the
+ * simulation starts: unreadable file, malformed TOML, missing mandatory
+ * field, out-of-range value, or a configuration that is self-consistent but
+ * incompatible with the binary reading it (dimension, problem type,
+ * collision operator, backend).
  *
- * E' un tipo a parte e non un std::runtime_error generico proprio perche'
- * i main possano distinguere "l'utente ha passato la config sbagliata"
- * (si stampa il messaggio e si esce con 1) da un errore che nasce durante
- * il solve.
+ * It is a dedicated type rather than a plain std::runtime_error precisely so
+ * that the mains can tell "the user passed the wrong config" (print the
+ * message and exit with 1) apart from an error raised during the solve.
  */
 class ConfigError : public std::runtime_error {
 public:
@@ -29,65 +41,70 @@ public:
 };
 
 /**
- * \brief Configurazione di *una* simulazione, letta da un singolo file
- * .toml piu' i due path di output presi dalla riga di comando.
+ * \brief Configuration of *one* simulation, one entry of the `conf` array of
+ * a .toml file.
  *
- * La dimensione del problema non e' un campo libero: la si deduce dalla
- * presenza di [grid].nz (assente -> 2D, presente -> 3D) e la si puo'
- * dichiarare esplicitamente con [grid].dim per farla ricontrollare dal
- * parser. Vedi config-parser.hpp.
+ * The problem dimension is not a field: parse_config<dim>() is instantiated
+ * with the dimension the binary was compiled for, and an array whose length
+ * does not match is rejected. See config-parser.hpp and the "Configuration
+ * files" page.
  *
  * @verbatim
-   [problem]
-   type = "lid_cavity"
+   [[conf]]
 
-   [grid]
-   nx = 129
-   ny = 129
-   # nz = 129     # presente solo per i problemi 3D
+   [conf.lattice]
+   size = [129, 129]        # [nx, ny] in 2D, [nx, ny, nz] in 3D
 
-   [physics]
-   collision   = "BGK"
-   reynolds    = 100.0
-   init_vel_x  = 0.1
+   [conf.physics]
+   reynolds = 100.0
+   size     = [0.1, 0.0]    # reference velocity, size[0] must be > 0
 
-   [solver]
-   backend = "openmp"
+   [conf.solver]
    niters  = 10000
    nframes = 100
+
+   [conf.output]
+   frames  = "out/frames.bin"
+   profile = "out/profile.dat"
+
+   [conf.backend]
+   n_threads = 8            # optional
    @endverbatim
  */
 template <types::dim_t dim> struct SimulationConfig {
 
-  /// Celle della griglia. `nz` vale 1 (e non va letto) quando dim == 2.
+  /// Grid cells. `nz` is 1 (and must not be read) when dim == 2.
   std::array<uint64_t, dim> grid_size;
 
+  /// Stem of the configuration file name, filled in by the parser and used
+  /// in error messages and output basenames.
   std::string name;
-  /// Numero di Reynolds.
+  /// Reynolds number.
   double reynolds = 100.0;
 
-  /// Velocita' di riferimento. `init_vel_z` esiste solo per dim == 3.
+  /// Reference velocity. `init_vel_z` exists only for dim == 3.
   ///
-  /// \note init_vel_x non e' solo la velocita' iniziale: e' la velocita'
-  /// caratteristica con cui CollisionParams calcola nu = u*Ny/Re, quindi
-  /// deve essere strettamente positiva anche nei problemi (Poiseuille) in
-  /// cui non muove nessuna parete.
+  /// \note init_vel_x is not just the initial velocity: it is the
+  /// characteristic velocity CollisionParams uses to compute nu = u*Ny/Re,
+  /// so it must be strictly positive even in problems (Poiseuille) where no
+  /// wall moves.
   utils::Vector<double, dim> u0;
 
-  /// Numero di iterazioni del solver.
+  /// Number of solver iterations.
   unsigned int niters = 0;
 
-  /// Numero di frame salvati durante il solve. Ogni frame contiene le
-  /// norme della velocita' a un dato passo temporale.
+  /// Number of frames saved during the solve. Each frame holds the velocity
+  /// norms at a given time step.
   unsigned int nframes = 0;
 
-  /// File di output delle norme (secondo argomento della riga di comando).
+  /// Output file for the norms, from [conf.output].frames.
   std::string frames_out;
 
-  /// File di output del profilo di velocita' (terzo argomento della riga
-  /// di comando).
+  /// Output file for the velocity profile, from [conf.output].profile.
   std::string profile_out;
 
+  /// Thread count requested by [conf.backend].n_threads; 0 means "let the
+  /// backend decide".
   unsigned int n_threads;
 };
 

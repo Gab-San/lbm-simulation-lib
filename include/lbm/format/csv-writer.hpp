@@ -1,3 +1,8 @@
+/**
+ * @file csv-writer.hpp
+ * @brief CsvWriter: a synchronous, schema-driven CSV writer.
+ */
+
 #pragma once
 
 /// Synchronous CSV writer, independent of LBM_LOG_BACKEND.

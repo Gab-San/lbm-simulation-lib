@@ -1,3 +1,15 @@
+/**
+ * @file config-parser.hpp
+ * @brief Reading a TOML file into SimulationConfig objects.
+ *
+ * A file holds a top-level `conf` array, one entry per run, so a single file
+ * can describe a sweep. Everything is validated as it is read and a failure
+ * raises ConfigError naming the offending key -- there is no half-filled
+ * config and no silently defaulted mandatory field.
+ *
+ * @see the "Configuration files" page for the schema and the error messages.
+ */
+
 #pragma once
 
 #include "lbm-sim/config/simulation-config.hpp"
@@ -23,8 +35,8 @@ inline CollisionModel parse_collision_model(const std::string &s,
   if (s == "MRT") {
     return CollisionModel::MRT;
   }
-  throw ConfigError(where + "operatore di collisione sconosciuto: '" + s +
-                    "' (attesi BGK, TRT, MRT)");
+  throw ConfigError(where + "unknown collision operator: '" + s +
+                    "' (expected BGK, TRT, MRT)");
 }
 
 inline ExecutionBackend parse_execution_backend(const std::string &s,
@@ -39,9 +51,9 @@ inline ExecutionBackend parse_execution_backend(const std::string &s,
                     "' (wants openmp, cuda)");
 }
 
-// [solver].backend e' un enum, non una stringa: serve per i messaggi di
-// errore di ensure_compatible. Se esiste gia' una funzione equivalente in
-// backend.hpp usa quella al posto di questa.
+// [solver].backend is an enum, not a string: this is needed for the error
+// messages of ensure_compatible. If an equivalent function already exists in
+// backend.hpp, use that one instead.
 inline std::string execution_backend_to_string(ExecutionBackend b) {
   switch (b) {
   case ExecutionBackend::OPEN_MP:
@@ -53,14 +65,19 @@ inline std::string execution_backend_to_string(ExecutionBackend b) {
 }
 
 /**
- * \brief Legge una SimulationConfig da una tabella TOML gia' parsata.
+ * \brief Reads a SimulationConfig from an already parsed TOML table.
  *
- * I due path di output non stanno nel TOML: li passa il main dalla riga di
- * comando, perche' identificano *questa* esecuzione, non la configurazione
- * fisica (lo stesso .toml puo' essere rilanciato scrivendo altrove).
+ * Reads [lattice].size, [physics].reynolds, [physics].size, [solver].niters,
+ * [solver].nframes, [output].frames, [output].profile and
+ * [backend].n_threads. Any other key in the table is ignored.
  *
- * La dimensione si deduce da [grid].nz: assente -> 2D, presente -> 3D.
- * [grid].dim e' opzionale e serve solo a far ricontrollare la deduzione.
+ * The dimension is not read from the file: it is the template argument, and
+ * an array whose length does not match it is rejected with a ConfigError
+ * naming both.
+ *
+ * @param cfg  Destination, filled in place.
+ * @param tbl  One entry of the `conf` array.
+ * @param name Run name, used in the error messages.
  */
 template <types::dim_t dim>
 inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
@@ -75,21 +92,22 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
   if (auto arr = tbl["lattice"]["size"].as_array()) {
     if (arr->size() != dim) {
       throw ConfigError(
-          "config '" + cfg.name + "': e' un problema " + std::to_string(dim) +
-          "D (dedotto " + (dim == 3 ? "dalla presenza" : "dall'assenza") +
-          " di [grid].nz), ma questo binario e' " + std::to_string(dim) + "D");
+          "config '" + cfg.name + "': this is a " + std::to_string(dim) +
+          "D problem (deduced from the " +
+          (dim == 3 ? "presence" : "absence") +
+          " of [grid].nz), but this binary is " + std::to_string(dim) + "D");
     }
     std::size_t i = 0;
     for (auto &elem : *arr) {
       auto val = elem.template value<uint64_t>();
       if (!val)
         throw ConfigError(where + ": [lattice].size[" + std::to_string(i) +
-                          "] mancante o non e' un intero");
+                          "] is missing or is not an integer");
       cfg.grid_size[i] = *val;
       ++i;
     }
   } else {
-    throw ConfigError(where + ": [lattice].size e' obbligatorio");
+    throw ConfigError(where + ": [lattice].size is mandatory");
   }
 
   // --- [physics] ---------------------------------------------------------
@@ -97,21 +115,22 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
   {
     auto reynolds = tbl["physics"]["reynolds"].value<double>();
     if (!reynolds)
-      throw ConfigError(where + ": [physics].reynolds e' obbligatorio");
+      throw ConfigError(where + ": [physics].reynolds is mandatory");
     cfg.reynolds = *reynolds;
   }
 
   if (cfg.reynolds <= 0.0)
-    throw ConfigError(where + ": [physics].reynolds deve essere > 0");
+    throw ConfigError(where + ": [physics].reynolds must be > 0");
 
   std::array<double, dim> utmp;
 
   if (auto arr = tbl["physics"]["size"].as_array()) {
     if (arr->size() != dim) {
       throw ConfigError(
-          "config '" + cfg.name + "': e' un problema " + std::to_string(dim) +
-          "D (dedotto " + (dim == 3 ? "dalla presenza" : "dall'assenza") +
-          " di [grid].nz), ma questo binario e' " + std::to_string(dim) + "D");
+          "config '" + cfg.name + "': this is a " + std::to_string(dim) +
+          "D problem (deduced from the " +
+          (dim == 3 ? "presence" : "absence") +
+          " of [grid].nz), but this binary is " + std::to_string(dim) + "D");
     }
 
     std::size_t i = 0;
@@ -119,34 +138,34 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
       auto val = elem.template value<double>();
       if (!val)
         throw ConfigError(where + ": [physics].size[" + std::to_string(i) +
-                          "] mancante o non e' un numero");
+                          "] is missing or is not a number");
       utmp[i] = *val;
       ++i;
     }
   } else {
-    throw ConfigError(where + ": [physics].size e' obbligatorio");
+    throw ConfigError(where + ": [physics].size is mandatory");
   }
 
   cfg.u0 = utmp;
 
-  // init_vel_x e' anche la velocita' caratteristica con cui
-  // CollisionParams calcola nu = u*Ny/Re: se fosse 0 si avrebbe nu = 0.
+  // init_vel_x is also the characteristic velocity CollisionParams uses to
+  // compute nu = u*Ny/Re: were it 0, nu would be 0 as well.
   if (cfg.u0.dx <= 0.0)
     throw ConfigError(where +
-                      ": [physics].init_vel_x deve essere > 0 (e' la "
-                      "velocita' caratteristica usata per nu = u*Ny/Re)");
+                      ": [physics].init_vel_x must be > 0 (it is the "
+                      "characteristic velocity used for nu = u*Ny/Re)");
 
   // --- [solver] ----------------------------------------------------------
   cfg.niters = tbl["solver"]["niters"].value_or<unsigned int>(0);
   cfg.nframes = tbl["solver"]["nframes"].value_or<unsigned int>(0);
 
   if (cfg.niters == 0)
-    throw ConfigError(where + ": [solver].niters e' obbligatorio e > 0");
+    throw ConfigError(where + ": [solver].niters is mandatory and must be > 0");
 
   if (cfg.nframes > cfg.niters)
     throw ConfigError(where + ": [solver].nframes (" +
                       std::to_string(cfg.nframes) +
-                      ") non puo' superare [solver].niters (" +
+                      ") cannot exceed [solver].niters (" +
                       std::to_string(cfg.niters) + ")");
 
   // --- [output] ----------------------------------------------------------
@@ -154,12 +173,12 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
   {
     auto frames_out = tbl["output"]["frames"].value<std::string>();
     if (!frames_out)
-      throw ConfigError(where + ": [output].frames e' obbligatorio");
+      throw ConfigError(where + ": [output].frames is mandatory");
     cfg.frames_out = *frames_out;
 
     auto profile_out = tbl["output"]["profile"].value<std::string>();
     if (!profile_out)
-      throw ConfigError(where + ": [output].profile e' obbligatorio");
+      throw ConfigError(where + ": [output].profile is mandatory");
     cfg.profile_out = *profile_out;
   }
 
@@ -174,19 +193,19 @@ template <types::dim_t dim>
 std::vector<SimulationConfig<dim>>
 parse_config(const std::filesystem::path &path) {
   if (!std::filesystem::exists(path))
-    throw ConfigError("file di configurazione inesistente: " + path.string());
+    throw ConfigError("configuration file does not exist: " + path.string());
 
   toml::table tbl;
   try {
     tbl = toml::parse_file(path.string());
   } catch (const toml::parse_error &err) {
-    throw ConfigError("TOML malformato in " + path.string() + ": " +
+    throw ConfigError("malformed TOML in " + path.string() + ": " +
                       std::string(err.description()));
   }
 
   const auto *arr = tbl["conf"].as_array();
   if (!arr)
-    throw ConfigError("campo 'conf' mancante o non è un array in " +
+    throw ConfigError("field 'conf' is missing or is not an array in " +
                       path.string());
 
   std::vector<SimulationConfig<dim>> configs;
@@ -195,7 +214,7 @@ parse_config(const std::filesystem::path &path) {
   for (const auto &elem : *arr) {
     const auto *sim_tbl = elem.as_table();
     if (!sim_tbl)
-      throw ConfigError("elemento non valido in 'conf' in " + path.string());
+      throw ConfigError("invalid element in 'conf' in " + path.string());
 
     SimulationConfig<dim> cfg;
     parse_table(cfg, *sim_tbl, path.stem().string());
@@ -206,14 +225,14 @@ parse_config(const std::filesystem::path &path) {
 }
 
 /**
- * \brief Verifica che la configurazione sia eseguibile da *questo* binario.
+ * \brief Checks that the configuration can be run by *this* binary.
  *
- * Prima ogni main scandiva una cartella e scartava in silenzio i .toml non
- * suoi; adesso che il file lo sceglie l'utente sulla riga di comando, un
- * file non compatibile e' un errore da segnalare, non da ignorare.
+ * Each main used to scan a directory and silently discard the .toml files
+ * that were not its own; now that the user picks the file on the command
+ * line, an incompatible file is an error to report, not to ignore.
  *
- * [problem].type e' opzionale: se il file non lo dichiara non si controlla
- * nulla, perche' il binario sa gia' quale problema risolve.
+ * [problem].type is optional: if the file does not declare it nothing is
+ * checked, because the binary already knows which problem it solves.
  */
 template <types::dim_t dim>
 void ensure_compatible(const SimulationConfig<dim> &cfg,
@@ -223,19 +242,19 @@ void ensure_compatible(const SimulationConfig<dim> &cfg,
   if (cfg.collision != collision)
     throw ConfigError("config '" + cfg.name + "': [physics].collision = '" +
                       collision_model_to_string(cfg.collision) +
-                      "', ma questo binario e' compilato per '" +
+                      "', but this binary is compiled for '" +
                       collision_model_to_string(collision) + "'");
 
   if (cfg.backend != backend)
     throw ConfigError("config '" + cfg.name + "': [solver].backend = '" +
                       execution_backend_to_string(cfg.backend) +
-                      "', ma questo binario e' '" +
+                      "', but this binary is '" +
                       execution_backend_to_string(backend) + "'");
 }
 
 inline void print_usage(const char *exe) {
-  std::cerr << "Uso: " << exe << " <config.toml>\n\n"
-            << "  config.toml   configurazione della simulazione" << std::endl;
+  std::cerr << "Usage: " << exe << " <config.toml>\n\n"
+            << "  config.toml   simulation configuration" << std::endl;
 }
 
 } // namespace config

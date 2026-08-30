@@ -1,3 +1,14 @@
+/**
+ * @file collision.hpp
+ * @brief Point-on-segment tests used by the segment shape.
+ *
+ * @warning The two functions here are neither @c inline nor templates, in a
+ *          header. Including it from a second translation unit is a
+ *          duplicate-symbol link error. It currently has exactly one
+ *          includer (shape.hpp), which is why this has not surfaced; mark
+ *          them @c inline before adding another.
+ */
+
 #ifndef __COLLISION_DETECTION_ALGORITHMS_COLLISION_HPP
 #define __COLLISION_DETECTION_ALGORITHMS_COLLISION_HPP
 

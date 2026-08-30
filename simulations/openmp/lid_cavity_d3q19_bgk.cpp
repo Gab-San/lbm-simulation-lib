@@ -22,19 +22,19 @@ constexpr auto BACKEND = lbm::ExecutionBackend::OPEN_MP;
 
 namespace {
 
-/// Maschera dei confini per una cavita' Nx*Ny*Nz: 5 pareti rigide
-/// (bounce-back semplice) + 1 parete mobile (il "lid", bounce-back con
-/// velocita' imposta) sulla faccia superiore z = Nz-1.
+/// Boundary mask for an Nx*Ny*Nz cavity: 5 rigid walls (plain bounce-back)
+/// + 1 moving wall (the "lid", bounce-back with imposed velocity) on the top
+/// face z = Nz-1.
 ///
-/// Non serve piu' scorrere le facce nodo per nodo: sono esattamente le sei
-/// facce del dominio, sei byte in tutto.
+/// There is no need to walk the faces node by node any more: they are exactly
+/// the six domain faces, six bytes in total.
 lbm::Solid::DomainBC<3> build_domain_bc() {
   lbm::Solid::DomainBC<3> dbc{};
   for (lbm::types::dim_t a = 0; a < 3; ++a) {
     dbc.low(a) = lbm::Solid::BB_RIGID_WALL;
     dbc.high(a) = lbm::Solid::BB_RIGID_WALL;
   }
-  dbc.high(2) = lbm::Solid::BB_MOVING_WALL; // il lid, z = nz-1
+  dbc.high(2) = lbm::Solid::BB_MOVING_WALL; // the lid, z = nz-1
   return dbc;
 }
 
@@ -55,10 +55,10 @@ if (argc < 2) {
   try {
     configs = config::parse_config<DIM>(argv[1]);
   } catch (const config::ConfigError &err) {
-    std::cerr << "Errore di configurazione: " << err.what() << "\n";
+    std::cerr << "Configuration error: " << err.what() << "\n";
     return 1;
   }
-  // --- 2. ISTANZIA LOGGER ------------------------------------------------
+  // --- 2. INSTANTIATE LOGGER ---------------------------------------------
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
   for (const auto &cfg : configs) {
@@ -66,9 +66,9 @@ if (argc < 2) {
 
   const utils::Vector<double, DIM> lid_velocity = cfg.u0;
 
-  // ATTENZIONE: in 3D il numero di nodi cresce come N^3 e il costo per nodo
-  // e' 19/9 volte quello di D2Q9. Una cavita' 128^3 ha gia' oltre 2M di
-  // nodi: conviene validare su 32^3 o 48^3 prima di scalare.
+  // WARNING: in 3D the node count grows as N^3 and the per-node cost is
+  // 19/9 times that of D2Q9. A 128^3 cavity already has more than 2M nodes:
+  // validate on 32^3 or 48^3 before scaling up.
   LBM_LOG_INFO(main_logger,
                "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
                "{}\n\tLid velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
@@ -76,21 +76,21 @@ if (argc < 2) {
                cfg.name, grid_size, cfg.reynolds, lid_velocity, cfg.niters,
                cfg.nframes, cfg.frames_out, cfg.profile_out);
 
-  // --- 3./4. CREA OSTACOLI E MASCHERA ------------------------------------
-  // Le pareti sono le facce del dominio; nessun ostacolo immerso nel fluido,
-  // quindi la maschera e' tutta types::FLUID.
+  // --- 3./4. CREATE OBSTACLES AND MASK -----------------------------------
+  // The walls are the domain faces; no obstacle is immersed in the fluid, so
+  // the mask is entirely types::FLUID.
   const Solid::DomainBC<3> dbc = build_domain_bc();
   types::solid_mask_t solid_mask =
       Solid::compute_solid_mask<DIM>({}, grid_size);
 
-  // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
-  // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
-  // configurazione, cosi' run diversi nella stessa cartella non si
-  // sovrascrivono a vicenda.
+  // --- 5. RUN SIMULATION -------------------------------------------------
+  // frames_out is the DIRECTORY; the file basename comes from the config
+  // name, so different runs in the same directory do not overwrite each
+  // other.
   //
-  // Lo stesso writer va agganciato sia a `sim` sia a `solver`: il primo
-  // notifica l'header con le dimensioni della griglia, il secondo i frame
-  // delle norme di velocita', e sono due DataObservable distinti.
+  // The same writer has to be attached both to `sim` and to `solver`: the
+  // former notifies the header with the grid dimensions, the latter the
+  // frames of velocity norms, and they are two distinct DataObservable.
 std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
 
@@ -108,11 +108,11 @@ std::shared_ptr<AsyncBinaryWriter> writer =
   simulation.output(cfg.profile_out.c_str(),
                     functional::extract_dx_profile_along_z_center);
 
-  // --- 7. CALCOLO DELL'ERRORE --------------------------------------------
-  // Non c'e': la lid cavity 3D non ha soluzione analitica, e le tabelle di
-  // Ghia et al. sono solo per il caso 2D (compute_ghia_error() e' infatti
-  // definita solo per dim == 2). Il confronto quantitativo va fatto contro
-  // dati di riferimento esterni sul profilo scritto sopra.
+  // --- 7. ERROR COMPUTATION ----------------------------------------------
+  // There is none: the 3D lid cavity has no analytical solution, and the
+  // Ghia et al. tables only cover the 2D case (compute_ghia_error() is in
+  // fact defined only for dim == 2). The quantitative comparison has to be
+  // made against external reference data, on the profile written above.
 
   simulation.detachListener(writer);
   solver.detachListener(writer);

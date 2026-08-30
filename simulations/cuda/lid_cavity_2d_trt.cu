@@ -70,10 +70,10 @@ template <> struct Config<2> {
 
   const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
 
-  /// Tabella laterale: id ostacolo -> {tipo di BC, velocita' di parete}.
+  /// Side table: obstacle id -> {BC type, wall velocity}.
   const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data;
 
-  /// BC delle facce del dominio: le pareti non sono piu' ostacoli.
+  /// BCs of the domain faces: the walls are no longer obstacles.
   const lbm::Solid::DomainBC<DIM> domain_bc;
 
   Config<2>(
@@ -90,13 +90,13 @@ template <> struct Config<2> {
         obstacle_data(std::move(obstacle_data_)), domain_bc(domain_bc_) {}
 };
 
-/// Lid-driven cavity: tre pareti rigide + il lid mobile in alto.
+/// Lid-driven cavity: three rigid walls + the moving lid on top.
 static lbm::Solid::DomainBC<DIM> make_cavity_bc() {
   lbm::Solid::DomainBC<DIM> dbc{};
   dbc.low(0) = lbm::Solid::BB_RIGID_WALL;   // x = 0
   dbc.high(0) = lbm::Solid::BB_RIGID_WALL;  // x = nx-1
   dbc.low(1) = lbm::Solid::BB_RIGID_WALL;   // y = 0
-  dbc.high(1) = lbm::Solid::BB_MOVING_WALL; // il lid, y = ny-1
+  dbc.high(1) = lbm::Solid::BB_MOVING_WALL; // the lid, y = ny-1
   return dbc;
 }
 
@@ -181,7 +181,7 @@ int main() {
     simulation.output(out_data.c_str(),
                       functional::extract_dy_profile_along_x_center);
 
-    // Confronto con Ghia et al. (1982): Norma scelta qui: L2.
+    // Comparison against Ghia et al. (1982). Norm chosen here: L2.
     const auto ghia_y = simulation.compute_ghia_error(
         path_to_benchmark + "data_y_" + formatting::format_reyn(reyn) + ".txt");
 

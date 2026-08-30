@@ -35,10 +35,10 @@ int main(int argc, char **argv) {
   try {
     configs = config::parse_config<DIM>(argv[1]);
   } catch (const config::ConfigError &err) {
-    std::cerr << "Errore di configurazione: " << err.what() << "\n";
+    std::cerr << "Configuration error: " << err.what() << "\n";
     return 1;
   }
-  // --- 2. ISTANZIA LOGGER ------------------------------------------------
+  // --- 2. INSTANTIATE LOGGER ---------------------------------------------
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
 for (const auto &cfg : configs) {
@@ -53,31 +53,31 @@ for (const auto &cfg : configs) {
       grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes, cfg.frames_out,
       cfg.profile_out);
 
-  // --- 3. CREA OSTACOLI --------------------------------------------------
-  // Poiseuille: pareti rigide sopra e sotto, ingresso e uscita a pressione
-  // imposta sui lati. Gli angoli restano alle orizzontali come prima: il wrap
-  // su x avviene per primo, poi la faccia y rivendica il link.
+  // --- 3. CREATE OBSTACLES -----------------------------------------------
+  // Poiseuille: rigid top and bottom walls, pressure-imposed inlet and outlet
+  // on the sides. Corners still belong to the horizontal faces as before: the
+  // wrap on x happens first, then the y face claims the link.
   Solid::DomainBC<DIM> dbc{};
   dbc.low(0) = Solid::PRESSURE_PERIODIC_INLET;   // x = 0
   dbc.high(0) = Solid::PRESSURE_PERIODIC_OUTLET; // x = nx-1
   dbc.low(1) = Solid::BB_RIGID_WALL;             // y = 0
   dbc.high(1) = Solid::BB_RIGID_WALL;            // y = ny-1
 
-  // --- 4. CREA MASCHERA --------------------------------------------------
-  // Nessun ostacolo immerso nel fluido: la maschera e' tutta types::FLUID.
+  // --- 4. CREATE MASK ----------------------------------------------------
+  // No obstacle immersed in the fluid: the mask is entirely types::FLUID.
   types::solid_mask_t solid_mask =
       Solid::compute_solid_mask<DIM>({}, grid_size);
 
-  // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
-  // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
-  // configurazione, cosi' run diversi nella stessa cartella non si
-  // sovrascrivono a vicenda.
+  // --- 5. RUN SIMULATION -------------------------------------------------
+  // frames_out is the DIRECTORY; the file basename comes from the config
+  // name, so different runs in the same directory do not overwrite each
+  // other.
   std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
 
   const CollisionParams<DIM, COLLISION> params(cfg.reynolds, grid_size, cfg.u0);
-  // Salto di pressione che sostiene il flusso: ricavato dalla soluzione di
-  // Poiseuille per il canale, non e' un parametro libero.
+  // The pressure drop that sustains the flow: derived from the channel
+  // Poiseuille solution, it is not a free parameter.
   const double pout = 1;
   const double pin =
       pout +
@@ -98,9 +98,9 @@ for (const auto &cfg : configs) {
   simulation.output(cfg.profile_out.c_str(),
                     functional::extract_dx_profile_along_y_center);
 
-  // --- 7. CALCOLO DELL'ERRORE --------------------------------------------
-  // H = altezza canale (parete inferiore a y=0, superiore a y=ny-1);
-  // Umax = velocita' di riferimento (parete mobile per Couette).
+  // --- 7. ERROR COMPUTATION ----------------------------------------------
+  // H = channel height (bottom wall at y=0, top wall at y=ny-1);
+  // Umax = reference velocity (the moving wall, for Couette).
   const double H = static_cast<double>(grid_size.y - 1);
   const auto exact_solution = analysis::PoiseuilleSolution2D(H, cfg.u0.dx);
   const double err_l2 =

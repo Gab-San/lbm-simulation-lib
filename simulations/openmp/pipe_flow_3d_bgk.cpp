@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
   try {
     configs = config::parse_config<DIM>(argv[1]);
   } catch (const config::ConfigError &err) {
-    std::cerr << "Errore di configurazione: " << err.what() << "\n";
+    std::cerr << "Configuration error: " << err.what() << "\n";
     return 1;
   }
   // --- 2. INSTANTIATE LOGGER ---------------------------------------------
