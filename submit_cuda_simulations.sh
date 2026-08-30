@@ -1,8 +1,7 @@
 #!/bin/bash
-set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BIN_DIR="${BIN_DIR:-$ROOT_DIR/build/simulations}"
+BIN_DIR="${BIN_DIR:-$ROOT_DIR/build/cuda/simulations}"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs}"
 mkdir -p "$LOG_DIR" "$ROOT_DIR/out"
 

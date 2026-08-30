@@ -5,20 +5,20 @@
 #PBS -l select=1:ncpus=4:ngpus=1
 #PBS -l walltime=00:30:00
 #PBS -j oe
-
-set -euo pipefail
+#PBS -o logs/
 
 EXE_NAME="$1"
 echo "Running: $EXE_NAME"
 
 cd "$PBS_O_WORKDIR"
 
-# The binary must already exist under build/simulations/. Building it here
-# on demand repeats the race from the CPU jobs, and worse: the previous
-# check ("[ ! -x $1 ]") tested for a bare filename in $PBS_O_WORKDIR, which
-# never exists there, so it was ALWAYS true - every job rebuilt every time,
-# all racing on the same shared build/.
-BIN_PATH="build/simulations/$EXE_NAME"
+# The binary must already exist under build/cuda/simulations/ (the CUDA
+# build tree - separate from build/simulations/, which is the CPU build).
+# Building it here on demand repeats the race from the CPU jobs, and worse:
+# the previous check ("[ ! -x $1 ]") tested for a bare filename in
+# $PBS_O_WORKDIR, which never exists there, so it was ALWAYS true - every
+# job rebuilt every time, all racing on the same shared build/.
+BIN_PATH="build/cuda/simulations/$EXE_NAME"
 if [ ! -x "$BIN_PATH" ]; then
   echo "ERROR: $BIN_PATH not found or not executable." \
        "Build first with:" \
