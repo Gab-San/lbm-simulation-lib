@@ -13,10 +13,8 @@
 
 #pragma once
 
-#include "lbm-sim/core/vector.hpp"
-#include "lbm-sim/metadata.hpp"
-#include "lbm-sim/types/base.hpp"
 #include <array>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 
@@ -71,10 +69,10 @@ public:
    n_threads = 8            # optional
    @endverbatim
  */
-template <types::dim_t dim> struct SimulationConfig {
+template <unsigned short int dim> struct SimulationConfig {
 
   /// Grid cells. `nz` is 1 (and must not be read) when dim == 2.
-  std::array<uint64_t, dim> grid_size;
+  std::array<std::size_t, dim> grid_size;
 
   /// Stem of the configuration file name, filled in by the parser and used
   /// in error messages and output basenames.
@@ -88,7 +86,7 @@ template <types::dim_t dim> struct SimulationConfig {
   /// characteristic velocity CollisionParams uses to compute nu = u*Ny/Re,
   /// so it must be strictly positive even in problems (Poiseuille) where no
   /// wall moves.
-  utils::Vector<double, dim> u0;
+  std::array<double, dim> u0;
 
   /// Number of solver iterations.
   unsigned int niters = 0;

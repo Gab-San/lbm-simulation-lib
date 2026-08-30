@@ -89,7 +89,7 @@ int main() {
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {640, 129}, /*iters*/ 1000000, /*frames*/ 200, /*reyn*/ 5000.0,
+          {640, 129}, /*iters*/ 10000, /*frames*/ 200, /*reyn*/ 5000.0,
           /*init_vel*/ {0.05, 0}, "out/norms_obstacle_129_100_01_bgk.bin",
           "out/data_obstacle_129_100_01_bgk.bin",
           {

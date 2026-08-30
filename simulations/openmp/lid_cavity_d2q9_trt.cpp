@@ -2,13 +2,13 @@
 #include "lbm-sim/analysis/exact-solution.hpp"
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
-#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/async-binary-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
+#include "lbm/config/config-parser.hpp"
 // C++ STD LIB
 #include <memory>
 #include <string>

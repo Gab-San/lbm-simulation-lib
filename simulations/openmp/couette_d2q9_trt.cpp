@@ -2,13 +2,13 @@
 #include "lbm-sim/analysis/exact-solution.hpp"
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
-#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/async-binary-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
+#include "lbm/config/config-parser.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -46,13 +46,14 @@ int main(int argc, char **argv) {
   // --- 3. RUN ONE SIMULATION PER CONFIG ----------------------------------
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
+    const utils::Vector<double, DIM> u0(cfg.u0);
 
     LBM_LOG_INFO(
         main_logger,
         "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
         "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
         "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-        cfg.name, grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
+        cfg.name, grid_size, cfg.reynolds, u0, cfg.niters, cfg.nframes,
         cfg.frames_out, cfg.profile_out);
 
     // --- 3. CREATE OBSTACLES -----------------------------------------------
@@ -79,7 +80,7 @@ int main(int argc, char **argv) {
 
     LBMSimulation<DIM, D2Q9, COLLISION> simulation(
         grid_size, std::move(solid_mask), {}, dbc,
-        CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, cfg.u0));
+        CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, u0));
     simulation.attachListener(writer);
 
     OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
@@ -91,7 +92,7 @@ int main(int argc, char **argv) {
                       functional::extract_dx_profile_along_y_center);
 
     const double H = static_cast<double>(grid_size.y - 1);
-    const auto exact_solution = analysis::CouetteSolution2D(H, cfg.u0.dx);
+    const auto exact_solution = analysis::CouetteSolution2D(H, u0.dx);
     const double err_l2 =
         simulation.compute_error(analysis::NormType::L2, exact_solution);
 
@@ -100,12 +101,12 @@ int main(int argc, char **argv) {
 
     simulation.detachListener(writer);
     solver.detachListener(writer);
-  
-       #ifdef LBM_PROFILING
-  lbm::profiling::dump_csv(cfg.profile_out);  
-  lbm::profiling::reset();                    
+
+#ifdef LBM_PROFILING
+    lbm::profiling::dump_csv(cfg.profile_out);
+    lbm::profiling::reset();
 #endif
-    }
+  }
 
   return 0;
 }

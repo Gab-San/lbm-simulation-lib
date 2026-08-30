@@ -1,7 +1,6 @@
 #include "lbm-sim/analysis/exact-solution.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
-#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
@@ -9,6 +8,7 @@
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/cuda-solver.cuh"
+#include "lbm/config/config-parser.hpp"
 
 // Path to the Ghia benchmarks, injected by CMake (see
 // simulations/CMakeLists.txt) so it does not depend on the working directory.
@@ -59,13 +59,14 @@ int main(int argc, char **argv) {
 
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
+    utils::Vector<double, DIM> u0(cfg.u0);
 
     LBM_LOG_INFO(
         main_logger,
         "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
         "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
         "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-        cfg.name, grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
+        cfg.name, grid_size, cfg.reynolds, u0, cfg.niters, cfg.nframes,
         cfg.frames_out, cfg.profile_out);
 
     types::solid_mask_t solid_mask =
@@ -76,7 +77,7 @@ int main(int argc, char **argv) {
 
     Simulation simulation(
         grid_size, std::move(solid_mask), {}, make_cavity_bc(),
-        CollisionParams<DIM, CollisionType>(cfg.reynolds, grid_size, cfg.u0));
+        CollisionParams<DIM, CollisionType>(cfg.reynolds, grid_size, u0));
     simulation.attachListener(writer);
 
     CUDASolver<DIM, D2Q9, CollisionType> solver(cfg.niters, cfg.nframes);

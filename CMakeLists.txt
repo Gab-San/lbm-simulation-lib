@@ -112,7 +112,6 @@ endif()
 # it) and nvcc (which needs -Xcompiler for host flags). Fence it in.
 target_compile_options(${LBM_SIM_LIB} INTERFACE
   $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-Wsign-compare>)
-
 # ------------------------- CONFIG (part of the core) ------------------------
 # TOML parsing is a feature of the library, not a separate target: toml++ and
 # include/lbm/config/ are attached straight to lbm::sim. Consumers get it by
@@ -122,19 +121,8 @@ target_compile_options(${LBM_SIM_LIB} INTERFACE
 # of the build, LBM_ENABLE_CONFIG is not defined, and code that #includes those
 # headers is expected not to be built either (`#if LBM_ENABLE_CONFIG`).
 if(LBM_ENABLE_CONFIG)
-  include(FetchContent)
-  FetchContent_Declare(
-    tomlplusplus
-    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
-    GIT_TAG        v3.4.0
-    GIT_SHALLOW    TRUE
-  )
-  FetchContent_MakeAvailable(tomlplusplus)
-
-  target_link_libraries(${LBM_SIM_LIB} INTERFACE tomlplusplus::tomlplusplus)
-
-  # For code that can do without a config file: #if LBM_ENABLE_CONFIG.
-  target_compile_definitions(${LBM_SIM_LIB} INTERFACE LBM_ENABLE_CONFIG)
+  include(Config)
+  target_link_libraries(${LBM_SIM_LIB} INTERFACE lbm::config)
 endif()
 
 # --------------------------------- CUDA -------------------------------------

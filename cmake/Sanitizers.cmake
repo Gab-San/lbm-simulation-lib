@@ -158,7 +158,7 @@ endif()
 foreach(_san IN LISTS _lbm_san_list)
   add_link_options(
     "$<$<LINK_LANGUAGE:CXX>:-fsanitize=${_san}>"
-    "$<$<LINK_LANGUAGE:CUDA>:-Xcompiler=-fsanitize=${_san}>")
+    "$<$<LINK_LANGUAGE:CUDA>:-fsanitize=${_san}>")
 endforeach()
 
 message(STATUS "Sanitizers: ${_lbm_san_list}")

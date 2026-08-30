@@ -3,13 +3,13 @@
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
-#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/cuda-solver.cuh"
+#include "lbm/config/config-parser.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -54,13 +54,13 @@ int main(int argc, char **argv) {
 
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
-
+    const utils::Vector<double, DIM> u0(cfg.u0);
     LBM_LOG_INFO(
         main_logger,
         "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
         "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
         "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-        cfg.name, grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
+        cfg.name, grid_size, cfg.reynolds, u0, cfg.niters, cfg.nframes,
         cfg.frames_out, cfg.profile_out);
 
     types::solid_mask_t solid_mask =
@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
 
     Simulation simulation(
         grid_size, std::move(solid_mask), {}, make_couette_bc(),
-        CollisionParams<DIM, CollisionType>(cfg.reynolds, grid_size, cfg.u0));
+        CollisionParams<DIM, CollisionType>(cfg.reynolds, grid_size, u0));
     simulation.attachListener(writer);
 
     CUDASolver<DIM, D2Q9, CollisionType> solver(cfg.niters, cfg.nframes);
@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
     // The same values already used to build the simulation: no duplication,
     // flow_type picks the right Function<2>.
     const double H = static_cast<double>(grid_size.y - 1);
-    const auto exact_solution = analysis::CouetteSolution2D(H, cfg.u0.dx);
+    const auto exact_solution = analysis::CouetteSolution2D(H, u0.dx);
     const double err_l2 =
         simulation.compute_error(analysis::NormType::L2, exact_solution);
 
