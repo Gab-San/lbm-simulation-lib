@@ -127,7 +127,6 @@ int main() {
                       0.4,                    // camber pos.  0.40 -> NACA X4XX
                       5.0)}                   // angle of attack
                   ),
-
           },
           // id 0 = the cylinder: rigid wall, stationary.
           {{Solid::BB_RIGID_WALL, {0.0, 0.0}}}, make_channel_bc()),

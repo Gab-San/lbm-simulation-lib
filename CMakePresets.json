@@ -80,6 +80,15 @@
         "LBM_ENABLE_CUDA": "ON",
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+
+    {
+      "name": "release",
+      "inherits": "base",
+      "cacheVariables": {
+        "LBM_LOG_BACKEND": "quill",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ],
   "buildPresets": [
@@ -107,6 +116,11 @@
     {
       "name": "bench",
       "configurePreset": "bench"
+    },
+
+    {
+      "name": "release",
+      "configurePreset": "release"
     },
 
     {
