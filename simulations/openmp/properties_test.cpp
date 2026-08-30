@@ -52,7 +52,11 @@ int main(int argc, char **argv) {
   // Under out/ rather than ./prof/: on the cluster the job runs in
   // /scratch_local and copies back only out/, so a profile written anywhere
   // else would vanish with the scratch directory when the job ends.
-  profiler.open("out/prof/" + configs[0].name + ".csv");
+  std::string job_id = "";
+  if (argc == 3) {
+    job_id += "_" + std::string(argv[2]);
+  }
+  profiler.open("out/prof/" + configs[0].name + job_id + ".csv");
 
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);

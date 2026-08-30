@@ -5,29 +5,28 @@
 #PBS -l walltime=00:30:00
 #PBS -j oe
 
-cd "$PBS_O_WORKDIR" || exit 1
+set -euo pipefail
 
-# Build the binary if it does not exist yet (once the build has been done, the
-# following runs find it ready in build/simulations and skip this step).
-if [ ! -x build/simulations/properties_test ]; then
-  cd build
-  cmake --build . --target properties_test -j"$(nproc)"
-  cd ..
-fi
+cd "$PBS_O_WORKDIR"
 
-# Node-local scratch: faster than NFS for I/O.
+# The binary must already exist: submit_properties.sh builds it ONCE,
+# before submitting. If each job rebuilds it on demand instead, N jobs
+# launched together all find it missing and end up running "cmake --build"
+# in parallel against the same shared build/ (NFS) -> a corrupted build,
+# and without `set -e` the job would carry on anyway, copying back an
+# empty out/ with no error.
+
+# Node-local scratch: faster than NFS for I/O
 WORKDIR=/scratch_local/${PBS_JOBID}
 mkdir -p "$WORKDIR"
+trap 'rm -rf "$WORKDIR"' EXIT
 cp build/simulations/properties_test "$WORKDIR"/
 cp configs/profiling.toml "$WORKDIR"/
-cd "$WORKDIR" || exit 1
+cd "$WORKDIR"
 
 mkdir -p out
-./properties_test profiling.toml
+./properties_test profiling.toml ${PBS_JOBID}
 
-# Copy the results back: one directory per job (JOBID is unique).
+# Copy results back: a folder dedicated to this job (unique JOBID)
 mkdir -p "$PBS_O_WORKDIR"/results/"${PBS_JOBID}"
 cp -r out/* "$PBS_O_WORKDIR"/results/"${PBS_JOBID}"/
-
-cd "$PBS_O_WORKDIR" || exit 1
-rm -rf "$WORKDIR"
