@@ -1,3 +1,18 @@
+/**
+ * @file openmp-solver.hpp
+ * @brief OpenMPSolver: the multi-threaded CPU backend.
+ *
+ * The whole time step is one fused pass, update_stream_collide(), over two
+ * population buffers that are swapped at the end of the iteration:
+ * populations are read from one and written to the other, so there is no
+ * aliasing, no halo copy and no second sweep.
+ *
+ * Parallelism is a single `omp parallel for` over the flattened cell index,
+ * `schedule(static)`. Every node is independent within a step -- a node only
+ * ever reads its neighbours' *previous* populations -- so no synchronisation
+ * is needed inside the pass.
+ */
+
 #ifndef __LBM_SIM_SOLVER_SOLVER_2D
 #define __LBM_SIM_SOLVER_SOLVER_2D
 
@@ -27,17 +42,55 @@
 
 namespace lbm {
 
+/**
+ * @brief Multi-threaded CPU solver.
+ *
+ * @tparam dim         Spatial dimension (2 or 3).
+ * @tparam VelocitySet Discrete velocity set (D2Q9, D3Q19, D3Q27).
+ * @tparam cm_t        Collision model.
+ *
+ * @see SolverBase for the iteration and frame bookkeeping, and
+ *      CUDASolver for the GPU counterpart.
+ */
 template <types::dim_t dim, typename VelocitySet, enum CollisionModel cm_t>
 class OpenMPSolver
     : public SolverBase<dim, VelocitySet, cm_t, ExecutionBackend::OPEN_MP> {
   using Base = SolverBase<dim, VelocitySet, cm_t, ExecutionBackend::OPEN_MP>;
 
 public:
+  /**
+   * @brief Forwards to SolverBase.
+   * @param iters_  Number of time steps.
+   * @param frames_ Number of frames to emit; @c 0 disables frame output.
+   */
   OpenMPSolver(const unsigned int iters_, const unsigned int frames_)
       : Base(iters_, frames_) {};
 
   ~OpenMPSolver() = default;
 
+  /**
+   * @brief Runs the time loop on the host.
+   *
+   * Allocates the two population buffers and the velocity-norm scratch
+   * array, initialises the equilibrium from the lattice's initial @c rho and
+   * @c u, then iterates: fused stream-collide, buffer swap, and a frame
+   * emission every @c nskips steps.
+   *
+   * The macroscopic fields are materialised only when they are needed -- on
+   * a frame step, on the last iteration, and always on a pressure face,
+   * whose boundary condition reads them. The rest of the time the moments
+   * are computed and discarded, which is what keeps the pass to one read and
+   * one write per population.
+   *
+   * @param[in,out] lattice State to evolve; @c u and @c rho are written back.
+   * @param[in]     params_ Relaxation parameters.
+   *
+   * @note In benchmark mode (BackendProperties) no frame is emitted at all,
+   *       so the measured time is the solver's and not the writer's.
+   *
+   * @note With @c LBM_PROFILING the per-scope timings collected by
+   *       PROFILE_SCOPE are appended to the profiling CSV when the loop ends.
+   */
   void solve(Lattice<dim> &lattice,
              const CollisionParams<dim, cm_t> &params_) const override {
     logging::Logger *solver_logger = logging::create_or_get_logger("solver");
@@ -66,7 +119,7 @@ public:
                      : omp_get_max_threads());
 
     {
-      PROFILE_SCOPE("solve_total"); // tempo wall dell'intero loop
+      PROFILE_SCOPE("solve_total"); // wall time of the whole loop
 
       for (std::size_t iter = 0; iter < this->niters; iter++) {
         const bool save = !benchmarking && iter % this->nskips == 0;
@@ -134,6 +187,16 @@ double sponge_strength(const Grid<dim> &grid, const Solid::DomainBC<dim> &dbc,
   return s; // combine faces with max(), not sum(): avoid double-damping in corners
 }
 
+  /**
+   * @brief Fills the populations with the equilibrium of the initial fields.
+   *
+   * @f$ f_i = f_i^{eq}(\rho_0, \mathbf{u}_0) @f$ at every node, including
+   * solid ones -- their populations are never read, so leaving them at
+   * equilibrium costs nothing and avoids a branch.
+   *
+   * @param[out] part_stream Population buffer, @c getArea()*ndir entries.
+   * @param[in]  lattice     Source of the initial @c rho and @c u.
+   */
   inline void init_equilibrium(std::vector<double> &part_stream,
                                const Lattice<dim> &lattice) const {
     const auto ext = lattice.grid.extents();
@@ -163,6 +226,36 @@ double sponge_strength(const Grid<dim> &grid, const Solid::DomainBC<dim> &dbc,
     }
   }
 
+  /**
+   * @brief One time step: stream, moments, equilibrium and collision, fused.
+   *
+   * For each fluid node, in this order:
+   * 1. sum the node's own populations into @c r_wall, the density the
+   *    bounce-back conditions need *before* any link is touched;
+   * 2. for each direction, resolve the link (Solid::resolve_link()) and
+   *    either stream from the source node or apply the boundary condition it
+   *    named;
+   * 3. reduce the incoming populations to @f$ \rho @f$ and @f$ \mathbf{u} @f$;
+   * 4. store them if they are wanted, and the velocity norm if a frame is due;
+   * 5. collide in place and write the result to @p fto.
+   *
+   * @param[in]     ffrom             Populations of the previous step.
+   * @param[out]    fto               Populations of the new step.
+   * @param[out]    usq               Velocity norms, written only when
+   *                                  @p store_macroscopic is true.
+   * @param[in,out] lattice           Geometry and boundary description in,
+   *                                  macroscopic fields out.
+   * @param[in]     cs                Collision strategy to apply.
+   * @param[in]     store_macroscopic Whether @c u, @c rho and @p usq have to
+   *                                  be written this step.
+   *
+   * @note Solid nodes are skipped on the @c solid_mask, never on a boundary
+   *       type: a fluid node on a domain edge carries a face BC and must
+   *       still be updated. This holds because no scheme here reads a solid
+   *       node's populations; interpolated bounce-back (Bouzidi,
+   *       Filippova-Hanel) or Guo extrapolation would break that assumption
+   *       and require distinguishing surface from interior solid nodes.
+   */
   void
   update_stream_collide(const std::vector<double> &ffrom,
                         std::vector<double> &fto, std::vector<float> &usq,
@@ -297,6 +390,15 @@ double sponge_strength(const Grid<dim> &grid, const Solid::DomainBC<dim> &dbc,
     }
   };
 
+  /**
+   * @brief Emits one frame of velocity norms to the attached listeners.
+   *
+   * The payload is the raw image of @p usq: @c getArea() @c float32 values in
+   * scalar_index() order, native byte order, with no per-frame header. See
+   * the "Output formats" page.
+   *
+   * @param usq Velocity norms of the current step.
+   */
   inline void write_norms(const std::vector<float> &usq) const {
     std::vector<char> buf(usq.size() * sizeof(float));
     std::memcpy(buf.data(), usq.data(), buf.size());

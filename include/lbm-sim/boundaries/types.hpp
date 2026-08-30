@@ -1,3 +1,23 @@
+/**
+ * @file types.hpp
+ * @brief How the domain sides and the immersed bodies are described.
+ *
+ * Two independent descriptions, on purpose:
+ *
+ * - the **domain faces** carry a DomainBC, @c 2*dim bytes for any
+ *   resolution;
+ * - the **immersed bodies** carry a per-node @c solid_mask_t of obstacle
+ *   ids, plus a side table of ObstacleData indexed by id.
+ *
+ * They are kept apart because a single slot per node cannot express what a
+ * link needs: the same node can wrap on one direction and hit a wall on
+ * another. resolve_link() in boundaries/utils.hpp combines the two, per
+ * link, and returns a LinkResolution.
+ *
+ * Everything here is trivially copyable and free of @c std:: containers, so
+ * it can be passed by value into a CUDA kernel.
+ */
+
 #pragma once
 
 #include "lbm-sim/backend/cuda/annotations.hpp"

@@ -14,8 +14,7 @@
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/functions.hpp"
 
-#include "lbm/logging.hpp"
-#include "quill/LogMacros.h"
+#include "lbm-sim/logging.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -41,8 +40,8 @@ template <> struct Config<2> {
   /// Reynold number
   const double reyn_num;
 
-  /// Velocita' di riferimento, usata solo per calcolare nu/tau
-  /// NON muove piu' nessuna parete in Poiseuille!!!
+  /// Reference velocity, used only to compute nu/tau.
+  /// It no longer moves any wall in Poiseuille!
   const lbm::utils::Vector<double, 2> init_vel;
 
   /// Output path for frames
@@ -51,13 +50,13 @@ template <> struct Config<2> {
   /// Output path for benchmark data
   const std::string out_data;
 
-  /// Solo i corpi immersi nel fluido: le pareti del canale sono in domain_bc.
+  /// Only bodies immersed in the fluid: the channel walls live in domain_bc.
   const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
 
-  /// Tabella laterale: id ostacolo -> {tipo di BC, velocita' di parete}.
+  /// Side table: obstacle id -> {BC type, wall velocity}.
   const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data;
 
-  /// BC delle quattro facce del dominio.
+  /// BCs of the four domain faces.
   const lbm::Solid::DomainBC<DIM> domain_bc;
 
   Config<2>(
@@ -74,8 +73,8 @@ template <> struct Config<2> {
         obstacle_data(std::move(obstacle_data_)), domain_bc(domain_bc_) {}
 };
 
-/// Canale di Poiseuille: pressione imposta su ingresso e uscita, pareti
-/// rigide sopra e sotto.
+/// Poiseuille channel: pressure imposed at inlet and outlet, rigid top and
+/// bottom walls.
 static lbm::Solid::DomainBC<DIM> make_channel_bc() {
   lbm::Solid::DomainBC<DIM> dbc{};
   //dbc.low(0) = lbm::Solid::PRESSURE_PERIODIC_INLET;   // x = 0
@@ -99,8 +98,8 @@ int main() {
   // const Coordinate<2> C(640 - 1, 129 - 1);
   // const Coordinate<2> D(640 - 1, 0);
 
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   // fattore di scala per aumentare la risoluzione della griglia, senza cambiare le proporzioni
   const int scale = 2;
@@ -163,6 +162,7 @@ int main() {
   for (auto &conf : configs) {
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obstacle_data, domain_bc] = conf;
+
     types::solid_mask_t solid_mask =
         Solid::compute_solid_mask<DIM>(obstacles, grid_size);
 

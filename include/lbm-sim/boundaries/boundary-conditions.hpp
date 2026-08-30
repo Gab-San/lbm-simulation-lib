@@ -1,3 +1,26 @@
+/**
+ * @file boundary-conditions.hpp
+ * @brief The boundary kernels themselves, applied to an already-resolved
+ *        link.
+ *
+ * By the time these run, resolve_link() has already wrapped the coordinate,
+ * identified the owning obstacle and named the condition; nothing here reads
+ * the mask or re-derives a source node. The division of labour is
+ * deliberate: one decision per link in boundaries/utils.hpp, one arithmetic
+ * kernel per condition here.
+ *
+ * Implemented conditions:
+ * - halfway bounce-back off a stationary wall, @f$ f_i \leftarrow
+ *   f_{\bar\imath} @f$;
+ * - halfway bounce-back off a moving wall, with the standard momentum
+ *   correction @f$ -2 w_{\bar\imath} \rho\, (\mathbf{c}_{\bar\imath} \cdot
+ *   \mathbf{u}_w) / c_s^2 @f$;
+ * - pressure-periodic rescale, which streams from the wrapped source but
+ *   substitutes the target pressure into the equilibrium part.
+ *
+ * All kernels are @c LBM_HD_FUNC and shared by both backends.
+ */
+
 #pragma once
 
 #include "lbm-sim/backend/cuda/annotations.hpp"

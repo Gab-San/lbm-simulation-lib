@@ -14,8 +14,7 @@
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/functions.hpp"
 
-#include "lbm/logging.hpp"
-#include "quill/LogMacros.h"
+#include "lbm-sim/logging.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -99,8 +98,8 @@ int main() {
   // const Coordinate<2> C(640 - 1, 129 - 1);
   // const Coordinate<2> D(640 - 1, 0);
 
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   // fattore di scala per aumentare la risoluzione della griglia, senza cambiare le proporzioni
   const int scale = 2;

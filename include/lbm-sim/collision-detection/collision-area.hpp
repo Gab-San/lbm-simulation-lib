@@ -1,3 +1,22 @@
+/**
+ * @file collision-area.hpp
+ * @brief CollisionArea: a positioned group of shapes, treated as one
+ *        obstacle.
+ *
+ * An area owns a position and a list of shapes expressed *relative* to it:
+ * @c contains() forwards @c point @c - @c position to each shape in turn, so
+ * a compound body is moved by editing one coordinate. A node is solid if any
+ * shape claims it -- the union, never the intersection.
+ *
+ * One area is one obstacle id in the mask, and therefore one entry in the
+ * ObstacleData table: every shape in an area shares its boundary condition
+ * and wall velocity.
+ *
+ * The shapes live in a @c std::variant, which @c std::visit instantiates in
+ * full. A shape that is 2D-only must therefore not appear in the 3D
+ * alternative list, which is what the @c std::conditional_t below arranges.
+ */
+
 #ifndef __COLLISION_AREA_HPP
 #define __COLLISION_AREA_HPP
 

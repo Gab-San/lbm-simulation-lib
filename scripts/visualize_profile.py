@@ -94,7 +94,7 @@ def plot_ghia_data(plt, ghia_data):
 
 
 def create_graph(parsed_results, title, xlabel, output_file=None):
-    # creo un grafico per i valori di data e lo mostro
+    # Build a plot of the data values and show it.
     plt.figure()
 
     for file, (kind, args, data) in parsed_results.items():
@@ -107,12 +107,12 @@ def create_graph(parsed_results, title, xlabel, output_file=None):
                         f"Plotting unknown benchmark data ({kind}, {args})"
                     )
         else:
-            # data parte da x=0 a x=1 con passo 1/(len(data)-1)
+            # data spans x=0 to x=1 with step 1/(len(data)-1)
             N = len(data)
             x = (np.arange(N) + 0.5) / N
             plt.plot(x, data, label=args[0])
 
-    # Aggiungo i dati di Ghia et al. 1982 per confronto
+    # Ghia et al. (1982) data is added above for comparison.
     plt.xlabel(xlabel)
     plt.ylabel("u velocity")
     plt.title(title)

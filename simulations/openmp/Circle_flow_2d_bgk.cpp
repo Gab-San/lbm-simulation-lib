@@ -12,9 +12,7 @@
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/functions.hpp"
 
-#include "lbm/logging.hpp"
-
-#include "quill/LogMacros.h"
+#include "lbm-sim/logging.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -96,8 +94,8 @@ int main() {
   const Coordinate<2> C(640*scale - 1, 129*scale - 1);
   const Coordinate<2> D(640*scale - 1, 0);
 
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   std::vector<Config<2>> configs{
       Config<2>(

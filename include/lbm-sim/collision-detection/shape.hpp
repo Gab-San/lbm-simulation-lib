@@ -1,3 +1,24 @@
+/**
+ * @file shape.hpp
+ * @brief The analytic solid shapes, and the CRTP base they share.
+ *
+ * A shape answers two questions and no others: is this lattice node inside
+ * the solid (@c contains()), and which box is worth scanning to find out
+ * (@c aabb()). compute_solid_mask() needs nothing else to rasterise it.
+ *
+ * Dispatch is CRTP rather than virtual, so a shape can be stored by value in
+ * the @c std::variant that CollisionArea holds and visited without an
+ * indirect call. The price is that the set of shapes is closed at compile
+ * time: adding one means adding it to CollisionShapesT<dim> as well.
+ *
+ * @note @c aabb() is inclusive on both ends and unclamped;
+ *       compute_solid_mask() clamps it against the grid. Returning a box
+ *       that is too large only costs setup time, one that is too small
+ *       silently truncates the body.
+ *
+ * @see collision-area.hpp for how shapes are grouped and positioned.
+ */
+
 #ifndef __SHAPE_HPP
 #define __SHAPE_HPP
 
@@ -299,29 +320,25 @@ template <unsigned short int dim>
 class Airfoil : public Shape<dim, Airfoil<dim>> {
   static_assert(dim == 2, "Airfoil currently supports only 2D");
 
-  const types::Coordinate<dim> position; // punto di riferimento (leading edge)
-  const double chord;                    // corda in celle
-  const double thickness;                // XX/100 (es. 0.12 per NACA 0012)
-  const double max_camber;               // M/100 (es. 0.02 per NACA 2412)
-  const double camber_pos;               // P/10 (es. 0.4 per NACA 2412)
-  const double aoa_rad;                  // angolo di attacco in radianti
+  const types::Coordinate<dim> position; // reference point (leading edge)
+  const double chord;                    // chord, in cells
+  const double thickness;                // XX/100 (e.g. 0.12 for NACA 0012)
+  const double max_camber;               // M/100 (e.g. 0.02 for NACA 2412)
+  const double camber_pos;               // P/10 (e.g. 0.4 for NACA 2412)
+  const double aoa_rad;                  // angle of attack, in radians
 
   mutable std::vector<std::pair<double, double>>
-      cached_polygon; // punti normalizzati (x,y) del contorno chiuso
+      cached_polygon; // normalised (x,y) points of the closed contour
 
-  // genera il contorno chiuso (upper poi lower al contrario) in coordinate
-  // normalizzate [0,1] di corda
+  // Builds the closed contour (upper side, then lower side reversed) in
+  // chord-normalised [0,1] coordinates.
   void buildPolygon() const {
-    if (!cached_polygon.empty())
-      return;
-
-    constexpr int N = 100; // risoluzione: piu' alto = piu' preciso
+    constexpr int N = 100; // resolution: higher = more accurate
     std::vector<std::pair<double, double>> upper, lower;
 
     for (int i = 0; i <= N; ++i) {
-      // cosine spacing per infittire vicino a leading/trailing edge
-      // definisco la costante M_PI per sicurezza, anche se dovrebbe essere
-      // definita in cmath
+      // Cosine spacing, to cluster points near the leading/trailing edge.
+      // M_PI is spelled out for safety, even though cmath should define it.
       double beta = 3.14159265358979323846 * i / N;
       double x = 0.5 * (1 - std::cos(beta));
 
@@ -350,16 +367,15 @@ class Airfoil : public Shape<dim, Airfoil<dim>> {
       lower.push_back({x + yt * std::sin(theta), yc - yt * std::cos(theta)});
     }
 
-    // contorno chiuso: upper da leading a trailing, poi lower da trailing a
-    // leading
+    // Closed contour: upper side from leading to trailing edge, then lower
+    // side from trailing back to leading edge.
     cached_polygon = upper;
     for (auto it = lower.rbegin(); it != lower.rend(); ++it)
       cached_polygon.push_back(*it);
   }
 
-  // point-in-polygon (ray casting) in coordinate normalizzate
+  // Point-in-polygon test (ray casting) in normalised coordinates.
   bool containsNormalized(double xn, double yn) const {
-    buildPolygon();
     bool inside = false;
     size_t n = cached_polygon.size();
     for (size_t i = 0, j = n - 1; i < n; j = i++) {
@@ -379,7 +395,9 @@ public:
           const double camber_pos_ = 0.0, const double aoa_deg_ = 0.0)
       : position(position_), chord(chord_), thickness(thickness_),
         max_camber(max_camber_), camber_pos(camber_pos_),
-        aoa_rad(aoa_deg_ * 3.14159265358979323846 / 180.0) {}
+        aoa_rad(aoa_deg_ * 3.14159265358979323846 / 180.0) {
+    buildPolygon();
+  }
 
   void precompute() const { buildPolygon(); }   // override, chiamato sequenzialmente
 
@@ -397,8 +415,8 @@ public:
     return containsNormalized(xn, yn);
   }
 
-  /// Stesso riquadro che il vecchio getPerimeter() scandiva: una corda per
-  /// lato, piu' due celle di margine per rotazione e camber.
+  /// The same box the old getPerimeter() used to scan: one chord per side,
+  /// plus two cells of margin for rotation and camber.
   AABB<dim> aabb() const {
     const int half = static_cast<int>(std::ceil(chord)) + 2;
     return {{position.x - half, position.y - half},

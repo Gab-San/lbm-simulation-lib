@@ -1,3 +1,16 @@
+/**
+ * @file vtk-writer.hpp
+ * @brief VtkWriter: turns the frame stream into a ParaView series.
+ *
+ * Consumes exactly the same chunks as AsyncBinaryWriter -- it is an
+ * alternative listener, not a post-processing step -- and writes one `.vti`
+ * per frame plus a `.pvd` series file that ParaView can open while the run
+ * is still going.
+ *
+ * @see the "Output formats" page for the XML layout and the payload
+ *      encoding.
+ */
+
 #ifndef __LBM_SIM_DATA_VTK_WRITER
 #define __LBM_SIM_DATA_VTK_WRITER
 

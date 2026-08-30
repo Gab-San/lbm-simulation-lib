@@ -1,31 +1,135 @@
 {
   "version": 3,
   "configurePresets": [
-    { "name": "base", "hidden": true, "generator": "Ninja",
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": { "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                          "CMAKE_BUILD_TYPE": "RelWithDebInfo" } },
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
 
-    { "name": "quill",   "inherits": "base",
-      "cacheVariables": { "LBM_LOG_BACKEND": "quill", "LBM_LOG_LEVEL": "DEBUG" } },
-    { "name": "ostream", "inherits": "base",
-      "cacheVariables": { "LBM_LOG_BACKEND": "ostream" } },
-    { "name": "silent",  "inherits": "base",
-      "cacheVariables": { "LBM_ENABLE_LOGGING": "OFF" } },
+    {
+      "name": "silent",
+      "inherits": "base",
+      "cacheVariables": {
+        "LBM_ENABLE_LOGGING": "OFF"
+      }
+    },
 
-    { "name": "profiling", "inherits": "ostream",
-      "cacheVariables": { "LBM_ENABLE_PROFILING": "ON",
-                          "CMAKE_BUILD_TYPE": "Release" } },
+    {
+      "name": "debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "LBM_LOG_BACKEND": "ostream",
+        "LBM_LOG_LEVEL": "TRACE_L1",
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
 
-    { "name": "bench", "inherits": "silent",
-      "cacheVariables": { "LBM_ENABLE_PROFILING": "ON",
-                          "CMAKE_BUILD_TYPE": "Release" } }
+    {
+      "name": "cuda-debug",
+      "inherits": "debug",
+      "cacheVariables": {
+        "LBM_ENABLE_CUDA": "ON"
+      }
+    },
+
+    {
+      "name": "quill",
+      "inherits": "base",
+      "cacheVariables": {
+        "LBM_LOG_BACKEND": "quill"
+      }
+    },
+
+    {
+      "name": "ostream",
+      "inherits": "base",
+      "cacheVariables": {
+        "LBM_LOG_BACKEND": "ostream"
+      }
+    },
+
+    {
+      "name": "profiling",
+      "inherits": "ostream",
+      "cacheVariables": {
+        "LBM_ENABLE_PROFILING": "ON",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+
+    {
+      "name": "bench",
+      "inherits": "silent",
+      "cacheVariables": {
+        "LBM_ENABLE_PROFILING": "ON",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+
+    {
+      "name": "cuda",
+      "inherits": "base",
+      "cacheVariables": {
+        "LBM_LOG_BACKEND": "ostream",
+        "LBM_ENABLE_CUDA": "ON",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+
+    {
+      "name": "release",
+      "inherits": "base",
+      "cacheVariables": {
+        "LBM_LOG_BACKEND": "quill",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
   ],
   "buildPresets": [
-    { "name": "quill", "configurePreset": "quill" },
-    { "name": "ostream", "configurePreset": "ostream" },
-    { "name": "silent", "configurePreset": "silent" },
-    { "name": "profiling", "configurePreset": "profiling" },
-    { "name": "bench", "configurePreset": "bench" }
+    {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+
+    {
+      "name": "quill",
+      "configurePreset": "quill"
+    },
+    {
+      "name": "ostream",
+      "configurePreset": "ostream"
+    },
+    {
+      "name": "silent",
+      "configurePreset": "silent"
+    },
+    {
+      "name": "profiling",
+      "configurePreset": "profiling"
+    },
+    {
+      "name": "bench",
+      "configurePreset": "bench"
+    },
+
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+
+    {
+      "name": "cuda",
+      "configurePreset": "cuda"
+    },
+    {
+      "name": "cuda-debug",
+      "configurePreset": "cuda-debug"
+    }
   ]
 }

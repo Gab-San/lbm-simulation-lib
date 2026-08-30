@@ -1,8 +1,8 @@
-# Verifica: ensure_compatible deve rifiutare backend = "cuda" quando il
-# binario e' compilato con BACKEND = ExecutionBackend::OPEN_MP.
-# Il parsing sintattico va a buon fine (backend e' un valore valido per
-# parse_execution_backend); l'errore atteso arriva dal confronto in
-# ensure_compatible, con messaggio che include execution_backend_to_string.
+# Check: ensure_compatible must reject backend = "cuda" when the binary is
+# compiled with BACKEND = ExecutionBackend::OPEN_MP.
+# Syntactic parsing succeeds (backend is a valid value for
+# parse_execution_backend); the expected error comes from the comparison in
+# ensure_compatible, with a message that includes execution_backend_to_string.
 
 [[conf]]
 collision = "BGK"
