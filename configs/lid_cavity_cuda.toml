@@ -10,7 +10,7 @@ reynolds = 7500.0
 size     = [0.2, 0.0]
 
 [conf.solver]
-niters  = 300000
+niters  = 500000
 nframes = 200
 
 [conf.output]
@@ -29,7 +29,7 @@ reynolds = 10000.0
 size     = [0.2, 0.0]
 
 [conf.solver]
-niters  = 300000
+niters  = 500000
 nframes = 200
 
 [conf.output]
