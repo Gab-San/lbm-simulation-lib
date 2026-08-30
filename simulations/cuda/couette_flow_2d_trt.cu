@@ -3,6 +3,7 @@
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
+#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
@@ -16,54 +17,6 @@
 
 static constexpr unsigned short int DIM = 2;
 
-template <unsigned short int dim> struct Config;
-template <> struct Config<2> {
-
-  const lbm::types::DimPoint<2> grid_size;
-
-  /// Number of iteration steps
-  const unsigned int iters;
-
-  /// Number of frames
-  ///
-  /// Frames contain the information about
-  /// the norm of the velocity at a step t.
-  const unsigned int frames;
-
-  /// Reynold number
-  const double reyn_num;
-
-  /// Initial velocity of the fluid
-  const lbm::utils::Vector<double, 2> init_vel;
-
-  /// Output path for frames
-  const std::string out_frames;
-
-  /// Output path for benchmark data
-  const std::string out_data;
-
-  const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
-
-  /// Side table: obstacle id -> {BC type, wall velocity}.
-  const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data;
-
-  /// BCs of the domain faces: the walls are no longer obstacles.
-  const lbm::Solid::DomainBC<DIM> domain_bc;
-
-  Config<2>(
-      const lbm::types::DimPoint<2> grid_size_, const unsigned int c_iters,
-      const unsigned int c_frames, const double c_reyn_num,
-      const lbm::utils::Vector<double, 2> init_vel_,
-      const std::string c_out_frames, const std::string c_out_data,
-      const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles_,
-      const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data_,
-      const lbm::Solid::DomainBC<DIM> domain_bc_)
-      : grid_size(grid_size_), iters(c_iters), frames(c_frames),
-        reyn_num(c_reyn_num), init_vel(init_vel_), out_frames(c_out_frames),
-        out_data(c_out_data), obstacles(std::move(obstacles_)),
-        obstacle_data(std::move(obstacle_data_)), domain_bc(domain_bc_) {}
-};
-
 /// Couette: rigid bottom wall, moving top wall, periodic sides.
 static lbm::Solid::DomainBC<DIM> make_couette_bc() {
   lbm::Solid::DomainBC<DIM> dbc{};
@@ -74,60 +27,58 @@ static lbm::Solid::DomainBC<DIM> make_couette_bc() {
   return dbc;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
   using namespace lbm;
   using types::Coordinate;
   using types::DimPoint;
   using utils::Vector;
 
-  const Coordinate<2> ZERO(0, 0);
-  const Coordinate<2> B129(0, 128);
-  const Coordinate<2> C129(128, 128);
-  const Coordinate<2> D129(128, 0);
-
-  std::vector<Config<2>> configs{
-      Config<2>({129, 129}, /*iters*/ 130000, /*frames*/ 300, /*reyn*/ 100.0,
-                /*init_vel*/ {0.1, 0},
-                "out/norms_couette_cuda_129_100_01_trt.bin",
-                "out/data_couette_cuda_129_100_01_trt.bin", {}, {},
-                make_couette_bc()),
-  };
+  if (argc < 2) {
+    config::print_usage(argv[0]);
+    return 1;
+  }
 
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
 
+  std::vector<config::SimulationConfig<DIM>> configs;
+  try {
+    configs = config::parse_config<DIM>(argv[1]);
+  } catch (const config::ConfigError &err) {
+    LBM_LOG_CRITICAL(main_logger, "Config Error {}", err.what());
+    return 1;
+  }
+
   constexpr auto CollisionType = CollisionModel::TRT;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
-  for (std::size_t confidx = 0; confidx < configs.size(); confidx++) {
-    const auto conf = configs[confidx];
-    const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
-                 obstacles, obstacle_data, domain_bc] = conf;
+  for (const auto &cfg : configs) {
+    const DimPoint<DIM> grid_size(cfg.grid_size);
 
     LBM_LOG_INFO(
         main_logger,
-        "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
-        "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
-        "frames: {}\n",
-        confidx, grid_size, reyn, init_vel, iters, frames);
+        "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
+        "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
+        "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
+        cfg.name, grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
+        cfg.frames_out, cfg.profile_out);
 
     types::solid_mask_t solid_mask =
-        Solid::compute_solid_mask<DIM>(obstacles, grid_size);
+        Solid::compute_solid_mask<DIM>({}, grid_size);
 
     std::shared_ptr<VtkWriter> writer =
-        std::make_shared<VtkWriter>(conf.out_frames);
+        std::make_shared<VtkWriter>(cfg.frames_out);
 
     Simulation simulation(
-        grid_size, std::move(solid_mask), obstacle_data, domain_bc,
-        CollisionParams<DIM, CollisionType>(reyn, grid_size, init_vel));
-
+        grid_size, std::move(solid_mask), {}, make_couette_bc(),
+        CollisionParams<DIM, CollisionType>(cfg.reynolds, grid_size, cfg.u0));
     simulation.attachListener(writer);
 
-    CUDASolver<DIM, D2Q9, CollisionType> solver(iters, frames);
+    CUDASolver<DIM, D2Q9, CollisionType> solver(cfg.niters, cfg.nframes);
     solver.attachListener(writer);
 
     simulation.solve(solver);
-    simulation.output(out_data.c_str(),
+    simulation.output(cfg.profile_out.c_str(),
                       functional::extract_dx_profile_along_y_center);
 
     // H = channel height (bottom wall at y=0, top at y=grid_size.y-1);
@@ -135,7 +86,7 @@ int main() {
     // The same values already used to build the simulation: no duplication,
     // flow_type picks the right Function<2>.
     const double H = static_cast<double>(grid_size.y - 1);
-    const auto exact_solution = analysis::CouetteSolution2D(H, init_vel.dx);
+    const auto exact_solution = analysis::CouetteSolution2D(H, cfg.u0.dx);
     const double err_l2 =
         simulation.compute_error(analysis::NormType::L2, exact_solution);
 
