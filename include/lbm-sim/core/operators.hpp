@@ -6,7 +6,7 @@
 #include "lbm-sim/core/point.hpp"
 #include "lbm-sim/core/vector.hpp"
 
-#include "lbm-sim/cuda/annotations.hpp"
+#include "lbm-sim/backend/cuda/annotations.hpp"
 
 // C++ STANDARD LIB
 #include <type_traits>

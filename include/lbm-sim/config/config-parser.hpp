@@ -1,5 +1,4 @@
-#ifndef __LBM_SIM_CONFIG_CONFIG_PARSER_HPP
-#define __LBM_SIM_CONFIG_CONFIG_PARSER_HPP
+#pragma once
 
 #include "lbm-sim/config/simulation-config.hpp"
 #include "lbm-sim/metadata.hpp"
@@ -70,11 +69,6 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
       name.empty() ? std::string("config") : ("config '" + name + "'");
 
   cfg.name = name;
-
-  cfg.collision = parse_collision_model(
-      tbl["collision"].value_or<std::string>("BGK"), where);
-  cfg.backend = parse_execution_backend(
-      tbl["backend"].value_or<std::string>("openmp"), where);
 
   // --- [lattice] ------------------------------------------------------------
 
@@ -170,7 +164,10 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
   }
 
   // --- [backend] ---------------------------------------------------------
-  // TODO: Add backend specifics
+
+  {
+    cfg.n_threads = tbl["backend"]["n_threads"].value_or<unsigned int>(0);
+  }
 }
 
 template <types::dim_t dim>
@@ -243,5 +240,3 @@ inline void print_usage(const char *exe) {
 
 } // namespace config
 } // namespace lbm
-
-#endif // __LBM_SIM_CONFIG_CONFIG_PARSER_HPP

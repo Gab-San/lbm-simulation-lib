@@ -1,5 +1,7 @@
 #pragma once
 
+#include "lbm-sim/metadata.hpp"
+
 /// Umbrella header: pulls in every `BackendProperties` specialization that is
 /// available in this translation unit. Include this to *configure* a backend.
 ///

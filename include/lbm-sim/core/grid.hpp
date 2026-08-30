@@ -2,7 +2,7 @@
 
 #include "lbm-sim/types/common.hpp"
 
-#include "lbm-sim/cuda/annotations.hpp"
+#include "lbm-sim/backend/cuda/annotations.hpp"
 
 // C++ STANDARD LIB
 #include <cstddef>

@@ -1,18 +1,19 @@
 #ifndef __LBM_SIM_SOLVER_SOLVER_2D
 #define __LBM_SIM_SOLVER_SOLVER_2D
 
+#include "lbm-sim/backend/omp/annotations.hpp"
+#include "lbm-sim/backend/omp/iteration.hpp"
+#include "lbm-sim/backend/properties.hpp"
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/core/operators.hpp"
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/metadata.hpp"
-#include "lbm-sim/omp/annotations.hpp"
-#include "lbm-sim/omp/iteration.hpp"
+#include "lbm-sim/profiling.hpp"
 #include "lbm-sim/solver/solver-base.hpp"
-#include "lbm/logging.hpp"
+#include "lbm/format/csv-writer.hpp"
 #include "lbm-sim/core/vector.hpp"
-
-#include "quill/LogMacros.h"
 
 // C++ STANDARD LIB
 #include <array>
@@ -39,7 +40,7 @@ public:
 
   void solve(Lattice<dim> &lattice,
              const CollisionParams<dim, cm_t> &params_) const override {
-    quill::Logger *solver_logger = logging::create_or_get_logger("solver");
+    logging::Logger *solver_logger = logging::create_or_get_logger("solver");
 
     std::vector<double> ffrom(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
     std::vector<double> fto(lattice.grid.getArea() * VelocitySet::ndir, 0.0);
@@ -47,26 +48,52 @@ public:
 
     const CollisionStrategy<dim, VelocitySet, cm_t> cs(params_);
 
-    init_equilibrium(ffrom, lattice);
+    const auto &props =
+        profiling::BackendProperties<ExecutionBackend::OPEN_MP>::get();
+    const bool benchmarking = props.getBenchmarkMode();
 
-    LOG_DEBUG(solver_logger, "Equilibrium Initialized...");
+    {
+      PROFILE_SCOPE("init_equilibrium");
+      init_equilibrium(ffrom, lattice);
+    }
 
-    LOG_INFO(solver_logger, "System has {} logical processors.",
-             omp_get_num_procs());
-    LOG_INFO(solver_logger, "The parallel section will run on {} threads.",
-             omp_get_max_threads());
+    LBM_LOG_DEBUG(solver_logger, "Equilibrium Initialized...");
+    LBM_LOG_INFO(solver_logger, "System has {} logical processors.",
+                 omp_get_num_procs());
+    LBM_LOG_INFO(solver_logger, "The parallel section will run on {} threads.",
+                 omp_get_max_threads() >= omp_get_num_procs()
+                     ? omp_get_num_procs()
+                     : omp_get_max_threads());
 
-    for (std::size_t iter = 0; iter < this->niters; iter++) {
-      const bool save = iter % this->nskips == 0;
-      const bool store_macroscopic = save || (iter + 1 == this->niters);
+    {
+      PROFILE_SCOPE("solve_total"); // tempo wall dell'intero loop
 
-      update_stream_collide(ffrom, fto, usq, lattice, cs, store_macroscopic);
-      std::swap(ffrom, fto);
+      for (std::size_t iter = 0; iter < this->niters; iter++) {
+        const bool save = !benchmarking && iter % this->nskips == 0;
+        const bool store_macroscopic = save || (iter + 1 == this->niters);
 
-      if (save) {
-        write_norms(usq);
+        {
+          PROFILE_SCOPE("stream_collide");
+          update_stream_collide(ffrom, fto, usq, lattice, cs,
+                                store_macroscopic);
+        }
+        std::swap(ffrom, fto);
+
+        if (save) {
+          write_norms(usq);
+        }
       }
     }
+
+#ifdef LBM_PROFILING
+    auto &profiler = profiling::Profiler<ProfilingSchemaOpenMP>::get();
+    for (const auto &[label, e] : profiling::registry()) {
+      profiler.append_row(label, lattice.grid.size,
+                          collision_model_to_string(cm_t),
+                          backend_to_string(OPEN_MP), props.getNumThreads(),
+                          e.total_ms, e.total_ms / e.calls, e.calls);
+    }
+#endif
   }
 
 private:
@@ -114,7 +141,7 @@ double sponge_strength(const Grid<dim> &grid, const Solid::DomainBC<dim> &dbc,
 
     using utils::ops::dot;
 
-#pragma omp parallel for shared(lattice, part_stream) schedule(runtime)
+#pragma omp parallel for shared(lattice, part_stream) schedule(static)
     for (int cell = 0; cell < area; cell++) {
 
       const types::Coordinate<dim> p = iteration::unflatten<dim>(cell, ext);

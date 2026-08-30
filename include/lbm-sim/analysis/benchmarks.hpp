@@ -17,7 +17,7 @@
 #include <vector>
 
 namespace lbm {
-namespace formatting {
+namespace format {
 
 inline std::string format_reyn(double reyn) {
   std::ostringstream oss;
@@ -25,7 +25,7 @@ inline std::string format_reyn(double reyn) {
   return oss.str();
 }
 
-} // namespace formatting
+} // namespace format
 
 namespace analysis {
 

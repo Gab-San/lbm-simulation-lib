@@ -1,16 +1,14 @@
 // LBM SIM LIB
 #include "lbm-sim/analysis/exact-solution.hpp"
+#include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
-#include "lbm-sim/config/simulation-config.hpp"
+#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/vtk-writer.hpp"
+#include "lbm-sim/data/async-binary-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
-#include "lbm/logging.hpp"
-
-// QUILL LIB
-#include "quill/LogMacros.h"
 
 // C++ STD LIB
 #include <memory>
@@ -28,35 +26,32 @@ int main(int argc, char **argv) {
   using types::DimPoint;
   using utils::Vector;
 
-  config::SimulationConfig<DIM> cfg;
+  if (argc < 2) {
+    config::print_usage(argv[0]);
+    return 1;
+  }
 
-  cfg.backend = lbm::ExecutionBackend::OPEN_MP;
-  cfg.collision = lbm::BGK;
-
-  cfg.grid_size = {129, 129};
-
-  cfg.u0 = {0.1, 0};
-
-  cfg.reynolds = 100;
-
-  cfg.niters = 100000;
-  cfg.nframes = 200;
-
-  cfg.frames_out = "output/poiseuille_bgk_frames";
-  cfg.profile_out = "output/pouisseille_bgk_profile.dat";
-
+  std::vector<config::SimulationConfig<DIM>> configs;
+  try {
+    configs = config::parse_config<DIM>(argv[1]);
+  } catch (const config::ConfigError &err) {
+    std::cerr << "Errore di configurazione: " << err.what() << "\n";
+    return 1;
+  }
   // --- 2. ISTANZIA LOGGER ------------------------------------------------
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
+for (const auto &cfg : configs) {
 
   const DimPoint<DIM> grid_size(cfg.grid_size);
 
-  LOG_INFO(main_logger,
-           "Simulation:\n\tGrid dimensions: {}\n\tReynolds number: "
-           "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
-           "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-           grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
-           cfg.frames_out, cfg.profile_out);
+  LBM_LOG_INFO(
+      main_logger,
+      "Simulation:\n\tGrid dimensions: {}\n\tReynolds number: "
+      "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
+      "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
+      grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes, cfg.frames_out,
+      cfg.profile_out);
 
   // --- 3. CREA OSTACOLI --------------------------------------------------
   // Poiseuille: pareti rigide sopra e sotto, ingresso e uscita a pressione
@@ -77,8 +72,8 @@ int main(int argc, char **argv) {
   // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
   // configurazione, cosi' run diversi nella stessa cartella non si
   // sovrascrivono a vicenda.
-  std::shared_ptr<VtkWriter> writer =
-      std::make_shared<VtkWriter>(cfg.frames_out);
+  std::shared_ptr<AsyncBinaryWriter> writer =
+        std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
 
   const CollisionParams<DIM, COLLISION> params(cfg.reynolds, grid_size, cfg.u0);
   // Salto di pressione che sostiene il flusso: ricavato dalla soluzione di
@@ -111,11 +106,15 @@ int main(int argc, char **argv) {
   const double err_l2 =
       simulation.compute_error(analysis::NormType::L2, exact_solution);
 
-  LOG_NOTICE(main_logger, "{} error: {}",
-             analysis::to_string(analysis::NormType::L2), err_l2);
+  LBM_LOG_NOTICE(main_logger, "{} error: {}",
+                 analysis::to_string(analysis::NormType::L2), err_l2);
 
   simulation.detachListener(writer);
   solver.detachListener(writer);
-
+       #ifdef LBM_PROFILING
+  lbm::profiling::dump_csv(cfg.profile_out);  
+  lbm::profiling::reset();                    
+#endif
+}
   return 0;
 }
