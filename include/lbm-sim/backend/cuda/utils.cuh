@@ -11,10 +11,8 @@
 #ifndef __LBM_SIM_BACKEND_CUDA_UTILS_CUH
 #define __LBM_SIM_BACKEND_CUDA_UTILS_CUH
 
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/types/base.hpp"
-#include "lbm/logging.hpp"
-
-#include "quill/LogMacros.h"
 
 #include <cuda_runtime.h>
 
@@ -88,20 +86,20 @@ template <types::dim_t dim> inline dim3 create_block_of(unsigned int n) {
 }
 
 /// @brief Logs the visible devices and their headline limits, once per run.
-inline void log_device_info(quill::Logger *logger) {
+inline void log_device_info(logging::Logger *logger) {
   int deviceCount = 0;
   LBM_CUDA_CHECK(cudaGetDeviceCount(&deviceCount));
-  LOG_INFO(logger, "System has {} CUDA device(s).", deviceCount);
+  LBM_LOG_INFO(logger, "System has {} CUDA device(s).", deviceCount);
 
   for (int i = 0; i < deviceCount; ++i) {
     cudaDeviceProp prop;
     LBM_CUDA_CHECK(cudaGetDeviceProperties(&prop, i));
-    LOG_INFO(logger, "  Device {}: {}", i, prop.name);
-    LOG_INFO(logger, "    SMs: {}", prop.multiProcessorCount);
-    LOG_INFO(logger, "    Max threads/block: {}", prop.maxThreadsPerBlock);
-    LOG_INFO(logger, "    Max threads/SM: {}",
-             prop.maxThreadsPerMultiProcessor);
-    LOG_INFO(logger, "    Warp size: {}", prop.warpSize);
+    LBM_LOG_INFO(logger, "  Device {}: {}", i, prop.name);
+    LBM_LOG_INFO(logger, "    SMs: {}", prop.multiProcessorCount);
+    LBM_LOG_INFO(logger, "    Max threads/block: {}", prop.maxThreadsPerBlock);
+    LBM_LOG_INFO(logger, "    Max threads/SM: {}",
+                 prop.maxThreadsPerMultiProcessor);
+    LBM_LOG_INFO(logger, "    Warp size: {}", prop.warpSize);
   }
 }
 

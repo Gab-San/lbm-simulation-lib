@@ -91,8 +91,8 @@ int main() {
       // periodic bc
   };
 
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   constexpr auto CollisionType = CollisionModel::BGK;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;

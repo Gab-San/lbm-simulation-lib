@@ -35,6 +35,8 @@
 #define __LBM_SIM_SOLVER_CUDA_SOLVER_CUH
 
 #include "lbm-sim/backend/cuda/properties.cuh"
+#include "lbm-sim/backend/cuda/structs.cuh"
+#include "lbm-sim/backend/cuda/utils.cuh"
 #include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
@@ -42,8 +44,7 @@
 #include "lbm-sim/constants.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/cuda/structs.cuh"
-#include "lbm-sim/cuda/utils.cuh"
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/metadata.hpp"
 #include "lbm-sim/solver/solver-base.hpp"
 
@@ -301,11 +302,12 @@ public:
     const dim3 block = props.getBlock<dim>();
     const dim3 grid_dims = cuda::ceil_div(lattice.grid.size, block);
 
-    quill::Logger *solver_logger = logging::create_or_get_logger("solver");
+    logging::Logger *solver_logger = logging::create_or_get_logger("solver");
     cuda::log_device_info(solver_logger);
 
-    LOG_INFO(solver_logger, "Launching {}x{}x{} blocks over a {}x{}x{} grid.",
-             block.x, block.y, block.z, grid_dims.x, grid_dims.y, grid_dims.z);
+    LBM_LOG_INFO(solver_logger,
+                 "Launching {}x{}x{} blocks over a {}x{}x{} grid.", block.x,
+                 block.y, block.z, grid_dims.x, grid_dims.y, grid_dims.z);
 
     cuda_detail::init_equilibrium<dim, VelocitySet>
         <<<grid_dims, block, 0, stream>>>(ffrom.data(), d_rho.data(),
@@ -313,7 +315,7 @@ public:
 
     LBM_CUDA_CHECK(cudaGetLastError());
 
-    LOG_DEBUG(solver_logger, "Equilibrium Initialized...");
+    LBM_LOG_DEBUG(solver_logger, "Equilibrium Initialized...");
 
     // Timed region: the iteration loop only. `init_equilibrium` above is
     // warm-up -- it also pays for the lazy module load of the first launch --
@@ -355,13 +357,14 @@ public:
     //     static_cast<double>(area) * this->niters / (elapsed_ms * 1.0e3);
     //
     // if (benchmarking) {
-    //   LOG_NOTICE(solver_logger, "{} cells x {} iters in {} ms -> {} MLUPS",
+    //   LBM_LOG_NOTICE(solver_logger, "{} cells x {} iters in {} ms -> {}
+    //   MLUPS",
     //              area, this->niters, elapsed_ms, mlups);
     // } else {
     //   // Frames were written from inside the loop, so this figure covers the
     //   // host syncs and the I/O too. Use benchmark mode for a throughput
     //   // number worth quoting.
-    //   LOG_INFO(solver_logger,
+    //   LBM_LOG_INFO(solver_logger,
     //            "{} cells x {} iters in {} ms -> {} MLUPS (frame I/O
     //            included)", area, this->niters, elapsed_ms, mlups);
     // }

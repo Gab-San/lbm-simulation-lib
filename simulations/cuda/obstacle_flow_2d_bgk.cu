@@ -14,8 +14,7 @@
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/functions.hpp"
 
-#include "lbm/logging.hpp"
-#include "quill/LogMacros.h"
+#include "lbm-sim/logging.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -96,8 +95,8 @@ int main() {
   const Coordinate<2> C(639, 128);
   const Coordinate<2> D(639, 0);
 
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   std::vector<Config<2>> configs{
       Config<2>(
@@ -119,17 +118,16 @@ int main() {
 
               // NACA airfoil profile
               CollisionDetection::CollisionArea(
-                    Coordinate<2>(0, 0),
-                    {CollisionDetection::Airfoil<DIM>(
-                        Coordinate<2>(100, 64), // leading edge of the profile
-                        100.0,                  // chord, in cells
-                        0.12,                   // thickness    0.12 -> NACA XX12
-                        0.02,                   // max camber   0.02 -> NACA 2XXX
-                        0.4,                    // camber pos.  0.40 -> NACA X4XX
-                        5.0)}                   // angle of attack
-              ),
-              
-    
+                  Coordinate<2>(0, 0),
+                  {CollisionDetection::Airfoil<DIM>(
+                      Coordinate<2>(100, 64), // leading edge of the profile
+                      100.0,                  // chord, in cells
+                      0.12,                   // thickness    0.12 -> NACA XX12
+                      0.02,                   // max camber   0.02 -> NACA 2XXX
+                      0.4,                    // camber pos.  0.40 -> NACA X4XX
+                      5.0)}                   // angle of attack
+                  ),
+
           },
           // id 0 = the cylinder: rigid wall, stationary.
           {{Solid::BB_RIGID_WALL, {0.0, 0.0}}}, make_channel_bc()),

@@ -140,8 +140,8 @@ int main() {
   constexpr auto CollisionType = CollisionModel::TRT;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   std::string path_to_benchmark("benchmarks/ghia/");
 
@@ -179,14 +179,14 @@ int main() {
 
     // Comparison against Ghia et al. (1982). Norm chosen here: L2.
     const auto ghia_y = simulation.compute_ghia_error(
-        path_to_benchmark + "data_y_" + formatting::format_reyn(reyn) + ".txt");
+        path_to_benchmark + "data_y_" + format::format_reyn(reyn) + ".txt");
 
     LBM_LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
                    analysis::to_string(analysis::NormType::L2), ghia_y.relative,
                    ghia_y.absolute);
 
     const auto ghia_x = simulation.compute_ghia_error(
-        path_to_benchmark + "data_x_" + formatting::format_reyn(reyn) + ".txt");
+        path_to_benchmark + "data_x_" + format::format_reyn(reyn) + ".txt");
 
     LBM_LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
                    analysis::to_string(analysis::NormType::L2), ghia_x.relative,

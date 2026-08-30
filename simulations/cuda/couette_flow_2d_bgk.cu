@@ -7,11 +7,8 @@
 #include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/cuda-solver.cuh"
-#include "lbm/logging.hpp"
-
-// QUILL LIB
-#include "quill/LogMacros.h"
 
 // C++ STD LIB
 #include <memory>
@@ -91,8 +88,8 @@ int main() {
                 make_couette_bc()),
   };
 
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
 
   constexpr auto CollisionType = CollisionModel::BGK;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
@@ -102,7 +99,7 @@ int main() {
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obstacle_data, domain_bc] = conf;
 
-    LOG_INFO(
+    LBM_LOG_INFO(
         main_logger,
         "Simulation #{} Parameters:\n\tGrid dimensions: {}\n\tReynolds number: "
         "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber of "
@@ -137,8 +134,8 @@ int main() {
     const double err_l2 =
         simulation.compute_error(analysis::NormType::L2, exact_solution);
 
-    LOG_NOTICE(main_logger, "{} error: {}",
-               analysis::to_string(analysis::NormType::L2), err_l2);
+    LBM_LOG_NOTICE(main_logger, "{} error: {}",
+                   analysis::to_string(analysis::NormType::L2), err_l2);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

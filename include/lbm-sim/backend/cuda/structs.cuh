@@ -11,7 +11,7 @@
 #ifndef __LBM_SIM_CUDA_STRUCTS_CUH
 #define __LBM_SIM_CUDA_STRUCTS_CUH
 
-#include "lbm-sim/cuda/utils.cuh"
+#include "lbm-sim/backend/cuda/utils.cuh"
 
 #include <cuda_runtime.h>
 
