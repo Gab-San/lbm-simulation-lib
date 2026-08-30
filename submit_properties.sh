@@ -1,8 +1,8 @@
 #!/bin/bash
 # Run FROM THE LOGIN NODE with: bash submit_properties.sh [N]
-set -euo pipefail
 
 N_JOBS=${1:-10}
+EXE=$2
 
 # run_properties.pbs writes its merged stdout/stderr log to logs/ (see
 # "#PBS -o logs/" in that file). PBS does not create the output directory
@@ -16,13 +16,14 @@ mkdir -p logs
 # against the same shared build/ (NFS, not scratch) -> a corrupted/failed
 # build for most of the jobs, with no visible error other than in the job
 # logs.
-if [ ! -x build/simulations/properties_test ]; then
+if [ ! -x ${EXE} ]; then
   echo "Binary not found: building before submitting the jobs..."
   (cd build && cmake --build . --target properties_test -j"$(nproc)")
+  exit 1;
 fi
 
 for i in $(seq 1 "$N_JOBS"); do
-  JOBID=$(qsub run_properties.pbs)
+  JOBID=$(qsub run_properties.pbs -F ${EXE})
   echo "  run $i -> ${JOBID}"
 done
 

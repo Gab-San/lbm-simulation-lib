@@ -1,0 +1,37 @@
+[[conf]]
+collision = "bgk"
+backend   = "openmp"
+
+[conf.lattice]
+size = [2000, 2000]
+
+[conf.physics]
+reynolds = 7500.0
+size     = [0.2, 0.0]
+
+[conf.solver]
+niters  = 300000
+nframes = 200
+
+[conf.output]
+frames  = "out/frames_lid_cavity_d2q9_2000_2000_7500_bgk.bin"
+profile = "out/profile_lid_cavity_d2q9_2000_2000_7500_bgk.bin"
+
+[[conf]]
+collision = "bgk"
+backend   = "openmp"
+
+[conf.lattice]
+size = [5000, 5000]
+
+[conf.physics]
+reynolds = 10000.0
+size     = [0.2, 0.0]
+
+[conf.solver]
+niters  = 300000
+nframes = 200
+
+[conf.output]
+frames  = "out/frames_lid_cavity_d2q9_2000_2000_7500_bgk.bin"
+profile = "out/profile_lid_cavity_d2q9_2000_2000_7500_bgk.bin"
