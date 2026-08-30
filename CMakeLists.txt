@@ -26,11 +26,22 @@ option(LBM_ENABLE_PROFILING "Enable chrono-based profiling instrumentation" OFF)
 
 # LBM_ENABLE_LOGGING, LBM_LOG_BACKEND (quill | ostream | none) and
 # LBM_LOG_LEVEL are declared in cmake/Logging.cmake, next to the code that
-# reads them.
+# reads them. LBM_SANITIZE is declared in cmake/Sanitizers.cmake.
 option(LBM_BUILD_SIMULATIONS "Build the executables under simulations/"
        ${PROJECT_IS_TOP_LEVEL})
 option(LBM_BUILD_DOCS       "Configure the docs/ target"
        ${PROJECT_IS_TOP_LEVEL})
+
+# ----------------------------- SANITIZERS -----------------------------------
+# Must come before include(Logging) and before the toml++ fetch below: the
+# flags are added with add_compile_options() at directory scope, and a
+# FetchContent'd subproject only inherits what was set before its
+# add_subdirectory(). Quill is a static library that ends up in every
+# executable, so it has to be instrumented identically or the link fails
+# (MSVC) / the shadow bookkeeping disagrees (GCC, Clang).
+#
+# Reads LBM_ENABLE_CUDA, so it also has to come after the option() above.
+include(Sanitizers)
 
 # ------------------------------ LOGGING -------------------------------------
 # Defines lbm::logging and resolves the backend. Only include/lbm/logging/quill/
@@ -62,20 +73,36 @@ target_include_directories(${LBM_SIM_LIB} INTERFACE
 
 target_compile_features(${LBM_SIM_LIB} INTERFACE cxx_std_17)
 
-# MSVC's default OpenMP is 2.0, which has no unsigned loop counters and no
-# collapse. From CMake 3.30 the runtime is selectable here; before that,
-# FindOpenMP hands out plain /openmp and adding /openmp:experimental on top of
-# it is a hard cl.exe error (the two options are mutually exclusive), which is
-# what the old `target_compile_options(... /openmp:experimental)` was doing.
-if(MSVC AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.30)
-  set(OpenMP_RUNTIME_MSVC "experimental")
+target_link_libraries(${LBM_SIM_LIB} INTERFACE lbm::logging)
+
+# -------------------------------- OPENMP ------------------------------------
+
+if(LBM_SANITIZE_DISABLES_OPENMP)
+  # MSVC's AddressSanitizer does not support /openmp, so an ASan build on
+  # Windows is necessarily serial. The `#pragma omp` directives stay in the
+  # source and are simply ignored; silence the unknown-pragma warning so the
+  # build output stays readable.
+  message(WARNING
+    "OpenMP is disabled because MSVC's AddressSanitizer does not support "
+    "/openmp. The CPU solvers in this build run single-threaded -- fine for "
+    "hunting memory bugs, useless for timings.")
+  add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/wd4068>")
+else()
+  # MSVC's default OpenMP is 2.0, which has no unsigned loop counters and no
+  # collapse. From CMake 3.30 the runtime is selectable here; before that,
+  # FindOpenMP hands out plain /openmp and adding /openmp:experimental on top
+  # of it is a hard cl.exe error (the two options are mutually exclusive),
+  # which is what the old `target_compile_options(... /openmp:experimental)`
+  # was doing.
+  if(MSVC AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.30)
+    set(OpenMP_RUNTIME_MSVC "experimental")
+  endif()
+
+  find_package(OpenMP REQUIRED)
+  target_link_libraries(${LBM_SIM_LIB} INTERFACE OpenMP::OpenMP_CXX)
 endif()
 
-find_package(OpenMP REQUIRED)
-
-target_link_libraries(${LBM_SIM_LIB} INTERFACE
-  OpenMP::OpenMP_CXX
-  lbm::logging)
+# ------------------------------- SETTINGS -----------------------------------
 
 if(LBM_ENABLE_PROFILING)
   target_compile_definitions(${LBM_SIM_LIB} INTERFACE LBM_PROFILING)
@@ -137,3 +164,8 @@ message(STATUS "  logging   : ${LBM_LOG_BACKEND} (${LBM_LOG_LEVEL})")
 message(STATUS "  config    : ${LBM_ENABLE_CONFIG}")
 message(STATUS "  cuda      : ${LBM_ENABLE_CUDA}")
 message(STATUS "  profiling : ${LBM_ENABLE_PROFILING}")
+if(LBM_SANITIZE_ACTIVE)
+  message(STATUS "  sanitize  : ${LBM_SANITIZE}")
+else()
+  message(STATUS "  sanitize  : off")
+endif()
