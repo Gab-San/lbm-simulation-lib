@@ -4,6 +4,13 @@
 #PBS -l select=1:ncpus=16
 #PBS -l walltime=00:30:00
 #PBS -j oe
+#PBS -o logs/
+# -o as a directory (trailing slash): PBS writes <jobname>.o<jobid> there.
+# With -j oe both stdout and stderr are merged into that same file, so -e
+# is not needed. This is explicit on purpose - relying on the site's
+# default output location is exactly what left you with no log to check.
+# "logs/" is resolved relative to the directory qsub was run from
+# (submit_properties.sh creates it and cd's there before calling qsub).
 
 set -euo pipefail
 
@@ -15,6 +22,12 @@ cd "$PBS_O_WORKDIR"
 # in parallel against the same shared build/ (NFS) -> a corrupted build,
 # and without `set -e` the job would carry on anyway, copying back an
 # empty out/ with no error.
+if [ ! -x build/simulations/properties_test ]; then
+  echo "ERROR: build/simulations/properties_test not found." \
+       "Run submit_properties.sh first (it builds once before" \
+       "submitting) or build manually." >&2
+  exit 1
+fi
 
 # Node-local scratch: faster than NFS for I/O
 WORKDIR=/scratch_local/${PBS_JOBID}
@@ -25,7 +38,7 @@ cp configs/profiling.toml "$WORKDIR"/
 cd "$WORKDIR"
 
 mkdir -p out
-./properties_test profiling.toml ${PBS_JOBID}
+./properties_test profiling.toml
 
 # Copy results back: a folder dedicated to this job (unique JOBID)
 mkdir -p "$PBS_O_WORKDIR"/results/"${PBS_JOBID}"

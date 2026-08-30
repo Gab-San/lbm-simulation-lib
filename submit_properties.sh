@@ -4,6 +4,12 @@ set -euo pipefail
 
 N_JOBS=${1:-10}
 
+# run_properties.pbs writes its merged stdout/stderr log to logs/ (see
+# "#PBS -o logs/" in that file). PBS does not create the output directory
+# for you - if it's missing, some sites silently drop the log instead of
+# erroring, which is indistinguishable from "job ran and did nothing".
+mkdir -p logs
+
 # Build once, here, BEFORE submitting the jobs. If this is left to
 # run_properties.pbs instead, the N_JOBS jobs start almost simultaneously,
 # all see the binary missing, and all launch "cmake --build" in parallel
@@ -21,3 +27,4 @@ for i in $(seq 1 "$N_JOBS"); do
 done
 
 echo "Done. Check with: qstat -u \$(whoami)"
+echo "Logs will appear in: $(pwd)/logs/lbm_properties.o<jobid>"
