@@ -1,7 +1,7 @@
 #ifndef __LBM_SIM_OMP_ITERATION_HPP
 #define __LBM_SIM_OMP_ITERATION_HPP
 
-#include "lbm-sim/omp/annotations.hpp"
+#include "lbm-sim/backend/omp/annotations.hpp"
 #include "lbm-sim/types/common.hpp"
 
 namespace lbm {

@@ -1,7 +1,7 @@
 #ifndef __CORE_VECTOR_HPP
 #define __CORE_VECTOR_HPP
 
-#include "lbm-sim/cuda/annotations.hpp"
+#include "lbm-sim/backend/cuda/annotations.hpp"
 #include "lbm-sim/types/fwd.hpp"
 
 // C++ STANDARD LIB
@@ -93,7 +93,7 @@ inline std::ostream &operator<<(std::ostream &out, const Vector<T, dim> &v) {
   if constexpr (dim == 2) {
     return out << "Vector(" << v.dx << "," << v.dy << ")";
   } else {
-    return out << "Vector(" << v.dx << "," << v.dy << v.dz << ")";
+    return out << "Vector(" << v.dx << "," << v.dy << "," << v.dz << ")";
   }
 }
 

@@ -1,10 +1,9 @@
-#ifndef __LBM_SIM_CONFIG_SIMULATION_CONFIG_HPP
-#define __LBM_SIM_CONFIG_SIMULATION_CONFIG_HPP
+#pragma once
 
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/metadata.hpp"
 #include "lbm-sim/types/base.hpp"
-
+#include <array>
 #include <stdexcept>
 #include <string>
 
@@ -60,12 +59,6 @@ public:
  */
 template <types::dim_t dim> struct SimulationConfig {
 
-  /// [solver].backend: "openmp" o "cuda".
-  ExecutionBackend backend = ExecutionBackend::OPEN_MP;
-
-  /// Operatore di collisione.
-  CollisionModel collision = CollisionModel::BGK;
-
   /// Celle della griglia. `nz` vale 1 (e non va letto) quando dim == 2.
   std::array<uint64_t, dim> grid_size;
 
@@ -94,8 +87,8 @@ template <types::dim_t dim> struct SimulationConfig {
   /// File di output del profilo di velocita' (terzo argomento della riga
   /// di comando).
   std::string profile_out;
+
+  unsigned int n_threads;
 };
 
 } // namespace lbm::config
-
-#endif // __LBM_SIM_CONFIG_SIMULATION_CONFIG_HPP

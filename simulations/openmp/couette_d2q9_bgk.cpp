@@ -7,22 +7,16 @@
 #include "lbm-sim/data/async-binary-writer.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
+#include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
-#include "lbm/logging.hpp"
-
-// QUILL LIB
-#include "quill/LogMacros.h"
 
 // C++ STD LIB
-#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
 
 static constexpr lbm::types::dim_t DIM = 2;
-
 static constexpr lbm::CollisionModel COLLISION = lbm::CollisionModel::BGK;
-static constexpr lbm::ExecutionBackend BACKEND = lbm::ExecutionBackend::OPEN_MP;
 
 int main(int argc, char **argv) {
   using namespace lbm;
@@ -30,36 +24,32 @@ int main(int argc, char **argv) {
   using types::DimPoint;
   using utils::Vector;
 
-  // --- 1. LEGGI CONFIGURAZIONI --------------------------------------------
   if (argc < 2) {
     config::print_usage(argv[0]);
     return 1;
   }
 
+  logging::setup();
+  logging::Logger *main_logger = logging::create_or_get_logger("main");
+
   std::vector<config::SimulationConfig<DIM>> configs;
   try {
     configs = config::parse_config<DIM>(argv[1]);
-    for (auto &cfg : configs)
-      config::ensure_compatible(cfg, COLLISION, BACKEND);
   } catch (const config::ConfigError &err) {
-    std::cerr << "Errore di configurazione: " << err.what() << "\n";
+    LBM_LOG_ERROR(main_logger, "Config Error {}", err.what());
     return 1;
   }
 
-  // --- 2. ISTANZIA LOGGER --------------------------------------------------
-  logging::setup_quill();
-  quill::Logger *main_logger = logging::create_or_get_logger("main");
-
-  // --- 3. ESEGUI UNA SIMULAZIONE PER OGNI CONFIG ---------------------------
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
 
-    LOG_INFO(main_logger,
-             "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
-             "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
-             "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
-             cfg.name, grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
-             cfg.frames_out, cfg.profile_out);
+    LBM_LOG_INFO(
+        main_logger,
+        "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
+        "{}\n\tInitial Velocity: {}\n\tNumber of Iterations: {}\n\tNumber "
+        "of frames: {}\n\tFrames output: {}\n\tProfile output: {}",
+        cfg.name, grid_size, cfg.reynolds, cfg.u0, cfg.niters, cfg.nframes,
+        cfg.frames_out, cfg.profile_out);
 
     // --- 3. CREA OSTACOLI --------------------------------------------------
     // Couette: parete inferiore rigida, parete superiore mobile, lati sinistro
@@ -101,11 +91,15 @@ int main(int argc, char **argv) {
     const double err_l2 =
         simulation.compute_error(analysis::NormType::L2, exact_solution);
 
-    LOG_NOTICE(main_logger, "{} error: {}",
-               analysis::to_string(analysis::NormType::L2), err_l2);
+    LBM_LOG_NOTICE(main_logger, "{} error: {}",
+                   analysis::to_string(analysis::NormType::L2), err_l2);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);
+#ifdef LBM_PROFILING
+    lbm::profiling::dump_csv(cfg.profile_out);
+    lbm::profiling::reset();
+#endif
   }
 
   return 0;

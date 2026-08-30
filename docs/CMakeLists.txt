@@ -7,6 +7,8 @@ if(Doxygen_FOUND)
     ${DOXYGEN_ROOT_OUTPUT_DIRECTORY}/lbm-sim
   )
 
+  set(DOXYGEN_USE_MATHJAX YES)
+
   message(STATUS
     "Doxygen found. Documentation will be outputted to
     ${DOXYGEN_OUTPUT_DIRECTORY}"

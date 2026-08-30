@@ -1,91 +1,139 @@
-cmake_minimum_required(VERSION 3.18)
+# 3.21 is the real floor, not 3.18:
+#   - target_sources() on an INTERFACE library needs 3.19;
+#   - PROJECT_IS_TOP_LEVEL is only defined from 3.21 (with 3.18 the old
+#     `if(${PROJECT_IS_TOP_LEVEL})` expanded to `if()` -> configure error).
+cmake_minimum_required(VERSION 3.21)
 
-project(lbm-simulation-lib)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_EXPORT_COMPILE_COMMANDS on)
+project(lbm-simulation-lib LANGUAGES CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-option(LBM_ENABLE_CUDA "Enable and build with CUDA Backend" OFF)
+# Global toolchain settings belong to whoever drives the build. When this
+# project is add_subdirectory()'d we must not overwrite the parent's choices;
+# the standard is requested per-target below via target_compile_features().
+if(PROJECT_IS_TOP_LEVEL)
+  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  set(CMAKE_CXX_EXTENSIONS OFF)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
 
-# ------------ QUILL LOGGING LIBRARY ------------
-include(Quill)
+# ------------------------------ OPTIONS -------------------------------------
 
-set(LBM_LOGGING_HELPER_LIB lbm-logging)
+option(LBM_ENABLE_CUDA      "Build the CUDA backend"                        OFF)
+option(LBM_ENABLE_CONFIG    "Build the TOML configuration support (toml++)" ON)
+option(LBM_ENABLE_PROFILING "Enable chrono-based profiling instrumentation" OFF)
 
-# Solo i sorgenti del logging: una GLOB_RECURSE su src/lbm/*.cpp si tirava
-# dentro anche src/lbm/config/config_parser.cpp, il vecchio parser del
-# formato di configurazione custom, che e' orfano (nessuno lo usa) e non
-# compila piu' contro l'API attuale. E' sostituito dal parser TOML in
-# include/lbm-sim/config/.
-set(
-  LBM_LOGGING_FILES
-  "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm/logging.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/lbm/logging.cpp"
-)
+# LBM_ENABLE_LOGGING, LBM_LOG_BACKEND (quill | ostream | none) and
+# LBM_LOG_LEVEL are declared in cmake/Logging.cmake, next to the code that
+# reads them.
+option(LBM_BUILD_SIMULATIONS "Build the executables under simulations/"
+       ${PROJECT_IS_TOP_LEVEL})
+option(LBM_BUILD_DOCS       "Configure the docs/ target"
+       ${PROJECT_IS_TOP_LEVEL})
 
-add_library(${LBM_LOGGING_HELPER_LIB} STATIC ${LBM_LOGGING_FILES})
-target_include_directories(
-  ${LBM_LOGGING_HELPER_LIB}
-  PUBLIC
-  "${CMAKE_CURRENT_SOURCE_DIR}/include"
-)
-target_link_libraries(${LBM_LOGGING_HELPER_LIB} PUBLIC quill::quill)
-lbm_apply_quill_log_level(${LBM_LOGGING_HELPER_LIB})
+# ------------------------------ LOGGING -------------------------------------
+# Defines lbm::logging and resolves the backend. Only include/lbm/logging/quill/
+# knows Quill exists; with any other backend nothing is fetched and no quill
+# header is reachable from the build -- so the target below can link it
+# unconditionally.
+include(Logging)
 
-# -------------------------------------------
-
-# ------------ TOML PARSING LIBRARY ------------
-include(Toml)
-# -------------------------------------------
+# -------------------------------- CORE --------------------------------------
 
 set(LBM_SIM_LIB lbm-sim)
 
-file(
-  GLOB_RECURSE
-  LBM_CORE_HEADERS
-  "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm-sim/*.hpp"
-)
+file(GLOB_RECURSE LBM_CORE_HEADERS CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm-sim/*.hpp")
 
-add_library(${LBM_SIM_LIB} INTERFACE ${LBM_CORE_HEADERS})
+file(GLOB_RECURSE LBM_SHARED_HEADERS CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/lbm/format/*.hpp")
 
-target_include_directories(
-  ${LBM_SIM_LIB}
-  INTERFACE
-  "${CMAKE_CURRENT_SOURCE_DIR}/include"
-)
+add_library(${LBM_SIM_LIB} INTERFACE)
+add_library(lbm::sim ALIAS ${LBM_SIM_LIB})
+
+# PRIVATE on an INTERFACE library: the headers show up in IDEs/compile_commands
+# but are not injected as sources into every consumer, which is what the old
+# `add_library(... INTERFACE ${headers})` did.
+target_sources(${LBM_SIM_LIB} PRIVATE ${LBM_CORE_HEADERS} ${LBM_SHARED_HEADERS})
+
+target_include_directories(${LBM_SIM_LIB} INTERFACE
+  "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+target_compile_features(${LBM_SIM_LIB} INTERFACE cxx_std_17)
+
+# MSVC's default OpenMP is 2.0, which has no unsigned loop counters and no
+# collapse. From CMake 3.30 the runtime is selectable here; before that,
+# FindOpenMP hands out plain /openmp and adding /openmp:experimental on top of
+# it is a hard cl.exe error (the two options are mutually exclusive), which is
+# what the old `target_compile_options(... /openmp:experimental)` was doing.
+if(MSVC AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.30)
+  set(OpenMP_RUNTIME_MSVC "experimental")
+endif()
 
 find_package(OpenMP REQUIRED)
 
-target_link_libraries(${LBM_SIM_LIB} INTERFACE OpenMP::OpenMP_CXX)
-target_link_libraries(${LBM_SIM_LIB} INTERFACE ${LBM_LOGGING_HELPER_LIB})
-target_link_libraries(${LBM_SIM_LIB} INTERFACE tomlplusplus::tomlplusplus)
+target_link_libraries(${LBM_SIM_LIB} INTERFACE
+  OpenMP::OpenMP_CXX
+  lbm::logging)
 
-target_compile_options(${LBM_SIM_LIB} INTERFACE
-    $<$<CONFIG:Debug>:-Wsign-compare>
-)
-# ------------------------------------------------------
-
-if(MSVC)
-  target_compile_options(${LBM_SIM_LIB} INTERFACE
-        $<$<COMPILE_LANGUAGE:CXX>:/openmp:experimental>
-        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Release>>:/O2>
-    )
+if(LBM_ENABLE_PROFILING)
+  target_compile_definitions(${LBM_SIM_LIB} INTERFACE LBM_PROFILING)
 endif()
 
-# ------------------------------------------------------
+# -Wsign-compare is a GCC/Clang C++ flag: it was reaching MSVC (which rejects
+# it) and nvcc (which needs -Xcompiler for host flags). Fence it in.
+target_compile_options(${LBM_SIM_LIB} INTERFACE
+  $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-Wsign-compare>)
 
-include(Cuda)
+# ------------------------- CONFIG (part of the core) ------------------------
+# TOML parsing is a feature of the library, not a separate target: toml++ and
+# include/lbm/config/ are attached straight to lbm::sim. Consumers get it by
+# linking lbm::sim -- there is nothing extra to link.
+#
+# With LBM_ENABLE_CONFIG=OFF nothing is fetched, include/lbm/config/ is not part
+# of the build, LBM_ENABLE_CONFIG is not defined, and code that #includes those
+# headers is expected not to be built either (`#if LBM_ENABLE_CONFIG`).
+if(LBM_ENABLE_CONFIG)
+  include(FetchContent)
+  FetchContent_Declare(
+    tomlplusplus
+    GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+    GIT_TAG        v3.4.0
+    GIT_SHALLOW    TRUE
+  )
+  FetchContent_MakeAvailable(tomlplusplus)
 
-# ------------------------------------------------------
+  target_link_libraries(${LBM_SIM_LIB} INTERFACE tomlplusplus::tomlplusplus)
 
-if (${PROJECT_IS_TOP_LEVEL})
+  # For code that can do without a config file: #if LBM_ENABLE_CONFIG.
+  target_compile_definitions(${LBM_SIM_LIB} INTERFACE LBM_ENABLE_CONFIG)
+endif()
+
+# --------------------------------- CUDA -------------------------------------
+# The module no longer wraps itself in `if(LBM_ENABLE_CUDA)`: the guard lives
+# here, so reading this file tells you what gets built. It must come before
+# add_subdirectory(simulations) -- the CUDA language and
+# CMAKE_CUDA_SEPARABLE_COMPILATION have to be in place before the cuda_*
+# executables are created.
+if(LBM_ENABLE_CUDA)
+  include(Cuda)
+endif()
+
+# ------------------------------ SUBPROJECTS ---------------------------------
+
+if(LBM_BUILD_SIMULATIONS)
   add_subdirectory(simulations)
 endif()
 
-# ------------------------------------------------------
+if(LBM_BUILD_DOCS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/docs/CMakeLists.txt")
+  add_subdirectory(docs)
+endif()
 
-add_subdirectory(docs)
+# ------------------------------- SUMMARY ------------------------------------
 
+message(STATUS "lbm-simulation-lib configuration:")
+message(STATUS "  logging   : ${LBM_LOG_BACKEND} (${LBM_LOG_LEVEL})")
+message(STATUS "  config    : ${LBM_ENABLE_CONFIG}")
+message(STATUS "  cuda      : ${LBM_ENABLE_CUDA}")
+message(STATUS "  profiling : ${LBM_ENABLE_PROFILING}")
