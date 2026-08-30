@@ -1,0 +1,44 @@
+#!/bin/bash
+#PBS -N lbm_weak
+#PBS -q cpu
+#PBS -l select=1:ncpus=16
+#PBS -l walltime=01:00:00
+#PBS -j oe
+
+# Weak scaling counterpart of run_properties.pbs: same shape, different config.
+# One job runs the whole sweep in configs/weak_scaling.toml, where the lattice
+# grows with the thread count (129^2 @1 ... 515^2 @16) so the work per thread
+# stays constant.
+#
+# Longer walltime than the strong sweep: there the grid is fixed and the runs
+# get faster as threads are added, here every one of the five configs does as
+# much work as the largest strong run, so the job is roughly five times as long.
+
+cd "$PBS_O_WORKDIR" || exit 1
+
+# Build it if the binary is not there yet (once built, later runs find it ready
+# in build/simulations and skip this step)
+if [ ! -x build/simulations/properties_test ]; then
+  cd build
+  cmake --build . --target properties_test -j"$(nproc)"
+  cd ..
+fi
+
+# Node-local scratch: faster than NFS for I/O
+WORKDIR=/scratch_local/${PBS_JOBID}
+mkdir -p "$WORKDIR"
+cp build/simulations/properties_test "$WORKDIR"/
+cp configs/weak_scaling.toml "$WORKDIR"/
+cd "$WORKDIR" || exit 1
+
+mkdir -p out
+./properties_test weak_scaling.toml
+
+# Copy the results back: one directory per job (the JOBID is unique). The
+# timings are in out/prof/weak_scaling.csv, one row per config, with the lattice
+# in the `size` column -- which is what tells the points of a weak curve apart.
+mkdir -p "$PBS_O_WORKDIR"/results/"${PBS_JOBID}"
+cp -r out/* "$PBS_O_WORKDIR"/results/"${PBS_JOBID}"/
+
+cd "$PBS_O_WORKDIR" || exit 1
+rm -rf "$WORKDIR"

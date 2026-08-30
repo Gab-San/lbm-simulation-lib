@@ -4,6 +4,7 @@
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
+#include "lbm-sim/formatting.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
@@ -51,7 +52,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  constexpr auto CollisionType = CollisionModel::TRT;
+  constexpr auto CollisionType = CollisionModel::BGK;
   using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
 
   const std::string path_to_benchmark =
@@ -59,7 +60,7 @@ int main(int argc, char **argv) {
 
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
-    utils::Vector<double, DIM> u0(cfg.u0);
+    const utils::Vector<double, DIM> u0(cfg.u0);
 
     LBM_LOG_INFO(
         main_logger,
@@ -84,6 +85,7 @@ int main(int argc, char **argv) {
     solver.attachListener(writer);
 
     simulation.solve(solver /*, preconditioner*/);
+
     simulation.output(cfg.profile_out.c_str(),
                       functional::extract_dy_profile_along_x_center);
 
