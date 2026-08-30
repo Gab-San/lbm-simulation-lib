@@ -21,6 +21,7 @@
 #include "lbm-sim/logging.hpp"
 
 #include <condition_variable>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -41,13 +42,17 @@ class AsyncBinaryWriter : public IDataListener {
   const std::string path;
 
 public:
-  // FIXME: Decide whether to throw an error or what.
   AsyncBinaryWriter(const std::string &path) : path(path), stop_(false) {
     logging::Logger *writer_logger = logging::create_or_get_logger("writer");
+    std::filesystem::path frames_path_out(path);
+    std::filesystem::path output_filename =
+        std::string(frames_path_out.parent_path()) +
+        std::string(frames_path_out.stem()) + ".bin";
     file_.open(path, std::ios::out | std::ios::binary);
     if (!file_.is_open()) {
       LBM_LOG_CRITICAL(writer_logger, "Cannot open {} for writing", path);
-      throw std::runtime_error("");
+      throw std::invalid_argument("Can't open " + std::string(output_filename) +
+                                  " for writing");
     }
     worker_ = std::thread(&AsyncBinaryWriter::run, this);
     LBM_LOG_DEBUG(writer_logger, "File {} opened for binary writing", path);

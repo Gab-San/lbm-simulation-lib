@@ -12,7 +12,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/profiling_result_dump.vtk"
+frames  = "out/profiling_result_dump.out"
 profile = "out/time/profiling_result1.dat"
 
 [conf.backend]
@@ -32,7 +32,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/profiling_result_dump.vtk"
+frames  = "out/profiling_result_dump.out"
 profile = "out/time/profiling_result2.dat"
 
 [conf.backend]
@@ -52,7 +52,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/profiling_result_dump.vtk"
+frames  = "out/profiling_result_dump.out"
 profile = "out/time/profiling_result4.dat"
 
 [conf.backend]
@@ -72,7 +72,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/profiling_result_dump.vtk"
+frames  = "out/profiling_result_dump.out"
 profile = "out/time/profiling_result8.dat"
 
 [conf.backend]
@@ -92,7 +92,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/profiling_result_dump.vtk"
+frames  = "out/profiling_result_dump.out"
 profile = "out/time/profiling_result16.dat"
 
 [conf.backend]
@@ -112,7 +112,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/profiling_result_dump.vtk"
+frames  = "out/profiling_result_dump.out"
 profile = "out/time/profiling_result32.dat"
 
 [conf.backend]
@@ -132,7 +132,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/profiling_result_dump.vtk"
+frames  = "out/profiling_result_dump.out"
 profile = "out/time/profiling_result64.dat"
 
 [conf.backend]

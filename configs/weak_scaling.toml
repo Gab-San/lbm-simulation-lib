@@ -40,7 +40,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/weak_dump.vtk"
+frames  = "out/weak_dump.out"
 profile = "out/time/weak_result1.dat"
 
 [conf.backend]
@@ -60,7 +60,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/weak_dump.vtk"
+frames  = "out/weak_dump.out"
 profile = "out/time/weak_result2.dat"
 
 [conf.backend]
@@ -80,7 +80,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/weak_dump.vtk"
+frames  = "out/weak_dump.out"
 profile = "out/time/weak_result4.dat"
 
 [conf.backend]
@@ -100,7 +100,7 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/weak_dump.vtk"
+frames  = "out/weak_dump.out"
 profile = "out/time/weak_result8.dat"
 
 [conf.backend]
@@ -120,8 +120,50 @@ niters  = 100000
 nframes = 200
 
 [conf.output]
-frames  = "out/weak_dump.vtk"
+frames  = "out/weak_dump.out"
 profile = "out/time/weak_result16.dat"
 
 [conf.backend]
 n_threads = 16
+
+
+[[conf]]
+
+[conf.lattice]
+size = [1000, 1000]
+
+[conf.physics]
+reynolds = 100.0
+size     = [0.1, 0.0]
+
+[conf.solver]
+niters  = 100000
+nframes = 200
+
+[conf.output]
+frames  = "out/weak_dump.out"
+profile = "out/time/weak_result32.dat"
+
+[conf.backend]
+n_threads = 32
+
+
+[[conf]]
+
+[conf.lattice]
+size = [2000, 2000]
+
+[conf.physics]
+reynolds = 1000.0
+size     = [0.1, 0.0]
+
+[conf.solver]
+niters  = 100000
+nframes = 200
+
+[conf.output]
+frames  = "out/weak_dump.out"
+profile = "out/time/weak_result64.dat"
+
+[conf.backend]
+n_threads = 64
