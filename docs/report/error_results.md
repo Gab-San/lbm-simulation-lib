@@ -1,9 +1,8 @@
 # Error Results
 
 Quantitative validation of the solver against the two analytical solutions in
-`lbm::analysis` and against the Ghia et al. (1982) tables. Every number on this
-page comes from the CSVs in [`assets/`](assets), written by the runs
-themselves -- nothing here was read off a plot.
+`lbm::analysis` and against the Ghia et al. (1982) tables. The numerical values reported below are taken from the run summaries shown for the three cases. Every number on this
+page comes from the CSVs in [`assets/`](assets), the same quantities can also be stored automatically for post-processing.
 
 ## How the numbers are produced
 
@@ -11,11 +10,12 @@ Two entry points on `LBMSimulation`, both returning a scalar in a chosen norm:
 
 - `compute_error(NormType, const Function<dim>&)` -- compares the whole
   velocity field against an analytical solution sampled at each node, and
-  returns the **absolute** global error;
+  returns the selected **absolute** global error norm;
 - `compute_ghia_error(path, NormType)` -- 2D lid-driven cavity only: it
   interpolates the simulated centerline at the 17 tabulated coordinates and
   returns a `NormErrorResult` carrying **both** the absolute and the relative
-  error.
+  error. In the extended analysis, the same pointwise differences are also
+  used to compute RMSE and the infinity norm.
 
 Each run appends one row per profile to an error CSV
 (`analysis::ErrorAnalysisSchema`), next to the profile and frame output. All
@@ -33,7 +33,7 @@ runtime_s,threads,mlups
 
 | Column | Meaning |
 |--------|---------|
-| `abs` | the global `L2` error, unnormalized, in lattice units. It is a **sum over the whole domain**, so it grows with the grid and is not comparable between resolutions |
+| `abs` | the global `L2` error, unnormalized, in lattice units. It is a **sum over the whole domain**, soapproximately like `sqrt(N)` for a fixed pointwise error level and therefore should not be compared directly between different grid sizes |
 | `rel` | `abs` divided by the `L2` norm of the reference field; this is the one to compare across cases |
 | `rmse` | `abs / sqrt(N)`, the per-sample RMS error -- `N` is the number of nodes for an analytical comparison, the 17 tabulated points for a Ghia one |
 | `rmse_ref_percent`, `linf_ref_percent` | the same quantities as a percentage of the reference scale: `u_ref = 0.1` for the analytical cases, `1.0` for Ghia's tables, which are already normalized by the lid velocity |
@@ -65,8 +65,7 @@ Raw values, as written by the runs:
 
 ## What the numbers say
 
-**Couette is essentially exact: 0.39% relative, 0.23% of `u_ref` in RMS.** This
-is the expected outcome and a good sanity check on the whole chain -- the LBM
+**Couette shows very close agreement with the analytical profile: 0.39% relative, 0.23% of `u_ref` in RMS.** This is the expected outcome and a good sanity check on the whole chain -- the LBM
 equilibrium reproduces a linear velocity profile without truncation error in
 the bulk, so what is left is the wall treatment and the residual transient.
 A Couette error of a few tenths of a percent means the boundary conditions, the
@@ -137,7 +136,7 @@ own error.** The fix is one line in each of the four files
 (`grid_size.y - 1` -> `grid_size.y`) followed by a re-run; until that is done,
 the ranking between the cases stands but the absolute values do not.
 
-**The cavity against Ghia is 3.2% and 4.7% at `Re = 1000` on 200x200 nodes.**
+**The lid-driven cavity against Ghia is 3.2% and 4.7% at `Re = 1000` on 200x200 nodes.**
 For a benchmark at this Reynolds number on a grid this coarse, a few percent on
 both centerlines is a good result -- 200 nodes have to resolve boundary layers
 whose thickness scales as `Re^-1/2`. Here the error structure is the opposite
