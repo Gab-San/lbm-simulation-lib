@@ -93,18 +93,18 @@ int main(int argc, char **argv) {
     }
 
     simulation.output(cfg.profile_out.c_str(),
-                      functional::extract_dy_profile_along_x_center);
+                      functional::extract_dy_profile_along_x_center<DIM>);
 
     const std::string path_to_benchmark =
         std::string(LBM_BENCHMARKS_DIR) + "/ghia/";
 
     format::CsvWriter<analysis::ErrorAnalysisSchema> error_writer(
-        "out/error_" + cfg.name + "_" + format::format_reyn(cfg.reynolds) +
+        "out/error_" + cfg.name + "_" + format::file_format(cfg.reynolds) +
             ".csv",
         true);
 
     const auto ghia_y = simulation.compute_ghia_error(
-        path_to_benchmark + "data_y_" + format::format_reyn(cfg.reynolds) +
+        path_to_benchmark + "data_y_" + format::file_format(cfg.reynolds) +
         ".txt");
 
     LBM_LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
                    ghia_y.absolute);
 
     const auto ghia_x = simulation.compute_ghia_error(
-        path_to_benchmark + "data_x_" + format::format_reyn(cfg.reynolds) +
+        path_to_benchmark + "data_x_" + format::file_format(cfg.reynolds) +
         ".txt");
 
     LBM_LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",

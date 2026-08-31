@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
 
     // --- 6. OUTPUT ---------------------------------------------------------
     simulation.output(cfg.profile_out.c_str(),
-                      functional::extract_dx_profile_along_y_center);
+                      functional::extract_dx_profile_along_y_center<DIM>);
 
     // --- 7. ERROR COMPUTATION ----------------------------------------------
     // H = channel height (bottom wall at y=0, top wall at y=ny-1);
@@ -105,6 +105,14 @@ int main(int argc, char **argv) {
     const auto exact_solution = analysis::PoiseuilleSolution2D(H, u0.dx);
     const double err_l2 =
         simulation.compute_error(analysis::NormType::L2, exact_solution);
+
+    analysis::dump_exact_solution_points<DIM>(
+        "./out/exact_solution_dump_poiseuille_d2q9_" +
+            format::file_format(grid_size) + "_" +
+            format::file_format(cfg.reynolds) + "_" +
+            format::file_format(COLLISION) + ".dat",
+        grid_size, exact_solution,
+        analysis::extract_dx_profile_along_y_center<DIM>, u0.dx);
 
     LBM_LOG_NOTICE(main_logger, "{} error: {}",
                    analysis::to_string(analysis::NormType::L2), err_l2);

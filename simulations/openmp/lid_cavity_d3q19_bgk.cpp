@@ -3,7 +3,7 @@
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
-#include "lbm-sim/data/async-binary-writer.hpp"
+#include "lbm-sim/data/vtk-writer.hpp"
 #include "lbm-sim/formatting.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
@@ -57,6 +57,7 @@ int main(int argc, char **argv) {
     std::cerr << "Configuration error: " << err.what() << "\n";
     return 1;
   }
+
   // --- 2. INSTANTIATE LOGGER ---------------------------------------------
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
@@ -90,8 +91,8 @@ int main(int argc, char **argv) {
     // The same writer has to be attached both to `sim` and to `solver`: the
     // former notifies the header with the grid dimensions, the latter the
     // frames of velocity norms, and they are two distinct DataObservable.
-    std::shared_ptr<AsyncBinaryWriter> writer =
-        std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
+    std::shared_ptr<VtkWriter> writer =
+        std::make_shared<VtkWriter>(cfg.frames_out);
 
     LBMSimulation<DIM, D3Q19, COLLISION> simulation(
         grid_size, std::move(solid_mask), {}, dbc,
