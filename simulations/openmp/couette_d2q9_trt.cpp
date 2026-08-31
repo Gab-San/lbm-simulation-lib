@@ -75,8 +75,16 @@ int main(int argc, char **argv) {
     // frames_out is the DIRECTORY; the file basename comes from the config
     // name, so different runs in the same directory do not overwrite each
     // other.
+    std::filesystem::path path(cfg.frames_out);
+    std::filesystem::path frames_path = path.parent_path() / path.stem();
+
     std::shared_ptr<AsyncBinaryWriter> writer =
-        std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
+        std::make_shared<AsyncBinaryWriter>(
+            std::string(frames_path) + "_" +
+            std::string(analysis::CouetteSolution2D::name) + "_d2q9_" +
+            format::file_format(grid_size) + "_" +
+            format::file_format(cfg.reynolds) + "_" +
+            format::file_format(COLLISION) + ".dat");
 
     LBMSimulation<DIM, D2Q9, COLLISION> simulation(
         grid_size, std::move(solid_mask), {}, dbc,
@@ -88,8 +96,18 @@ int main(int argc, char **argv) {
 
     simulation.solve(solver);
 
-    simulation.output(cfg.profile_out.c_str(),
-                      functional::extract_dx_profile_along_y_center);
+    std::filesystem::path profile_ref_path(cfg.profile_out);
+    std::filesystem::path profile_path =
+        profile_ref_path.parent_path() / profile_ref_path.stem();
+
+    profile_path += "_" + std::string(analysis::CouetteSolution2D::name) +
+                    "_d2q9_" + format::file_format(grid_size) + "_" +
+                    format::file_format(cfg.reynolds) + "_" +
+                    format::file_format(COLLISION) +
+                    std::string(profile_ref_path.extension());
+
+    simulation.output(profile_path.string().c_str(),
+                      functional::extract_dx_profile_along_y_center<DIM>);
 
     const double H = static_cast<double>(grid_size.y - 1);
     const auto exact_solution = analysis::CouetteSolution2D(H, u0.dx);
@@ -98,6 +116,14 @@ int main(int argc, char **argv) {
 
     LBM_LOG_NOTICE(main_logger, "{} error: {}",
                    analysis::to_string(analysis::NormType::L2), err_l2);
+
+    analysis::dump_exact_solution_points<DIM>(
+        "./out/exact_solution_dump_" + std::string(exact_solution.getName()) +
+            "_d2q9_" + format::file_format(grid_size) + "_" +
+            format::file_format(cfg.reynolds) + "_" +
+            format::file_format(COLLISION) + ".dat",
+        grid_size, exact_solution,
+        analysis::extract_dx_profile_along_y_center<DIM>, u0.dx);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

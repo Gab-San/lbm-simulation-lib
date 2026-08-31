@@ -188,7 +188,7 @@ int main() {
 
     simulation.solve(solver);
     simulation.output(out_data.c_str(),
-                      functional::extract_dx_profile_along_y_center);
+                      functional::extract_dx_profile_along_y_center<DIM>);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

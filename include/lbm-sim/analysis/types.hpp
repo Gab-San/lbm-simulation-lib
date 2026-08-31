@@ -19,15 +19,6 @@
 namespace lbm {
 namespace analysis {
 
-template <types::dim_t dim> class Function {
-public:
-  virtual ~Function() = default;
-
-  // Returns the exact velocity vector at the continuous point p.
-  virtual utils::Vector<double, dim>
-  value(const types::Coordinate<dim> &p) const = 0;
-};
-
 enum class NormType { L1, L2, L2_squared, Linfty };
 
 inline const char *to_string(NormType t) {

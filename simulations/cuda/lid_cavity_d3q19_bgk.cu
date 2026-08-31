@@ -1,10 +1,10 @@
-// LBM SIM LIB
 #include "lbm-sim/analysis/exact-solution.hpp"
-#include "lbm-sim/boundaries/boundary-conditions.hpp"
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
+#include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/vtk-writer.hpp"
+#include "lbm-sim/formatting.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
@@ -12,26 +12,32 @@
 #include "lbm/config/config-parser.hpp"
 
 // C++ STD LIB
-#include <memory>
-#include <vector>
+static constexpr unsigned short int DIM = 3;
 
-static constexpr unsigned short int DIM = 2;
+namespace {
 
-/// Couette: rigid bottom wall, moving top wall, periodic sides.
-static lbm::Solid::DomainBC<DIM> make_couette_bc() {
-  lbm::Solid::DomainBC<DIM> dbc{};
-  dbc.low(0) = lbm::Solid::PERIODIC;        // x = 0
-  dbc.high(0) = lbm::Solid::PERIODIC;       // x = nx-1
-  dbc.low(1) = lbm::Solid::BB_RIGID_WALL;   // y = 0
-  dbc.high(1) = lbm::Solid::BB_MOVING_WALL; // y = ny-1
+/// Boundary mask for an Nx*Ny*Nz cavity: 5 rigid walls (plain bounce-back)
+/// + 1 moving wall (the "lid", bounce-back with imposed velocity) on the top
+/// face z = Nz-1.
+///
+/// There is no need to walk the faces node by node any more: they are exactly
+/// the six domain faces, six bytes in total.
+lbm::Solid::DomainBC<3> build_domain_bc() {
+  lbm::Solid::DomainBC<3> dbc{};
+  for (lbm::types::dim_t a = 0; a < 3; ++a) {
+    dbc.low(a) = lbm::Solid::BB_RIGID_WALL;
+    dbc.high(a) = lbm::Solid::BB_RIGID_WALL;
+  }
+  dbc.high(2) = lbm::Solid::BB_MOVING_WALL; // the lid, z = nz-1
   return dbc;
 }
+
+} // namespace
 
 int main(int argc, char **argv) {
   using namespace lbm;
   using types::Coordinate;
   using types::DimPoint;
-  using utils::Vector;
 
   if (argc < 2) {
     config::print_usage(argv[0]);
@@ -50,11 +56,12 @@ int main(int argc, char **argv) {
   }
 
   constexpr auto CollisionType = CollisionModel::BGK;
-  using Simulation = LBMSimulation<DIM, D2Q9, CollisionType>;
+  using Simulation = LBMSimulation<DIM, D3Q19, CollisionType>;
 
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
     const utils::Vector<double, DIM> u0(cfg.u0);
+
     LBM_LOG_INFO(
         main_logger,
         "Simulation '{}':\n\tGrid dimensions: {}\n\tReynolds number: "
@@ -70,28 +77,16 @@ int main(int argc, char **argv) {
         std::make_shared<VtkWriter>(cfg.frames_out);
 
     Simulation simulation(
-        grid_size, std::move(solid_mask), {}, make_couette_bc(),
+        grid_size, std::move(solid_mask), {}, build_domain_bc(),
         CollisionParams<DIM, CollisionType>(cfg.reynolds, grid_size, u0));
     simulation.attachListener(writer);
 
-    CUDASolver<DIM, D2Q9, CollisionType> solver(cfg.niters, cfg.nframes);
+    CUDASolver<DIM, D3Q19, CollisionType> solver(cfg.niters, cfg.nframes);
     solver.attachListener(writer);
+    simulation.solve(solver /*, preconditioner*/);
 
-    simulation.solve(solver);
     simulation.output(cfg.profile_out.c_str(),
-                      functional::extract_dx_profile_along_y_center);
-
-    // H = channel height (bottom wall at y=0, top at y=grid_size.y-1);
-    // Umax = reference velocity (the moving wall, for Couette).
-    // The same values already used to build the simulation: no duplication,
-    // flow_type picks the right Function<2>.
-    const double H = static_cast<double>(grid_size.y - 1);
-    const auto exact_solution = analysis::CouetteSolution2D(H, u0.dx);
-    const double err_l2 =
-        simulation.compute_error(analysis::NormType::L2, exact_solution);
-
-    LBM_LOG_NOTICE(main_logger, "{} error: {}",
-                   analysis::to_string(analysis::NormType::L2), err_l2);
+                      functional::extract_dx_profile_along_z_center);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

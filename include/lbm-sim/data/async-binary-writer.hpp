@@ -46,9 +46,9 @@ public:
     logging::Logger *writer_logger = logging::create_or_get_logger("writer");
     std::filesystem::path frames_path_out(path);
     std::filesystem::path output_filename =
-        std::string(frames_path_out.parent_path()) +
-        std::string(frames_path_out.stem()) + ".bin";
-    file_.open(path, std::ios::out | std::ios::binary);
+        frames_path_out.parent_path() / frames_path_out.stem();
+    output_filename += ".bin";
+    file_.open(output_filename, std::ios::out | std::ios::binary);
     if (!file_.is_open()) {
       LBM_LOG_CRITICAL(writer_logger, "Cannot open {} for writing", path);
       throw std::invalid_argument("Can't open " + std::string(output_filename) +
