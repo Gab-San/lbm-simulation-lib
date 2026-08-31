@@ -86,11 +86,11 @@ int main(int argc, char **argv) {
 
     simulation.solve(solver /*, preconditioner*/);
     simulation.output(cfg.profile_out.c_str(),
-                      functional::extract_dy_profile_along_x_center);
+                      functional::extract_dy_profile_along_x_center<DIM>);
 
     // Comparison against Ghia et al. (1982). Norm chosen here: L2.
     const auto ghia_y = simulation.compute_ghia_error(
-        path_to_benchmark + "data_y_" + format::format_reyn(cfg.reynolds) +
+        path_to_benchmark + "data_y_" + format::file_format(cfg.reynolds) +
         ".txt");
 
     LBM_LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
                    ghia_y.absolute);
 
     const auto ghia_x = simulation.compute_ghia_error(
-        path_to_benchmark + "data_x_" + format::format_reyn(cfg.reynolds) +
+        path_to_benchmark + "data_x_" + format::file_format(cfg.reynolds) +
         ".txt");
 
     LBM_LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
