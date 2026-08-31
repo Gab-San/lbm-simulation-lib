@@ -9,15 +9,11 @@
  * LBMSimulation::compute_error() with no change to the library.
  */
 
-#ifndef __LBM_SIM_ANALYSIS_TYPES_HPP
-#define __LBM_SIM_ANALYSIS_TYPES_HPP
+#pragma once
 
-#include "lbm-sim/types/common.hpp"
+#include <cstddef>
 
-#include "lbm-sim/core/vector.hpp"
-
-namespace lbm {
-namespace analysis {
+namespace lbm::analysis {
 
 enum class NormType { L1, L2, L2_squared, Linfty };
 
@@ -43,9 +39,12 @@ struct NormErrorResult {
   double relative;
   double absolute;
   NormType norm_type;
+
+  double rmse = 0.0;
+  double linf = 0.0;
+  double rmse_normalized = 0.0;
+  double linf_normalized = 0.0;
+  std::size_t sample_count = 0;
 };
 
-} // namespace analysis
-} // namespace lbm
-
-#endif // __LBM_SIM_ANALYSIS_TYPES_HPP
+} // namespace lbm::analysis

@@ -24,9 +24,7 @@
  *
  * @note Only 2D. There is no tabulated 3D equivalent in this library.
  */
-
-#ifndef __LBM_SIM_ANALYSIS_GHIA_BENCHMARK_HPP
-#define __LBM_SIM_ANALYSIS_GHIA_BENCHMARK_HPP
+#pragma once
 
 // LBM SIM LIB
 #include "lbm-sim/analysis/error.hpp"
@@ -212,9 +210,21 @@ compute_ghia_error(const std::string &filepath_in, const Lattice<2> &lattice,
         "compute_ghia_error(): reference norm is zero, check the table");
   }
 
-  return NormErrorResult{u_abs_err / u_ref_norm, u_abs_err, norm_type};
+  const double u_l2_err =
+      ErrorEvaluator<2>::compute_global_error(u_diff_per_point, NormType::L2);
+  const double u_linf_err = ErrorEvaluator<2>::compute_global_error(
+      u_diff_per_point, NormType::Linfty);
+  const double u_rmse =
+      u_l2_err /
+      std::sqrt(static_cast<double>(detail::GhiaCavityData::n_points));
+
+  NormErrorResult result{u_abs_err / u_ref_norm, u_abs_err, norm_type};
+  result.rmse = u_rmse;
+  result.linf = u_linf_err;
+  result.rmse_normalized = u_rmse;
+  result.linf_normalized = u_linf_err;
+  result.sample_count = detail::GhiaCavityData::n_points;
+  return result;
 }
 
 } // namespace lbm::analysis
-
-#endif // __LBM_SIM_ANALYSIS_GHIA_BENCHMARK_HPP

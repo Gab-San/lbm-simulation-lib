@@ -109,6 +109,8 @@ int main(int argc, char **argv) {
     const auto exact_solution = analysis::CouetteSolution2D(H, u0.dx);
     const double err_l2 =
         simulation.compute_error(analysis::NormType::L2, exact_solution);
+    const auto error_metrics = simulation.compute_error_analysis(
+        analysis::NormType::L2, exact_solution, u0.dx);
 
     LBM_LOG_NOTICE(main_logger, "{} error: {}",
                    analysis::to_string(analysis::NormType::L2), err_l2);
@@ -120,6 +122,43 @@ int main(int argc, char **argv) {
             format::file_format(COLLISION) + ".dat",
         grid_size, exact_solution,
         analysis::extract_dx_profile_along_y_center<DIM>, u0.dx);
+
+    LBM_LOG_NOTICE(main_logger,
+                   "Couette validation summary\n"
+                   "  Grid:                 {} x {}\n"
+                   "  Reynolds:             {}\n"
+                   "  Collision:            {}\n"
+                   "  Iterations:           {}\n\n"
+                   "  Error vs analytical profile:\n"
+                   "    absolute L2:        {:.8e}\n"
+                   "    relative L2:        {:.4f} %\n"
+                   "    RMSE:               {:.8e}\n"
+                   "    RMSE / U_wall:      {:.4f} %\n"
+                   "    Linf:               {:.8e}\n"
+                   "    Linf / U_wall:      {:.4f} %\n\n",
+                   grid_size.x, grid_size.y, cfg.reynolds,
+                   collision_model_to_string(COLLISION), cfg.niters,
+                   error_metrics.absolute, 100.0 * error_metrics.relative,
+                   error_metrics.rmse, 100.0 * error_metrics.rmse_normalized,
+                   error_metrics.linf, 100.0 * error_metrics.linf_normalized);
+
+    format::CsvWriter<analysis::DetailedErrorAnalysisSchema> error_writer(
+        "out/error_" + std::string(analysis::CouetteSolution2D::name) +
+            "_d2q9_" + format::file_format(grid_size) + "_" +
+            format::file_format(cfg.reynolds) + "_" +
+            format::file_format(COLLISION) + ".csv",
+        true);
+
+    error_writer.append_row(
+        "ux", grid_size.x, grid_size.y, cfg.reynolds,
+        collision_model_to_string(COLLISION), cfg.niters,
+        analysis::to_string(analysis::NormType::L2), error_metrics.relative,
+        error_metrics.absolute, 100.0 * error_metrics.relative,
+        error_metrics.rmse, 100.0 * error_metrics.rmse_normalized,
+        error_metrics.linf, 100.0 * error_metrics.linf_normalized);
+
+    error_writer.flush();
+    error_writer.close();
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

@@ -109,25 +109,55 @@ int main(int argc, char **argv) {
         path_to_benchmark + "data_y_" + format::file_format(cfg.reynolds) +
         ".txt");
 
-    LBM_LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
-                   analysis::to_string(analysis::NormType::L2), ghia_y.relative,
-                   ghia_y.absolute);
-
     const auto ghia_x = simulation.compute_ghia_error(
         path_to_benchmark + "data_x_" + format::file_format(cfg.reynolds) +
         ".txt");
 
-    LBM_LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
-                   analysis::to_string(analysis::NormType::L2), ghia_x.relative,
-                   ghia_x.absolute);
+    LBM_LOG_NOTICE(main_logger,
+                   "Lid-driven cavity validation summary\n"
+                   "  Grid:                 {} x {}\n"
+                   "  Reynolds:             {}\n"
+                   "  Collision:            {}\n"
+                   "  Iterations:           {}\n\n"
+                   "  Ghia ux(y/2):\n"
+                   "    relative L2:        {:.4f} %\n"
+                   "    RMSE / U_lid:       {:.4f} %\n"
+                   "    Linf / U_lid:       {:.4f} %\n\n"
+                   "  Ghia uy(x/2):\n"
+                   "    relative L2:        {:.4f} %\n"
+                   "    RMSE / U_lid:       {:.4f} %\n"
+                   "    Linf / U_lid:       {:.4f} %\n\n",
+                   grid_size.x, grid_size.y, cfg.reynolds,
+                   collision_model_to_string(COLLISION), cfg.niters,
+                   100.0 * ghia_x.relative, 100.0 * ghia_x.rmse_normalized,
+                   100.0 * ghia_x.linf_normalized, 100.0 * ghia_y.relative,
+                   100.0 * ghia_y.rmse_normalized,
+                   100.0 * ghia_y.linf_normalized);
+
+    format::CsvWriter<analysis::DetailedErrorAnalysisSchema> error_writer(
+        "out/error_" + cfg.name + "_d2q9_" + format::file_format(grid_size) +
+            "_" + format::file_format(cfg.reynolds) + "_" +
+            format::file_format(COLLISION) + ".csv",
+        true);
+
+    error_writer.append_row("uy", grid_size.x, grid_size.y, cfg.reynolds,
+                            collision_model_to_string(COLLISION), cfg.niters,
+                            analysis::to_string(analysis::NormType::L2),
+                            ghia_y.relative, ghia_y.absolute,
+                            100.0 * ghia_y.relative, ghia_y.rmse,
+                            100.0 * ghia_y.rmse_normalized, ghia_y.linf,
+                            100.0 * ghia_y.linf_normalized);
+
+    error_writer.append_row("ux", grid_size.x, grid_size.y, cfg.reynolds,
+                            collision_model_to_string(COLLISION), cfg.niters,
+                            analysis::to_string(analysis::NormType::L2),
+                            ghia_x.relative, ghia_x.absolute,
+                            100.0 * ghia_x.relative, ghia_x.rmse,
+                            100.0 * ghia_x.rmse_normalized, ghia_x.linf,
+                            100.0 * ghia_x.linf_normalized);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);
-
-#ifdef LBM_PROFILING
-    lbm::profiling::dump_csv(cfg.profile_out);
-    lbm::profiling::reset();
-#endif
   }
   return 0;
 }
