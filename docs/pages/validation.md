@@ -81,6 +81,74 @@ the error relative to the norm of the reference, in a
 Defined for `dim == 2` only. Instantiating it on a 3D simulation is a compile
 error; a 3D run that never calls it compiles fine.
 
+## Measured profiles
+
+The figures below come from runs of the shipped simulations; the timings of the
+same machinery are in @ref performance. Each profile is written by
+`LBMSimulation::output()` with an extractor from `lbm::functional` and plotted
+with `scripts/py/visualize_profile.py`, which divides the samples by the
+`u_ref` in the `%%profile` header -- the same normalisation Ghia's tables use,
+so a curve below the reference is slower, not merely rescaled.
+
+### Lid-driven cavity, Re = 7500
+
+`D2Q9`, 2000x2000, BGK and TRT, against `benchmarks/ghia/data_y_7500.txt`. The
+quantity is `v(x, ny/2)` -- the vertical velocity along the horizontal
+centreline, from `functional::extract_dy_profile_along_x_center()`.
+
+![Lid cavity Re 7500, TRT against Ghia](../imgResults/profile_lid_cavity_d2q9_2000_2000_7500_trt.png)
+
+![Lid cavity Re 7500, BGK and TRT against Ghia](../imgResults/profile_comparison_lid_cavity_d2q9_7500.png)
+
+| | simulation | Ghia et al. | difference |
+|---|---:|---:|---:|
+| positive peak (x ~ 0.06) | +0.38 | +0.4403 | -14% |
+| zero crossing | ~0.50 | 0.50 (+0.008) | -- |
+| negative extremum (x ~ 0.96) | -0.54 | -0.5522 | -2% |
+
+- **BGK and TRT overlap exactly at this scale.** In the comparison figure the
+  green BGK curve covers the blue TRT one; the legend is the only evidence TRT
+  is plotted. The two operators differ in how they relax the antisymmetric
+  moments, which changes where a *curved* wall effectively sits -- a square
+  cavity gives that difference nothing to act on.
+- **Do not measure the middle of the plot by eye.** Ghia's table has 17 points
+  and only one of them lies between x = 0.23 and x = 0.80;
+  `visualize_profile.py` joins consecutive points with straight lines, so the
+  apparently linear reference there is interpolation. `compute_ghia_error()`
+  compares 17 pairs of numbers, interpolating the *simulation* onto the
+  tabulated abscissas, and that is the figure to quote.
+- **The 14% deficit on the positive peak is not a resolution problem.** One
+  lattice spacing is 0.05% of the cavity side here. It is the long transient of
+  this page's third pitfall: one flow-through time at `u = 0.1` on 2000 nodes
+  is `L/u = 20000` steps, and a cavity at `Re = 7500` needs tens of those. The
+  asymmetry of the error points the same way -- the extremum the lid drives
+  into is already within 2%, while the one fed by the slower return flow lags.
+
+### Hagen-Poiseuille pipe
+
+`D3Q19` on the CUDA backend: a `CollisionDetection::CylindricalShell` inside a
+box, pressure-periodic inlet and outlet on the `x` faces, profile taken with
+`functional::extract_dx_profile_along_z_center()`.
+
+![Pipe velocity profile](../imgResults/pipe_profile.png)
+
+- The parabola is symmetric about the axis to within the line width. Nothing in
+  the setup enforces that: the wall is a rasterised shell, so a lopsided profile
+  would have exposed a bias in how `compute_solid_mask()` walks it.
+- **The flat zero shoulders are the solid nodes**, not stagnant fluid -- the
+  same nodes this page warns about under *Solid nodes are included in the
+  reduction*. The extractor samples the full width of the box while the pipe is
+  inscribed in it, so two or three nodes at each end lie between the box face
+  and the shell. `HagenPoiseuilleSolution3D` returns zero there, which is what
+  keeps `compute_error()` from scoring the wall as a miss.
+- The peak reaches 0.93 of the reference velocity. That residual is this page's
+  first pitfall in numbers: the wall sits half a cell outside the last fluid
+  node, so the effective radius is `r_inner + 0.5`, and on a 65-node
+  cross-section half a cell is ~1.5% of the diameter -- which enters the
+  parabola quadratically. It is a systematic offset and should shrink under
+  refinement; `configs/pipe_config_3.toml` (100x125x125) is the run that checks
+  it.
+
 ## The 3D cavity
 
 There is no analytical solution and no tabulated equivalent in this library.
@@ -89,13 +157,24 @@ A 3D cavity run is validated by exporting the centreline profile with
 external reference data:
 
 ```bash
-python scripts/visualize_profile.py out/profile_cavity3d.dat --title "Re = 100"
+python scripts/py/visualize_profile.py out/profile_cavity3d.dat --title "Re = 100"
 ```
+
+The 200x200x200 run at `Re = 1000`
+([`configs/lid_cavity_3d.toml`](../../configs/lid_cavity_3d.toml)), animated
+from the exported frames with `scripts/py/visualize_frames.py`:
+
+![3D lid-driven cavity, Re = 1000](../imgResults/lid_cavity_3d.gif)
+
+What this establishes is qualitative -- the primary vortex forms under the lid
+and the corner recirculations appear where they belong -- which is the most an
+animation can do. The quantitative check is still the exported centreline
+against external data.
 
 ## Checking the outputs structurally
 
 ```bash
-python scripts/validate_outputs.py
+python scripts/py/validate_outputs.py
 ```
 
 Separate from the physics: it verifies headers, payload lengths, finite

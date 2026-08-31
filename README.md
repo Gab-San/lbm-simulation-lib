@@ -26,6 +26,10 @@ estimation against analytical solutions and the Ghia et al. (1982) benchmark.
 - [Error estimation](#error-estimation)
   - [Against an analytical solution](#against-an-analytical-solution)
   - [Against the Ghia benchmark](#against-the-ghia-benchmark)
+- [Simulation results](#simulation-results)
+  - [Lid-driven cavity at Re = 7500](#lid-driven-cavity-at-re--7500)
+  - [Pipe flow in 3D](#pipe-flow-in-3d)
+  - [Lid-driven cavity in 3D](#lid-driven-cavity-in-3d)
 - [Documentation and report](#documentation-and-report)
 - [References](#references)
 - [License](#license)
@@ -127,6 +131,7 @@ runtime.
 | `LBM_BUILD_SIMULATIONS` | top-level | Build the executables under `simulations/`; off by default when the project is embedded |
 | `LBM_BUILD_DOCS` | top-level | Configure the `docs/` Doxygen targets; off by default when the project is embedded |
 | `LBM_SANITIZE` | *(empty)* | Sanitizers to build with: `address`, `undefined`, `thread`, `leak` (comma- or semicolon-separated) |
+| `LBM_ENABLE_PROFILING` | `OFF` | Compile the chrono instrumentation (`LBM_PROFILING`); required for the profiler CSV the scaling plots are built from |
 | `CMAKE_CUDA_ARCHITECTURES` | `75` | Target GPU architecture(s) |
 | `CMAKE_CUDA_HOST_COMPILER` | `CMAKE_CXX_COMPILER` | Host compiler driven by `nvcc`; override only for host compilers `nvcc` rejects |
 
@@ -417,6 +422,183 @@ read from one array and written to the other with no aliasing and no extra
 copy. The macroscopic fields are materialized only on the steps that need them
 (a frame step, or the last iteration).
 
+### Configuration files
+
+Configurations are TOML files holding an array of `[[conf]]` tables -- one run
+each -- parsed by `lbm::config::parse_config<dim>()`:
+
+```toml
+[[conf]]
+collision = "BGK"        # BGK | TRT | MRT
+backend   = "openmp"     # openmp | cuda
+
+[conf.lattice]
+size = [129, 129]        # length must match the binary's dimension
+
+[conf.physics]
+reynolds = 100.0
+size     = [0.1, 0.0]    # initial/characteristic velocity, size[0] > 0
+
+[conf.solver]
+niters  = 100000
+nframes = 200            # must not exceed niters
+
+[conf.output]
+frames  = "output/lid_cavity_frames"
+profile = "output/lid_cavity_profile.dat"
+```
+
+Every field is mandatory except `collision` and `backend`, which default to
+`BGK` and `openmp`, and `nframes`, which defaults to `0` (no frames written).
+Failures raise `config::ConfigError` with a message naming
+the offending field, so a main can distinguish a bad configuration (print,
+exit 1) from an error raised during the solve. After parsing,
+`config::ensure_compatible(cfg, COLLISION, BACKEND)` rejects a file whose
+operator or backend does not match the binary reading it, instead of silently
+ignoring it.
+
+### Running a simulation
+
+
+```bash
+./build/simulations/couette_flow_2d_bgk configs/couette.toml
+```
+
+The first is the common case:
+`couette_flow_2d_bgk` is currently the only one that reads a `.toml` from the
+command line.
+
+Benchmark tables and the `configs/` directory are passed to the executables as
+absolute paths at configure time (`LBM_BENCHMARKS_DIR`, `LBM_CONFIGS_DIR`), so
+a binary finds its input data from any working directory and editing a `.toml`
+takes effect without recompiling. Output paths, on the other hand, are relative
+to the working directory: run from the repository root to get output under
+`output/`.
+
+The CUDA executables can be run in sequence, with one log per run, by:
+
+```bash
+./run_cuda_simulations.sh
+```
+
+```bash
+./run_cuda_simulations.sh lid_cavity_2d_bgk
+```
+
+With no arguments it runs every `cuda_*` executable found in
+`build/simulations`; `BIN_DIR` and `LOG_DIR` override the defaults.
+
+### Output files and visualization
+
+There are two output products, both written off the simulation thread:
+
+- **Frames** -- the velocity magnitude at every node, emitted every
+  `niters / nframes` steps. `AsyncBinaryWriter` writes them as a raw binary
+  stream (`nx`, `ny` [, `nz`] as `int32`, then one `float32` per node per
+  frame); `VtkWriter` turns the same stream into one `.vti` file per frame plus
+  a `.pvd` series that ParaView can open *while the run is still going*.
+- **Profile** -- a 1D velocity profile along a centerline, written by
+  `LBMSimulation::output()` with an extractor from `lbm::functional`. The file
+  starts with a `%%profile <operator> <n> <u_ref>` ASCII header, followed by
+  `float64` samples.
+
+```bash
+python scripts/py/visualize_frames.py out/norms_lid_cavity.bin -o cavity.gif
+```
+
+```bash
+python scripts/py/visualize_profile.py output/lid_cavity_bgk_profile.dat benchmarks/ghia/data_y_100.txt --title "Re = 100" -o profile.png
+```
+
+```bash
+python scripts/py/validate_outputs.py
+```
+
+`visualize_frames.py` animates the raw binary frames, `visualize_profile.py`
+overlays one or more profiles (including the Ghia tables, which are already
+normalized by the lid velocity), and `validate_outputs.py` checks the produced
+files structurally and numerically -- headers, payload lengths, finite values,
+and duplicate output paths declared by different CUDA sources.
+
+<p align="center">
+  <img src="images/bench_data_100.png" width="45%" />
+  <img src="images/bench_data_1000.png" width="45%" />
+</p>
+
+## Embedding the library in a CMake project
+
+`lbm-sim` is an `INTERFACE` (header-only) target that already carries its
+include directory, OpenMP, the logging helper and toml++. The top-level
+`CMakeLists.txt` adds `simulations/` only when the project is top level, so
+consuming it as a subproject builds the library and nothing else.
+
+With `FetchContent`:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+  lbm-simulation-lib
+  GIT_REPOSITORY https://github.com/Gab-San/lbm-simulation-lib.git
+  GIT_TAG        main
+)
+FetchContent_MakeAvailable(lbm-simulation-lib)
+
+add_executable(my_sim my_sim.cpp)
+target_link_libraries(my_sim PRIVATE lbm-sim)
+```
+
+Or with a vendored copy:
+
+```cmake
+add_subdirectory(external/lbm-simulation-lib)
+target_link_libraries(my_sim PRIVATE lbm-sim)
+```
+
+For the CUDA backend, configure the consuming project with
+`-DLBM_ENABLE_CUDA=ON` and link `lbm-sim-cuda` instead: it pulls `lbm-sim` in
+and adds relocatable device code plus the OpenMP flag for `nvcc`'s host pass.
+
+## Design and performance
+
+### Architecture
+
+The library is built around compile-time polymorphism, so that the dimension,
+the velocity set and the collision operator cost nothing at run time:
+
+```
+LBMSimulation<dim, VelocitySet, CollisionModel>   owns the Lattice + CollisionParams
+        |  solve(solver)
+        v
+SolverBase<dim, VelocitySet, CollisionModel, Backend>
+        |-- OpenMPSolver<dim, VelocitySet, cm>
+        `-- CUDASolver<dim, VelocitySet, cm>
+                 uses CollisionStrategy<dim, VelocitySet, cm>   (BGK / TRT)
+
+DataObservable ---notify---> IDataListener
+        ^                        |-- AsyncBinaryWriter
+        |-- LBMSimulation        `-- VtkWriter
+        `-- SolverBase
+```
+
+Three deliberate choices shape the code:
+
+- **Strategy for collision.** `CollisionStrategy` dispatches on the
+  `CollisionModel` template parameter with `if constexpr`, so the collision
+  kernel is inlined into the fused stream-collide loop; an unimplemented
+  operator is a compile error, not a run-time branch.
+- **Observer for output.** Solvers know nothing about file formats: they push
+  raw byte chunks to listeners. Both writers drain a queue on a dedicated
+  thread, so disk I/O overlaps with computation and the format can change
+  without touching the solver.
+- **O(1) boundary description.** Domain faces are at most six bytes regardless
+  of resolution, and the per-node solid mask is 2 bytes per node -- about 1.4%
+  of the population arrays on a 1000^2 grid, which keeps obstacle support
+  essentially free.
+
+A UML view of the project lives in
+[`docs/project_structure/LBM_UML.html`](docs/project_structure/LBM_UML.html)
+(editable source: `LBM_UML.drawio`).
+
 ### Parallelization strategy
 
 LBM parallelizes well because its operations are local: at each time step
@@ -442,6 +624,178 @@ OMP_NUM_THREADS=8 OMP_SCHEDULE=static ./build/simulations/lid_cavity_d2q9_bgk
 The CUDA backend maps the same node loop onto the device, with the velocity set
 uploaded to `__constant__` memory and the domain BC passed by value as a kernel
 argument (`DomainBC` is trivially copyable by design).
+
+### Scaling results
+
+#### How the numbers were measured
+
+The timings come from the solver's own instrumentation, not from `time`: a
+build configured with `-DLBM_ENABLE_PROFILING=ON` makes `OpenMPSolver` write
+one row per run into a CSV, and the row kept here is the `solve_total` timer --
+the wall time of the whole iteration loop, with initialization, allocation and
+output excluded. The profiling main also sets `setBenchmarkMode(true)`, which
+suppresses frame emission, so the writer thread is not part of the measurement.
+
+The sweeps are the `[[conf]]` lists in
+[`configs/profiling.toml`](configs/profiling.toml) (strong) and
+[`configs/weak_scaling.toml`](configs/weak_scaling.toml) (weak): the thread
+count is `[conf.backend].n_threads`, applied through
+`BackendProperties<OPEN_MP>::scopedApply()`, and every configuration runs
+`niters = 100000` steps of the 2D lid-driven cavity with `D2Q9` at `Re = 100`.
+
+Each repetition is a separate PBS job (`scripts/cpu_job.pbs`, one node,
+`ncpus=64`, 30 minutes of walltime), submitted N times:
+
+```bash
+./scripts/submit_simulations.sh build/simulations/profiling_lid_cavity_d2q9 configs/profiling.toml 5
+```
+
+```bash
+python scripts/py/plot_strong.py results -o docs/imgResults/strong_scaling.png
+```
+
+`plot_strong.py` and `plot_weak.py` walk `results/<JOBID>/prof/` recursively,
+average the repetitions, and write both the figure and the summary table as
+images. Speedup and efficiency are always measured against the *smallest thread
+count present in that series*, never against a hardcoded 1.
+
+#### Strong scaling -- fixed 129x129 grid
+
+![strong scaling](docs/imgResults/strong_scaling.png)
+
+![strong scaling table](docs/imgResults/strong_scaling_table.png)
+
+| threads | mean [s] | std [s] | speedup | efficiency | MLUPS |
+|--------:|---------:|--------:|--------:|-----------:|------:|
+| 1  | 140.459 | 0.792 | 1.00  | 1.00 | 11.8 |
+| 2  |  72.565 | 1.086 | 1.94  | 0.97 | 22.9 |
+| 4  |  37.437 | 0.256 | 3.75  | 0.94 | 44.5 |
+| 8  |  19.560 | 0.252 | 7.18  | 0.90 | 85.1 |
+| 16 |  10.567 | 0.271 | 13.29 | 0.83 | 157.5 |
+| 32 |   7.207 | 0.523 | 19.49 | 0.61 | 230.9 |
+| 64 |  14.092 | 5.891 | 9.97  | 0.16 | 118.1 |
+
+MLUPS (million lattice updates per second) is
+`nx * ny * niters / time`; it is the number to compare across grids, since
+speedup alone hides the fact that the two rows below are not the same amount of
+work.
+
+What the curve says, in order:
+
+- **Up to 16 threads the solver behaves as the algorithm promises.** 90% at 8
+  threads and 83% at 16 for an embarrassingly parallel node loop is what an
+  OpenMP `parallel for` over a fused stream-collide pass should give: there is
+  no reduction, no critical section, and the only synchronization is the
+  implicit barrier at the end of the loop.
+- **32 threads still pays off, but the efficiency drops to 0.61.** Each thread
+  is left with 16641 / 32 = 520 nodes, i.e. about 75 kB of populations -- small
+  enough that the barrier at every one of the 100 000 iterations starts to
+  weigh against the useful work per iteration.
+- **64 threads is a regression, not a plateau**: the time goes *back up* from
+  7.2 s to 14.1 s, and the standard deviation explodes from 0.5 s to 5.9 s
+  (40% of the mean). A slower mean with an unstable spread is contention, not
+  saturation. With 260 nodes per thread the loop body is shorter than the
+  barrier that follows it, and if the 64 logical CPUs of the node are SMT
+  siblings on fewer physical cores, two threads then fight for one set of
+  execution units and one L1. The fix is not in the solver: bind the threads
+  (`OMP_PROC_BIND=close`, `OMP_PLACES=cores`) and re-measure, and use a grid
+  large enough that 64 threads have real work -- the weak-scaling sweep below
+  shows the same node handling 4 million nodes without any of this.
+
+**The 300x300 series in the figure did not scale at all**, and it is worth
+saying explicitly why it should not be read as a result of the solver: its wall
+time is 78.0 s on 1 thread and 75.5 s on 64, i.e. flat to within the noise, for
+a speedup of 1.03. A parallel loop that is genuinely limited by memory
+bandwidth still improves by a factor of several before flattening; a curve that
+is flat *from the first doubling* means the extra threads never ran. Two facts
+pin it down:
+
+- the single-thread throughput of the two series is the same (11.8 MLUPS at
+  129x129, 11.5 MLUPS at 300x300 once the iteration counts are taken into
+  account), so the serial code path is identical;
+- the 64-thread 300x300 run has the same throughput as its own serial run.
+
+Since the `n_threads` column of the CSV is the value *requested* through
+`BackendProperties::getNumThreads()` and not one measured inside the parallel
+region with `omp_get_num_threads()`, a job that was granted fewer CPUs than it
+asked for -- or one whose threads were confined to a single core by the queue
+-- is recorded as a 64-thread run regardless. Before that series is quoted
+anywhere, re-run it on a job whose `select=...:ncpus=` matches the sweep, and
+log `omp_get_num_threads()` from inside the region so the CSV records what was
+actually used rather than what was asked for.
+
+#### Weak scaling -- constant work per thread
+
+![weak scaling](docs/imgResults/weak_scaling.png)
+
+![weak scaling table](docs/imgResults/weak_scaling_table.png)
+
+| threads | grid | cells/thread | mean [s] | MLUPS | MLUPS per thread |
+|--------:|------|-------------:|---------:|------:|-----------------:|
+| 1  | 129x129   | 16641 | 141.774 | 11.7  | 11.7 |
+| 2  | 183x183   | 16744 | 146.129 | 22.9  | 11.5 |
+| 4  | 257x257   | 16512 | 146.945 | 45.0  | 11.2 |
+| 8  | 365x365   | 16653 | 151.584 | 87.9  | 11.0 |
+| 16 | 515x515   | 16577 | 151.768 | 174.8 | 10.9 |
+| 32 | 1000x1000 | 31250 | 325.416 | 307.3 |  9.6 |
+| 64 | 2000x2000 | 62500 | 1447.020| 276.4 |  4.3 |
+
+The first five rows are a textbook weak-scaling sweep: the grid grows so that
+every thread keeps about 16 600 nodes, and the ideal is a **flat** time curve.
+It is flat to within 7% -- 141.8 s on one thread against 151.8 s on sixteen,
+efficiency 0.934 -- which is the same story the strong-scaling curve tells from
+the other side: the node loop itself parallelizes cleanly, and what little
+slope there is comes from the growing footprint rather than from
+synchronization.
+
+**The last two rows are a different experiment and must not be read as a
+continuation of the first five.** `configs/weak_scaling.toml` gives 32 threads
+a 1000x1000 grid and 64 threads a 2000x2000 one, which is 31 250 and 62 500
+nodes per thread instead of 16 600: the work per thread doubles, then doubles
+again. `plot_weak.py` detects this -- it groups repetitions into series by the
+work per thread at their baseline -- and plots them as a separate orange series
+whose efficiency restarts at 1.0 by construction at 32 threads. The efficiency
+column of the table image, which does not carry the series label, is what makes
+the two look continuous.
+
+Normalizing by throughput instead removes the ambiguity, because MLUPS per
+thread is comparable across every row:
+
+- 1 to 16 threads: 11.7 -> 10.9 MLUPS per thread, a 7% loss;
+- 32 threads: 9.6 MLUPS per thread, 82% of the single-thread rate;
+- 64 threads: 4.3 MLUPS per thread, 37%.
+
+The collapse at the last point is a memory-hierarchy effect, and the footprint
+makes it concrete. Two population buffers of `ndir = 9` doubles cost 144 bytes
+per node, plus about 28 bytes for `u`, `rho` and the norm buffer:
+
+| grid | populations | total working set |
+|------|------------:|------------------:|
+| 515x515   |  38 MB |  46 MB |
+| 1000x1000 | 144 MB | 172 MB |
+| 2000x2000 | 576 MB | 688 MB |
+
+Up to 515x515 the whole simulation fits in the aggregate last-level cache of a
+64-core node; at 2000x2000 every one of the 100 000 iterations streams 688 MB
+from DRAM twice (read `ffrom`, write `fto`). LBM is bandwidth-bound by nature
+-- one stream-collide step does a few dozen flops per node against 144 bytes of
+traffic -- so once the working set leaves cache the memory controllers, not the
+cores, set the pace. That is why the 64-thread point loses a factor of 2.5 in
+per-thread throughput while the 1-to-16 sweep, which never leaves cache, loses
+7%.
+
+To turn the last two points into a real weak-scaling measurement, keep the work
+per thread constant: 16 641 nodes per thread means 730x730 at 32 threads and
+1032x1032 at 64. Keeping the 2000x2000 run as well is worth it -- it is the
+only data point in the report that measures the solver against DRAM rather than
+against cache -- but it belongs to its own series.
+
+> Two practical notes for whoever re-runs this. The 32- and 64-thread points
+> were averaged over 4 repetitions instead of 5, so they come from a separate
+> submission; and the 2000x2000 run alone spends 1447 s inside `solve_total`
+> against the 1800 s walltime in `cpu_job.pbs`, which leaves no margin for
+> initialization and for copying the results back. Raise the walltime before
+> adding repetitions at that size.
 
 ## Error estimation
 
@@ -489,6 +843,135 @@ the centerline profile and comparing it against external reference data.
   <img src="docs/report/assets/bench_data_x_1000.png" width="45%" />
 </p>
 
+## Simulation results
+
+Every profile below is produced the same way: the run writes a centerline with
+`LBMSimulation::output()` and an extractor from `lbm::functional`, and
+`scripts/py/visualize_profile.py` plots it. The script divides the samples by
+the `u_ref` recorded in the `%%profile` header, which is the same normalization
+the Ghia tables already use, so a curve that sits below the reference is
+genuinely slower and not just scaled differently.
+
+### Lid-driven cavity at Re = 7500
+
+2D cavity, `D2Q9`, 2000x2000 nodes, TRT and BGK, compared against
+`benchmarks/ghia/data_y_7500.txt` -- the vertical velocity along the horizontal
+centerline, `v(x, ny/2)`, which is what
+`functional::extract_dy_profile_along_x_center` extracts.
+
+<p align="center">
+  <img src="docs/imgResults/profile_lid_cavity_d2q9_2000_2000_7500_trt.png" width="47%" />
+  <img src="docs/imgResults/profile_comparison_lid_cavity_d2q9_7500.png" width="47%" />
+</p>
+
+The shape is right: the profile leaves the left wall, peaks just inside it,
+crosses zero at mid-cavity and reaches a deeper negative extremum near the
+right wall -- the signature of the primary vortex, asymmetric in exactly the
+direction Ghia's table is. Point by point:
+
+| | simulation | Ghia et al. (1982) | difference |
+|---|---:|---:|---:|
+| positive peak (x ~ 0.06) | +0.38 | +0.4403 | -14% |
+| zero crossing | ~0.50 | 0.50 (+0.008) | -- |
+| negative extremum (x ~ 0.96) | -0.54 | -0.5522 | -2% |
+
+Three things are worth reading off these two figures, in decreasing order of
+how easy they are to get wrong:
+
+- **BGK and TRT are indistinguishable at this scale.** In the comparison plot
+  the green BGK curve is drawn over the blue TRT one and hides it completely --
+  the legend entry is the only evidence TRT is there at all. That is the
+  expected outcome, not a bug: the two operators differ in how they relax the
+  antisymmetric moments, which shows up in the placement of *curved or
+  obstacle* walls, and a square cavity resolved by 2000 nodes gives that
+  difference nothing to act on. TRT earns its keep elsewhere -- on the pipe
+  below, or at coarser resolutions where the wall position matters.
+- **The straight segment of the orange curve between x = 0.23 and x = 0.80 is
+  interpolation, not data.** Ghia's table has 17 points and only one of them
+  (x = 0.5) lies in that interval; `visualize_profile.py` joins consecutive
+  points with a straight line. Most of the apparent gap in the middle of the
+  plot is therefore an artifact of the reference being drawn as a polyline. The
+  number to quote is the one `compute_ghia_error()` returns: it interpolates
+  the *simulation* onto the 17 tabulated abscissas and reduces the differences
+  in `L2`, which is a comparison between 17 pairs of numbers rather than
+  between two drawn curves.
+- **The 14% deficit on the positive peak is real, and resolution is not the
+  explanation.** At 2000 nodes across the cavity, one lattice spacing is 0.05%
+  of the side: the near-wall extremum is resolved by tens of nodes, so this is
+  not an under-resolved boundary layer. The likelier cause is that the run has
+  not reached the steady state Ghia's tables describe. One flow-through time
+  for a lid at `u = 0.1` on a 2000-node cavity is `L/u = 20000` steps, and a
+  cavity at `Re = 7500` -- where the secondary corner vortices are still
+  growing long after the primary one has formed -- needs *tens* of flow-through
+  times to settle. The asymmetry of the error supports this: the extremum on
+  the side the lid drives into (-2%) is already converged, while the one on the
+  returning side, which is fed by the slower recirculation, is the one lagging.
+
+> The configuration that produced these two figures is not in `configs/`: it
+> was run with an ad-hoc grid and iteration count. Commit it as
+> `configs/lid_cavity_7500.toml` -- without `niters` the convergence argument
+> above cannot be checked, and the figures cannot be reproduced.
+
+### Pipe flow in 3D
+
+`D3Q19` on the CUDA backend
+([`simulations/cuda/pipe_poiseuille_d3q19_bgk.cu`](simulations/cuda/pipe_poiseuille_d3q19_bgk.cu),
+`configs/pipe_config*.toml`): a `CollisionDetection::CylindricalShell`
+rasterized as the pipe wall inside a box, pressure-periodic inlet and outlet on
+the `x` faces, rigid walls elsewhere. The profile is `u_x` along the `z`
+centerline, from `functional::extract_dx_profile_along_z_center`.
+
+<p align="center">
+  <img src="docs/imgResults/pipe_profile.png" width="60%" />
+</p>
+
+- The profile is the parabola Hagen-Poiseuille predicts across a diameter, and
+  it is symmetric about the axis to within the line width -- which is the real
+  test here, because nothing in the setup enforces symmetry: the wall is a
+  rasterized cylinder, so a lopsided profile would have exposed a bias in how
+  `compute_solid_mask()` walks the shell.
+- **The flat zero shoulders at both ends are not stagnant fluid, they are solid
+  nodes.** The extractor samples the full width of the *box*, and the pipe is
+  inscribed in it: the two or three nodes at each end of the line sit between
+  the box face and the cylinder wall. The fluid region is about 92% of the
+  plotted line, and the profile does start from zero exactly at the shell, so
+  bounce-back is placing the wall where the geometry says it is.
+- The peak reaches 0.93 of the reference velocity that sets the viscosity. The
+  remaining 7% is the same family of effect discussed for the 2D channel: the
+  effective diameter seen by bounce-back differs by about one lattice spacing
+  from the nominal one used to derive `nu`, and on a 65-node cross-section one
+  spacing is 1.5% of the diameter -- which, entering the parabola quadratically
+  through the pressure drop, is the right order of magnitude for the gap. It is
+  a systematic offset, not noise: it should shrink under refinement, and
+  `configs/pipe_config_3.toml` (100x125x125) is the run that tests it.
+
+> `pipe_profile.png` does not carry its parameters in the filename, and three
+> pipe configurations are committed (`Re = 21` and `Re = 100` on 64x65x65,
+> `Re = 100` on 100x125x125), so which one it is cannot be recovered from the
+> file. Renaming it to the convention the other figures use --
+> `profile_pipe_d3q19_<nx>_<ny>_<nz>_<Re>_<operator>.png` -- costs nothing now
+> and saves the next reader a guess.
+
+### Lid-driven cavity in 3D
+
+`D3Q19`, 200x200x200 nodes, `Re = 1000`, lid on the `z = nz-1` face
+([`configs/lid_cavity_3d.toml`](configs/lid_cavity_3d.toml)). The animation is
+the velocity magnitude on the exported frames, rendered with
+`scripts/py/visualize_frames.py`:
+
+<p align="center">
+  <img src="docs/report/assets/lid_cavity_3d.gif" width="60%" />
+</p>
+
+There is no tabulated 3D counterpart to Ghia in `benchmarks/`, and
+`compute_ghia_error()` is `dim == 2` only, so this case is validated
+qualitatively -- the primary vortex forms under the lid and the corner
+recirculations appear where they should -- and quantitatively only through the
+exported centerline, which has to be compared against external reference data.
+The same run is available as [`lid_cavity_3d.mp4`](docs/imgResults/lid_cavity_3d.mp4)
+(the GIF is ten times larger than the MP4, so prefer the MP4 when linking it
+from anywhere that plays video).
+
 ## Documentation and report
 
 API documentation is generated with Doxygen when it is found at configure
@@ -505,17 +988,22 @@ cmake --build build --target lbm-docs-full
 Output lands in `docs/doxygen/`.
 
 The report material lives under [`docs/report/`](docs/report):
-[`Lattice_Boltzmann_Theory.pdf`](docs/report/Lattice_Boltzmann_Theory.pdf) for
-the method and the boundary conditions,
+[`Lattice_Boltzmann_Theory.pdf`](docs/report/Lattice_Boltzmann_Theory.pdf) for the method and the boundary conditions,
 [`profiling.md`](docs/report/profiling.md) for the scaling study,
 [`benchmarks.md`](docs/report/benchmarks.md) and
 [`error_results.md`](docs/report/error_results.md) for the validation, and
 [`flow_animations.md`](docs/report/flow_animations.md) for the rendered runs.
 The figures and animations they reference live under
-[`docs/imgResults/`](docs/imgResults).
-
-<!-- TODO: link the final assembled project report here once it is published. -->
-**Project report:** _to be linked._
+- [Architecture](docs/pages/architecture.md) -- how lattice, solver, boundaries, collision and listeners fit together;
+- [Configuration files](docs/pages/configuration.md) -- the TOML schema the parser actually reads, field by field;
+- [Output formats](docs/pages/output-formats.md) -- the frame stream, the profile file, the VTK series and the profiling CSV, byte by byte;
+- [Validation](docs/pages/validation.md) -- the benchmark cases, the error norms, the pitfalls behind a converged run that still scores badly, 
+  and the profiles the runs produced;
+- [Performance](docs/pages/performance.md) -- timing a run with the profiler,
+  driving a scaling sweep on the cluster, and the strong and weak scaling
+  results;
+- [Extending the library](docs/pages/extending.md) -- adding a velocity set, a
+  collision operator, an obstacle shape or an output listener.
 
 ## References
 
