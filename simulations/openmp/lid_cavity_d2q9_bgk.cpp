@@ -88,7 +88,8 @@ int main(int argc, char **argv) {
 
     LBMSimulation<DIM, D2Q9, COLLISION> simulation(
         grid_size, std::move(solid_mask), {}, dbc,
-        CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, init_vel));
+        CollisionParams<DIM, COLLISION>(cfg.reynolds, init_vel, init_vel.dx,
+                                        grid_size.y));
     simulation.attachListener(writer);
 
     OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);

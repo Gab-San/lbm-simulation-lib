@@ -85,7 +85,8 @@ int main(int argc, char **argv) {
             format::file_format(cfg.reynolds) + "_" +
             format::file_format(COLLISION) + ".dat");
 
-    const CollisionParams<DIM, COLLISION> params(cfg.reynolds, grid_size, u0);
+    const CollisionParams<DIM, COLLISION> params(cfg.reynolds, u0, u0.dx,
+                                                 grid_size.y);
     // The pressure drop that sustains the flow: derived from the channel
     // Poiseuille solution, it is not a free parameter.
     const double pout = 1;

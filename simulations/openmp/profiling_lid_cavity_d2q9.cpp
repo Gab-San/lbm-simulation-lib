@@ -10,7 +10,6 @@
 #include "lbm/config/config-parser.hpp"
 
 // C++ STD LIB
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -83,7 +82,7 @@ int main(int argc, char **argv) {
 
     LBMSimulation<DIM, D2Q9, COLLISION> simulation(
         grid_size, std::move(solid_mask), {}, dbc,
-        CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, u0));
+        CollisionParams<DIM, COLLISION>(cfg.reynolds, u0, u0.dx, grid_size.y));
 
     OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
 

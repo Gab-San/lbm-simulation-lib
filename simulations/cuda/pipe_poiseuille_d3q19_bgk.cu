@@ -122,7 +122,8 @@ int main(int argc, char **argv) {
     // CollisionParams taking an explicit characteristic length.)
     const double re_target = cfg.reynolds;
     const double re_scaled = re_target * static_cast<double>(ny) / d_eff;
-    const CollisionParams<DIM, COLLISION> params(re_scaled, grid_size, u0);
+    const CollisionParams<DIM, COLLISION> params(re_scaled, u0, u0.dx,
+                                                 grid_size.y);
 
     const double u_max = params.init_vel.dx;
     const double tau = numbers::invcs_2 * params.nu + 0.5;

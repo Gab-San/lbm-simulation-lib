@@ -16,6 +16,7 @@
 #define _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 
 #include "lbm-sim/annotations.hpp"
+#include "lbm-sim/backend/utils.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
 
 #include "lbm-sim/core/operators.hpp"
@@ -156,31 +157,26 @@ private:
     using utils::ops::dot;
     const double omusq = -1.5 * dot(u, u);
 
+    // The rest direction is its own opposite: no antisymmetric part, so
+    // this degenerates to a BGK relaxation at rate inv_plus.
+    const double cidotu_0 = dot(detail::direction<dim, VelocitySet>(0), u);
+    const double feq_0 =
+        detail::weight<VelocitySet>(0) * localrho *
+        (1.0 + numbers::invcs_2 * cidotu_0 + 4.5 * cidotu_0 * cidotu_0 + omusq);
+    fp[0] = fp[0] - params.inv_plus * (fp[0] - feq_0);
+
 #ifndef __CUDA_ARCH__
 #pragma omp simd
 #endif
-    for (std::ptrdiff_t i = 0;
-         i < static_cast<std::ptrdiff_t>(VelocitySet::ndir); ++i) {
+    for (std::ptrdiff_t i = 1;
+         i < static_cast<std::ptrdiff_t>(VelocitySet::ndir); i += 2) {
       const auto iopp =
           static_cast<std::ptrdiff_t>(detail::opposite<VelocitySet>(i));
 
-      // Each (i, iopp) pair is handled once, from its lower index: the body
-      // below writes both fp[i] and fp[iopp].
-      if (i > iopp) {
-        continue;
-      }
-
       const double cidotu_i = dot(detail::direction<dim, VelocitySet>(i), u);
-      const double feq_i =
-          detail::weight<VelocitySet>(i) * localrho *
-          (1.0 + 3.0 * cidotu_i + 4.5 * cidotu_i * cidotu_i + omusq);
-
-      if (i == iopp) {
-        // The rest direction is its own opposite: no antisymmetric part, so
-        // this degenerates to a BGK relaxation at rate s_plus.
-        fp[i] = fp[i] - params.s_plus * (fp[i] - feq_i);
-        continue;
-      }
+      const double feq_i = detail::weight<VelocitySet>(i) * localrho *
+                           (1.0 + numbers::invcs_2 * cidotu_i +
+                            4.5 * cidotu_i * cidotu_i + omusq);
 
       const double cidotu_opp =
           dot(detail::direction<dim, VelocitySet>(iopp), u);
@@ -198,10 +194,10 @@ private:
       const double fminus_eq = 0.5 * (feq_i - feq_opp);
 
       // RELAX TO EQUILIBRIUM
-      fp[i] = fp[i] - params.s_plus * (fplus - fplus_eq) -
-              params.s_minus * (fminus - fminus_eq);
-      fp[iopp] = fp[iopp] - params.s_plus * (fplus - fplus_eq) +
-                 params.s_minus * (fminus - fminus_eq);
+      fp[i] = fp[i] - params.inv_plus * (fplus - fplus_eq) -
+              params.inv_minus * (fminus - fminus_eq);
+      fp[iopp] = fp[iopp] - params.inv_plus * (fplus - fplus_eq) +
+                 params.inv_minus * (fminus - fminus_eq);
     }
   }
 };

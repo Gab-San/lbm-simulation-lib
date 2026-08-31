@@ -172,15 +172,14 @@ int main() {
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(conf.out_frames);
 
-    CollisionParams<DIM, CollisionType> params(reyn, grid_size, init_vel);
-    // const double pout = 1;
-    // const double pin =
-    //     pout +
-    //     numbers::invcs_2 *
-    //         (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
-    //         8 * params.nu * params.init_vel.dx;
-    // Simulation simulation(grid_size, std::move(solid_mask), obstacle_data,
-    //                       domain_bc, params, pin, pout);
+    CollisionParams<DIM, CollisionType> params(reyn, init_vel, init_vel.dx,
+                                               grid_size.y);
+    const double pout = 1;
+    const double pin =
+        pout +
+        numbers::invcs_2 *
+            (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) * 8 *
+            params.nu * params.init_vel.dx;
 
     Simulation simulation(grid_size, std::move(solid_mask), obstacle_data,
                           domain_bc, params);

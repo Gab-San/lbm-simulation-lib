@@ -76,9 +76,10 @@ int main(int argc, char **argv) {
     std::shared_ptr<VtkWriter> writer =
         std::make_shared<VtkWriter>(cfg.frames_out);
 
-    Simulation simulation(
-        grid_size, std::move(solid_mask), {}, make_cavity_bc(),
-        CollisionParams<DIM, CollisionType>(cfg.reynolds, grid_size, u0));
+    Simulation simulation(grid_size, std::move(solid_mask), {},
+                          make_cavity_bc(),
+                          CollisionParams<DIM, CollisionType>(
+                              cfg.reynolds, u0, u0.dx, grid_size.y));
     simulation.attachListener(writer);
 
     CUDASolver<DIM, D2Q9, CollisionType> solver(cfg.niters, cfg.nframes);

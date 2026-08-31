@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
 
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(
-            //std::string(frames_path) + "_" +
+            // std::string(frames_path) + "_" +
             frames_path.string() + "_" +
             std::string(analysis::CouetteSolution2D::name) + "_d2q9_" +
             format::file_format(grid_size) + "_" +
@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
 
     LBMSimulation<DIM, D2Q9, COLLISION> simulation(
         grid_size, std::move(solid_mask), {}, dbc,
-        CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, u0));
+        CollisionParams<DIM, COLLISION>(cfg.reynolds, u0, u0.dx, grid_size.y));
     simulation.attachListener(writer);
 
     OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);

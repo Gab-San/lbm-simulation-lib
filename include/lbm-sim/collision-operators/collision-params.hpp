@@ -28,13 +28,15 @@
  *       it down.
  */
 
-#ifndef __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP
-#define __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP
+#pragma once
 
 #include "lbm-sim/backend/cuda/annotations.hpp"
+#include "lbm-sim/constants.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/metadata.hpp"
 #include "lbm-sim/types/common.hpp"
+
+#include <cstddef>
 
 namespace lbm {
 
@@ -69,9 +71,6 @@ struct CollisionParams<dim, CollisionModel::BGK> {
   /// Reference velocity. @c dx is the characteristic velocity of the problem.
   const utils::Vector<double, dim> init_vel;
 
-  /// Grid extents; @c y is the characteristic length used for @c nu.
-  const types::DimPoint<dim> num_cells;
-
   /// Reynolds number the viscosity was derived from.
   const double reyn_num;
 
@@ -98,16 +97,15 @@ struct CollisionParams<dim, CollisionModel::BGK> {
    *
    * @note Both checks are skipped in device code (@c __CUDA_ARCH__).
    */
-  LBM_HD_FUNC CollisionParams(const double reyn_num_,
-                              const types::DimPoint<dim> num_cells_,
-                              const utils::Vector<double, dim> init_vel_)
-      : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
-        // Characteristic scales: lid velocity (init_vel.dx) and cavity
-        // height (num_cells.y), valid regardless of dim (2D or 3D).
-        nu(init_vel_.dx * num_cells_.y / reyn_num_),
-        tauinv(2.0 / (6.0 * nu + 1.0)), omtauinv(1.0 - tauinv) {
+  LBM_HD_FUNC
+  CollisionParams(const double reyn_num_,
+                  const utils::Vector<double, dim> init_vel_,
+                  const double u_ref, const std::size_t L)
+      : init_vel(init_vel_), reyn_num(reyn_num_), nu(u_ref * L / reyn_num_),
+        tauinv(2.0 / (2 * numbers::invcs_2 * nu + 1.0)),
+        omtauinv(1.0 - tauinv) {
 #ifndef __CUDA_ARCH__
-    double tau = 0.5 + 3.0 * nu;
+    double tau = 0.5 + numbers::invcs_2 * nu;
     if (tau <= 0.5) {
       throw std::runtime_error("LBM error: tau must be > 0.5");
     }
@@ -146,9 +144,6 @@ struct CollisionParams<dim, CollisionModel::TRT> {
   /// Reference velocity. @c dx is the characteristic velocity of the problem.
   const utils::Vector<double, dim> init_vel;
 
-  /// Grid extents; @c y is the characteristic length used for @c nu.
-  const types::DimPoint<dim> num_cells;
-
   /// Reynolds number the viscosity was derived from.
   const double reyn_num;
 
@@ -159,7 +154,7 @@ struct CollisionParams<dim, CollisionModel::TRT> {
   const double tauPlus, tauMinus;
 
   /// Their reciprocals, the rates the collision kernel actually applies.
-  const double s_plus, s_minus;
+  const double inv_plus, inv_minus;
 
   /**
    * @brief Derives @c nu, the two relaxation times and their rates.
@@ -175,17 +170,13 @@ struct CollisionParams<dim, CollisionModel::TRT> {
    *       distinctly wider range, which is one of the reasons to pick it.
    */
   LBM_HD_FUNC CollisionParams(const double reyn_num_,
-                              const types::DimPoint<dim> num_cells_,
-                              const utils::Vector<double, dim> init_vel_)
-      : init_vel(init_vel_), num_cells(num_cells_), reyn_num(reyn_num_),
-        nu(init_vel_.dx * num_cells_.y / reyn_num_), tauPlus(3.0 * nu + 0.5),
-        tauMinus(0.5 + (0.25) / (tauPlus - 0.5)), s_plus(1.0 / tauPlus),
-        s_minus(1.0 / tauMinus) {
-#if DEBUG
-    std::cerr << "DEBUG: tauPlus=" << tauPlus << " tauMinus=" << tauMinus
-              << " s_plus=" << s_plus << " s_minus=" << s_minus << std::endl;
-#endif
-
+                              const utils::Vector<double, dim> init_vel_,
+                              const double u_ref, const std::size_t L,
+                              const double lambda = 0.25)
+      : init_vel(init_vel_), reyn_num(reyn_num_), nu(u_ref * L / reyn_num_),
+        tauPlus(numbers::invcs_2 * nu + 0.5),
+        tauMinus(0.5 + lambda / (tauPlus - 0.5)), inv_plus(1.0 / tauPlus),
+        inv_minus(1.0 / tauMinus) {
 #ifndef __CUDA_ARCH__
     if (tauPlus <= 0.5) {
       throw std::runtime_error("LBM error: tau must be > 0.5");
@@ -195,5 +186,3 @@ struct CollisionParams<dim, CollisionModel::TRT> {
 };
 
 } // namespace lbm
-
-#endif // __LBM_SIM_COLLISION_OPERATORS_METADATA_HPP

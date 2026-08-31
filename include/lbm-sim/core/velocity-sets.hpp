@@ -60,10 +60,10 @@ struct D2Q9 {
    *
    * The direction numbering scheme is: \n
    * ------ + x \n
-   * |7 4 8 \n
-   * |3 0 1 \n
-   * |6 2 5 \n
-   * +\n
+   * |8 3 5 \n
+   * |2 0 1 \n
+   * |6 4 7 \n
+   * \n
    * y
    */
   static inline constexpr double wi[ndir] = {w0, ws, ws, ws, ws,
@@ -74,20 +74,20 @@ struct D2Q9 {
    *
    * The direction numbering scheme is: \n
    * ------ + x \n
-   * |7 4 8 \n
-   * |3 0 1 \n
-   * |6 2 5 \n
+   * |8 3 5 \n
+   * |2 0 1 \n
+   * |6 4 7 \n
    * \n
    * y
    */
   static inline constexpr types::Direction<dim> dir[ndir] = {
-      types::Direction<dim>(0, 0),  types::Direction<dim>(1, 0),
-      types::Direction<dim>(0, 1),  types::Direction<dim>(-1, 0),
-      types::Direction<dim>(0, -1), types::Direction<dim>(1, 1),
-      types::Direction<dim>(-1, 1), types::Direction<dim>(-1, -1),
-      types::Direction<dim>(1, -1)};
+      types::Direction<dim>(0, 0),   types::Direction<dim>(1, 0),
+      types::Direction<dim>(-1, 0),  types::Direction<dim>(0, 1),
+      types::Direction<dim>(0, -1),  types::Direction<dim>(1, 1),
+      types::Direction<dim>(-1, -1), types::Direction<dim>(1, -1),
+      types::Direction<dim>(-1, 1)};
 
-  static inline constexpr std::size_t opp[ndir] = {0, 3, 4, 1, 2, 7, 8, 5, 6};
+  static inline constexpr std::size_t opp[ndir] = {0, 2, 1, 4, 3, 6, 5, 8, 7};
 };
 
 struct D3Q19 {

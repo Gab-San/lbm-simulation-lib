@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
 
     LBMSimulation<DIM, D2Q9, COLLISION> simulation(
         grid_size, std::move(solid_mask), {}, dbc,
-        CollisionParams<DIM, COLLISION>(cfg.reynolds, grid_size, u0));
+        CollisionParams<DIM, COLLISION>(cfg.reynolds, u0, u0.dx, grid_size.y));
     simulation.attachListener(writer);
 
     OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
                    "    RMSE:               {:.8e}\n"
                    "    RMSE / U_wall:      {:.4f} %\n"
                    "    Linf:               {:.8e}\n"
-                   "    Linf / U_wall:      {:.4f} %\n\n",
+                   "    Linf / U_wall:      {:.4f} %\n",
                    grid_size.x, grid_size.y, cfg.reynolds,
                    collision_model_to_string(COLLISION), cfg.niters,
                    error_metrics.absolute, 100.0 * error_metrics.relative,
