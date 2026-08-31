@@ -39,12 +39,12 @@ def create_frames(nx, ny, data, num_iterations, vmax, output_file, save, title):
         fig, update, frames=num_iterations, interval=100, blit=False, repeat=True
     )
 
-    plt.show()
-
     if save:
         writer = "ffmpeg" if str(output_file).endswith(".mp4") else "pillow"
         anim.save(output_file, writer=writer, fps=10)
         print(f"Plot saved in {output_file}")
+
+    plt.show()  # only for interactive viewing, after saving
 
 
 def existing_file(path_str: str) -> Path:

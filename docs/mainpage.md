@@ -26,14 +26,17 @@ time loop.
 | @ref architecture | How the pieces fit together: lattice, solver, boundaries, collision, listeners. |
 | @ref configuration | The TOML configuration format and how a main consumes it. |
 | @ref output_formats | The frame stream, the profile file and the profiling CSV, byte by byte. |
-| @ref validation | The four benchmark cases, the error norms, and what makes a converged run look wrong. |
+| @ref validation | The four benchmark cases, the error norms, what makes a converged run look wrong, and the profiles the runs produced. |
+| @ref performance | Timing a run, driving a scaling sweep, and the strong and weak scaling measured on a 64-core node. |
 | @ref extending | Adding a velocity set, a collision operator, an obstacle shape or an output listener. |
 
 The class and file reference generated from the headers is reachable from the
-*Classes* and *Files* tabs. The narrative overview of the project, the physical
-model, the scaling results and the validation figures live in the repository
-[`README.md`](https://github.com/Gab-San/lbm-simulation-lib#readme);
-these pages deliberately do not repeat them and focus on the API instead.
+*Classes* and *Files* tabs. The narrative overview of the project and the
+physical model live in the repository
+[`README.md`](https://github.com/Gab-San/lbm-simulation-lib#readme); these
+pages do not repeat them and focus on the API instead -- the measured results
+are the exception, since the figures only mean something next to the code that
+produced them.
 
 ## A minimal simulation
 
@@ -108,8 +111,11 @@ build).
 - `docs/references/Ghia1982.pdf` — the lid-driven cavity benchmark tables used
   by `lbm::analysis::compute_ghia_error()`.
 - `docs/references/AMSC_LBM_hands_on_proposal.pdf` — the original assignment.
-- `docs/project_structure/` — the UML sketch of the class structure and the
-  task breakdown.
+- `docs/report/` — the project report: measured errors, scaling, flow
+  animations, the UML sketch (`LBM_UML.html`, editable as `LBM_UML.drawio`)
+  and the theory notes.
 - `docs/assets/` — interactive viewers for the
   [D3Q19](lbm_d3q19_directions.html) and
-  [D3Q27](lbm_d3q27_directions.html) direction sets.
+  [D3Q27](lbm_d3q27_directions.html) direction sets. The two links resolve in
+  the generated site, where the viewers are copied next to the pages; reading
+  this file in the repository, they are `docs/assets/*.html`.

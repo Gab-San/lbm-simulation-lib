@@ -45,6 +45,7 @@ set(LBM_DOXYGEN_PAGES
   "${CMAKE_CURRENT_SOURCE_DIR}/pages/configuration.md"
   "${CMAKE_CURRENT_SOURCE_DIR}/pages/output-formats.md"
   "${CMAKE_CURRENT_SOURCE_DIR}/pages/validation.md"
+  "${CMAKE_CURRENT_SOURCE_DIR}/pages/performance.md"
   "${CMAKE_CURRENT_SOURCE_DIR}/pages/extending.md")
 
 # ---------------------------- COMMON SETTINGS -------------------------------
@@ -83,8 +84,11 @@ set(DOXYGEN_PREDEFINED
   "__constant__="
   "__global__=")
 
-# Figures referenced from the pages live next to the README.
-set(DOXYGEN_IMAGE_PATH "${PROJECT_SOURCE_DIR}/images")
+# Figures referenced from the pages: the older benchmark plots next to the
+# README, and the result figures the scaling and validation pages point at.
+set(DOXYGEN_IMAGE_PATH
+  "${CMAKE_CURRENT_SOURCE_DIR}/report/assets"
+  "${CMAKE_CURRENT_SOURCE_DIR}/imgResults")
 
 # The interactive velocity-set viewers are copied verbatim into the HTML
 # output so the pages can link them with a relative path.

@@ -12,14 +12,13 @@
  * @see LBMSimulation::compute_error(), which chains the two on the
  *      simulation's own lattice.
  */
-
-#ifndef __LBM_SIM_ANALYSIS_ERROR_HPP
-#define __LBM_SIM_ANALYSIS_ERROR_HPP
+#pragma once
 
 #include "lbm-sim/analysis/types.hpp"
 #include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/functions.hpp"
+#include "lbm-sim/types/base.hpp"
 
 // C++ STANDARD LIB
 #include <algorithm>
@@ -35,6 +34,17 @@ struct ErrorAnalysisSchema {
   static constexpr char const *header =
       "profile,size,collision_model,niters,type,rel,abs";
   static constexpr char const *format = "{},{},{},{},{},{:3f},{:3f}";
+};
+
+/// CSV schema for an error table, in the shape CsvWriter expects.
+/// @see the "Output formats" page.
+struct DetailedErrorAnalysisSchema {
+  static constexpr char const *header =
+      "profile,grid_size,reynolds,collision_model,niters,type,rel,abs,"
+      "rel_percent,rmse,rmse_ref_percent,linf,linf_ref_percent";
+  static constexpr char const *format =
+      "{},{},{},{},{},{},{:.8e},{:.8e},{:.6f},{:.8e},{:.6f},{:.8e},"
+      "{:.6f}";
 };
 
 /**
@@ -161,7 +171,69 @@ public:
   }
 };
 
+template <unsigned short int dim>
+inline NormErrorResult
+compute_error(const Grid<dim> &grid,
+              const std::vector<utils::Vector<double, dim>> &sim_u,
+              const functional::Function<dim> &exact_solution,
+              const NormType norm_type, const double reference_velocity = 0.0) {
+  const auto error_per_cell =
+      ErrorEvaluator<dim>::integrate_difference(grid, sim_u, exact_solution);
+
+  std::vector<double> reference_per_cell(grid.getArea(), 0.0);
+
+  for (std::size_t idx = 0; idx < grid.getArea(); ++idx) {
+    types::Coordinate<dim> coord;
+
+    if constexpr (dim == 2) {
+      coord.x = static_cast<int>(idx % grid.size.x);
+      coord.y = static_cast<int>(idx / grid.size.x);
+    } else {
+      const std::size_t plane = grid.size.x * grid.size.y;
+      coord.z = static_cast<int>(idx / plane);
+      const std::size_t rem = idx % plane;
+      coord.y = static_cast<int>(rem / grid.size.x);
+      coord.x = static_cast<int>(rem % grid.size.x);
+    }
+
+    const auto u_exact = exact_solution.value(coord);
+    if constexpr (dim == 2) {
+      reference_per_cell[idx] =
+          std::sqrt(u_exact.dx * u_exact.dx + u_exact.dy * u_exact.dy);
+    } else {
+      reference_per_cell[idx] =
+          std::sqrt(u_exact.dx * u_exact.dx + u_exact.dy * u_exact.dy +
+                    u_exact.dz * u_exact.dz);
+    }
+  }
+
+  const double absolute =
+      ErrorEvaluator<dim>::compute_global_error(error_per_cell, norm_type);
+  const double reference_norm =
+      ErrorEvaluator<dim>::compute_global_error(reference_per_cell, norm_type);
+
+  const double relative =
+      reference_norm > 0.0 ? absolute / reference_norm : 0.0;
+
+  const double l2 =
+      ErrorEvaluator<dim>::compute_global_error(error_per_cell, NormType::L2);
+  const double linf = ErrorEvaluator<dim>::compute_global_error(
+      error_per_cell, NormType::Linfty);
+  const double rmse =
+      error_per_cell.empty()
+          ? 0.0
+          : l2 / std::sqrt(static_cast<double>(error_per_cell.size()));
+
+  const double u_ref = std::abs(reference_velocity);
+
+  NormErrorResult result{relative, absolute, norm_type};
+  result.rmse = rmse;
+  result.linf = linf;
+  result.rmse_normalized = u_ref > 0.0 ? rmse / u_ref : 0.0;
+  result.linf_normalized = u_ref > 0.0 ? linf / u_ref : 0.0;
+  result.sample_count = error_per_cell.size();
+  return result;
+}
+
 } // namespace analysis
 } // namespace lbm
-
-#endif // __LBM_SIM_ANALYSIS_ERROR_HPP

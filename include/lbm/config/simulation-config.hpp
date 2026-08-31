@@ -55,7 +55,7 @@ public:
 
    [conf.physics]
    reynolds = 100.0
-   size     = [0.1, 0.0]    # reference velocity, size[0] must be > 0
+   init_vel = [0.1, 0.0]    # reference velocity, one component per dimension
 
    [conf.solver]
    niters  = 10000
