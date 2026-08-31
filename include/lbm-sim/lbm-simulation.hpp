@@ -159,6 +159,22 @@ public:
   }
 
   /**
+   * @brief Full error analysis against an analytical solution.
+   *
+   * In addition to the absolute and relative norm, this returns RMSE and
+   * Linfinity. When @p reference_velocity is non-zero, RMSE and Linfinity are
+   * also normalised by that velocity, which is useful for Couette/Poiseuille
+   * summaries and CSV output.
+   */
+  analysis::NormErrorResult
+  compute_error_analysis(const analysis::NormType &norm_type,
+                         const functional::Function<dim> &exact_solution,
+                         const double reference_velocity) const {
+    return analysis::compute_error(lattice.grid, lattice.u, exact_solution,
+                                   norm_type, reference_velocity);
+  }
+
+  /**
    * @brief Error against the Ghia et al. (1982) benchmark, 2D lid-driven
    *        cavity only.
    *
@@ -183,7 +199,7 @@ public:
       const analysis::NormType norm_type = analysis::NormType::L2) const {
     if constexpr (dim == 2) {
       return analysis::compute_ghia_error(filepath_in, lattice, params.reyn_num,
-                                          params.init_vel.dx);
+                                          params.init_vel.dx, norm_type);
     } else {
       static_assert(assertion::always_false<dim>,
                     "compute_ghia_error() is only defined for dim == 2");

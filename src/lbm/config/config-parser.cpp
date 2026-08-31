@@ -16,10 +16,10 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
 
   if (auto arr = tbl["lattice"]["size"].as_array()) {
     if (arr->size() != dim) {
-      throw ConfigError(
-          "config '" + cfg.name + "': this is a " + std::to_string(dim) +
-          "D problem (deduced from the " + (dim == 3 ? "presence" : "absence") +
-          " of [grid].nz), but this binary is " + std::to_string(dim) + "D");
+      throw ConfigError(where + ": [lattice].size has " +
+                        std::to_string(arr->size()) +
+                        " entries, but this binary is " + std::to_string(dim) +
+                        "D");
     }
     std::size_t i = 0;
     for (auto &elem : *arr) {
@@ -48,23 +48,23 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
 
   if (auto arr = tbl["physics"]["init_vel"].as_array()) {
     if (arr->size() != dim) {
-      throw ConfigError(
-          "config '" + cfg.name + "': this is a " + std::to_string(dim) +
-          "D problem (deduced from the " + (dim == 3 ? "presence" : "absence") +
-          " of [grid].nz), but this binary is " + std::to_string(dim) + "D");
+      throw ConfigError(where + ": [physics].init_vel has " +
+                        std::to_string(arr->size()) +
+                        " entries, but this binary is " + std::to_string(dim) +
+                        "D");
     }
 
     std::size_t i = 0;
     for (auto &elem : *arr) {
       auto val = elem.template value<double>();
       if (!val)
-        throw ConfigError(where + ": [physics].size[" + std::to_string(i) +
+        throw ConfigError(where + ": [physics].init_vel[" + std::to_string(i) +
                           "] is missing or is not a number");
       cfg.u0[i] = *val;
       ++i;
     }
   } else {
-    throw ConfigError(where + ": [physics].size is mandatory");
+    throw ConfigError(where + ": [physics].init_vel is mandatory");
   }
 
   // --- [solver] ----------------------------------------------------------

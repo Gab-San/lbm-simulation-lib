@@ -4,7 +4,7 @@
 #
 # Usage:
 #   ./run_cuda_simulations.sh sim1 sim2 sim3
-#   ./run_cuda_simulations.sh          # runs all cuda-* executables found in BIN_DIR
+#   ./run_cuda_simulations.sh          # runs all cuda_* executables found in BIN_DIR
 
 # Optional environment variables:
 #   BIN_DIR=/path/to/executables   (default: ./build/simulations)

@@ -44,7 +44,9 @@ On the CUDA side the arrays are mirrored into `__constant__` memory by
 templated on the set and needs no change.
 
 The direction numbering of the shipped 3D sets can be inspected interactively:
-[D3Q19](lbm_d3q19_directions.html), [D3Q27](lbm_d3q27_directions.html).
+[D3Q19](lbm_d3q19_directions.html), [D3Q27](lbm_d3q27_directions.html) — the
+links resolve in the generated site; in the repository the two viewers are
+`docs/assets/lbm_d3q19_directions.html` and `docs/assets/lbm_d3q27_directions.html`.
 
 ## A new collision operator
 

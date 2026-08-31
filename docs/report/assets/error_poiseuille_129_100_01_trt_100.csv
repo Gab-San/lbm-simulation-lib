@@ -1,0 +1,2 @@
+profile,grid_x,grid_y,reynolds,collision_model,niters,type,rel,abs,rel_percent,rmse,rmse_ref_percent,linf,linf_ref_percent,runtime_s,threads,mlups
+ux,129,129,100,TRT,100000,L2,4.61708975e-02,4.33278880e-01,4.617090,3.35875101e-03,3.358751,5.09776760e-03,5.097768,15.097906,16,110.220580

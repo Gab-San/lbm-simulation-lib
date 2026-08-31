@@ -32,8 +32,7 @@
  * difference between collision operators.
  */
 
-#ifndef __LBM_SIM_ANALYSIS_EXACT_SOLUTIONS_HPP
-#define __LBM_SIM_ANALYSIS_EXACT_SOLUTIONS_HPP
+#pragma once
 
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/logging.hpp"
@@ -293,5 +292,3 @@ extract_dx_profile_along_z_center(const functional::Function<3> &solution,
 
 } // namespace analysis
 } // namespace lbm
-
-#endif // __LBM_SIM_ANALYSIS_EXACT_SOLUTIONS_HPP
