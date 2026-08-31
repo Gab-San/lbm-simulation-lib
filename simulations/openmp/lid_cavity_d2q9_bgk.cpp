@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
   // --- 2. ISTANZIA LOGGER ------------------------------------------------
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
-
+  
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
 
@@ -93,7 +93,11 @@ int main(int argc, char **argv) {
     OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
     solver.attachListener(writer);
 
+    const auto solve_start = std::chrono::steady_clock::now();
     simulation.solve(solver);
+    const auto solve_end = std::chrono::steady_clock::now();
+    const double runtime_s =
+        std::chrono::duration<double>(solve_end - solve_start).count();
 
     // --- 6. OUTPUT ---------------------------------------------------------
     simulation.output(cfg.profile_out.c_str(),
@@ -101,7 +105,7 @@ int main(int argc, char **argv) {
 
     // --- 7. CALCOLO DELL'ERRORE --------------------------------------------
     // Confronto con Ghia et al. (1982). Norma scelta qui: L2.
-    /*const std::string path_to_benchmark =
+    /* const std::string path_to_benchmark =
         std::string(LBM_BENCHMARKS_DIR) + "/ghia/";
 
     const auto ghia_y = simulation.compute_ghia_error(
@@ -126,12 +130,13 @@ int main(int argc, char **argv) {
 #ifdef LBM_PROFILING
     lbm::profiling::dump_csv(cfg.profile_out);
     lbm::profiling::reset();
+
 #endif
-  }*/
-  const std::string path_to_benchmark =
+    */
+   const std::string path_to_benchmark =
         std::string(LBM_BENCHMARKS_DIR) + "/ghia/";
 
-    format::CsvWriter<analysis::ErrorAnalysisSchema> error_writer(
+    format::CsvWriter<analysis::DetailedErrorAnalysisSchema> error_writer(
         "out/error_" + cfg.name + "_" + format::format_reyn(cfg.reynolds) +
             ".csv",
         true);
@@ -152,15 +157,63 @@ int main(int argc, char **argv) {
                    analysis::to_string(analysis::NormType::L2), ghia_x.relative,
                    ghia_x.absolute);
 
-    error_writer.append_row("uy", grid_size,
-                            collision_model_to_string(COLLISION), cfg.niters,
-                            analysis::to_string(analysis::NormType::L2),
-                            ghia_y.relative, ghia_y.absolute);
+    int n_threads = 1;
+#ifdef _OPENMP
+    n_threads = omp_get_max_threads() >= omp_get_num_procs()
+                    ? omp_get_num_procs()
+                    : omp_get_max_threads();
+#endif
 
-    error_writer.append_row("ux", grid_size,
+    const double mlups =
+        runtime_s > 0.0
+            ? (static_cast<double>(grid_size.x) *
+               static_cast<double>(grid_size.y) *
+               static_cast<double>(cfg.niters)) /
+                  (runtime_s * 1.0e6)
+            : 0.0;
+
+    LBM_LOG_NOTICE(
+        main_logger,
+        "Lid-driven cavity validation summary\n"
+        "  Grid:                 {} x {}\n"
+        "  Reynolds:             {}\n"
+        "  Collision:            {}\n"
+        "  Iterations:           {}\n\n"
+        "  Ghia ux(y/2):\n"
+        "    relative L2:        {:.4f} %\n"
+        "    RMSE / U_lid:       {:.4f} %\n"
+        "    Linf / U_lid:       {:.4f} %\n\n"
+        "  Ghia uy(x/2):\n"
+        "    relative L2:        {:.4f} %\n"
+        "    RMSE / U_lid:       {:.4f} %\n"
+        "    Linf / U_lid:       {:.4f} %\n\n"
+        "  Runtime:              {:.3f} s\n"
+        "  Threads:              {}\n"
+        "  Performance:          {:.3f} MLUPS",
+        grid_size.x, grid_size.y, cfg.reynolds,
+        collision_model_to_string(COLLISION), cfg.niters,
+        100.0 * ghia_x.relative, 100.0 * ghia_x.rmse_normalized,
+        100.0 * ghia_x.linf_normalized, 100.0 * ghia_y.relative,
+        100.0 * ghia_y.rmse_normalized, 100.0 * ghia_y.linf_normalized,
+        runtime_s, n_threads, mlups);
+
+    error_writer.append_row("uy", grid_size.x, grid_size.y, cfg.reynolds,
                             collision_model_to_string(COLLISION), cfg.niters,
                             analysis::to_string(analysis::NormType::L2),
-                            ghia_x.relative, ghia_x.absolute);
+                            ghia_y.relative, ghia_y.absolute,
+                            100.0 * ghia_y.relative, ghia_y.rmse,
+                            100.0 * ghia_y.rmse_normalized, ghia_y.linf,
+                            100.0 * ghia_y.linf_normalized, runtime_s,
+                            n_threads, mlups);
+
+    error_writer.append_row("ux", grid_size.x, grid_size.y, cfg.reynolds,
+                            collision_model_to_string(COLLISION), cfg.niters,
+                            analysis::to_string(analysis::NormType::L2),
+                            ghia_x.relative, ghia_x.absolute,
+                            100.0 * ghia_x.relative, ghia_x.rmse,
+                            100.0 * ghia_x.rmse_normalized, ghia_x.linf,
+                            100.0 * ghia_x.linf_normalized, runtime_s,
+                            n_threads, mlups);
 
     error_writer.flush();
     error_writer.close();

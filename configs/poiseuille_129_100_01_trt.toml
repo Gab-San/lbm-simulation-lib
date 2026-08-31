@@ -1,14 +1,16 @@
+[[conf]]
 
-[grid]
-nx = 129
-ny = 129
+[conf.lattice]
+size = [129, 129]
 
-[physics]
+[conf.physics]
 reynolds = 100.0
-init_vel_x = 0.1
-init_vel_y = 0.0
-init_vel_z = 0.0
+size     = [0.1, 0.0]
 
-[solver]
-niters = 100000
+[conf.solver]
+niters  = 100000
 nframes = 200
+
+[conf.output]
+frames  = "out/frames.bin"
+profile = "out/profile.bin"

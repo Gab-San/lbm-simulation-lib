@@ -17,6 +17,7 @@
 
 static constexpr lbm::types::dim_t DIM = 2;
 static constexpr lbm::CollisionModel COLLISION = lbm::CollisionModel::BGK;
+constexpr auto BACKEND = lbm::ExecutionBackend::OPEN_MP;
 
 int main(int argc, char **argv) {
   using namespace lbm;
@@ -24,11 +25,13 @@ int main(int argc, char **argv) {
   using types::DimPoint;
   using utils::Vector;
 
+  // --- 1. LEGGI CONFIGURAZIONI --------------------------------------------
   if (argc < 2) {
     config::print_usage(argv[0]);
     return 1;
   }
 
+  // --- 2. ISTANZIA LOGGER ------------------------------------------------
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
 
@@ -36,10 +39,11 @@ int main(int argc, char **argv) {
   try {
     configs = config::parse_config<DIM>(argv[1]);
   } catch (const config::ConfigError &err) {
-    LBM_LOG_ERROR(main_logger, "Config Error {}", err.what());
+    std::cerr << "Errore di configurazione: " << err.what() << "\n";
     return 1;
   }
 
+  // --- 3. ESEGUI UNA SIMULAZIONE PER OGNI CONFIG ---------------------------
   for (const auto &cfg : configs) {
     const DimPoint<DIM> grid_size(cfg.grid_size);
 
@@ -81,26 +85,87 @@ int main(int argc, char **argv) {
     OpenMPSolver<DIM, D2Q9, COLLISION> solver(cfg.niters, cfg.nframes);
     solver.attachListener(writer);
 
+    const auto solve_start = std::chrono::steady_clock::now();
     simulation.solve(solver);
+    const auto solve_end = std::chrono::steady_clock::now();
+    const double runtime_s =
+        std::chrono::duration<double>(solve_end - solve_start).count();
 
     simulation.output(cfg.profile_out.c_str(),
                       functional::extract_dx_profile_along_y_center);
 
     const double H = static_cast<double>(grid_size.y - 1);
     const auto exact_solution = analysis::CouetteSolution2D(H, cfg.u0.dx);
-    const double err_l2 =
-        simulation.compute_error(analysis::NormType::L2, exact_solution);
+    const auto error_metrics = simulation.compute_error_analysis(
+        analysis::NormType::L2, exact_solution, cfg.u0.dx);
+    const double err_l2 = error_metrics.absolute;
 
     LBM_LOG_NOTICE(main_logger, "{} error: {}",
                    analysis::to_string(analysis::NormType::L2), err_l2);
 
+    int n_threads = 1;
+#ifdef _OPENMP
+    n_threads = omp_get_max_threads() >= omp_get_num_procs()
+                    ? omp_get_num_procs()
+                    : omp_get_max_threads();
+#endif
+
+    const double mlups =
+        runtime_s > 0.0
+            ? (static_cast<double>(grid_size.x) *
+               static_cast<double>(grid_size.y) *
+               static_cast<double>(cfg.niters)) /
+                  (runtime_s * 1.0e6)
+            : 0.0;
+
+    LBM_LOG_NOTICE(
+        main_logger,
+        "Couette validation summary\n"
+        "  Grid:                 {} x {}\n"
+        "  Reynolds:             {}\n"
+        "  Collision:            {}\n"
+        "  Iterations:           {}\n\n"
+        "  Error vs analytical profile:\n"
+        "    absolute L2:        {:.8e}\n"
+        "    relative L2:        {:.4f} %\n"
+        "    RMSE:               {:.8e}\n"
+        "    RMSE / U_wall:      {:.4f} %\n"
+        "    Linf:               {:.8e}\n"
+        "    Linf / U_wall:      {:.4f} %\n\n"
+        "  Runtime:              {:.3f} s\n"
+        "  Threads:              {}\n"
+        "  Performance:          {:.3f} MLUPS",
+        grid_size.x, grid_size.y, cfg.reynolds,
+        collision_model_to_string(COLLISION), cfg.niters, error_metrics.absolute,
+        100.0 * error_metrics.relative, error_metrics.rmse,
+        100.0 * error_metrics.rmse_normalized, error_metrics.linf,
+        100.0 * error_metrics.linf_normalized, runtime_s, n_threads, mlups);
+
+    format::CsvWriter<analysis::DetailedErrorAnalysisSchema> error_writer(
+        "out/error_" + cfg.name + "_" + format::format_reyn(cfg.reynolds) +
+            ".csv",
+        true);
+
+    error_writer.append_row(
+        "ux", grid_size.x, grid_size.y, cfg.reynolds,
+        collision_model_to_string(COLLISION), cfg.niters,
+        analysis::to_string(analysis::NormType::L2), error_metrics.relative,
+        error_metrics.absolute, 100.0 * error_metrics.relative,
+        error_metrics.rmse, 100.0 * error_metrics.rmse_normalized,
+        error_metrics.linf, 100.0 * error_metrics.linf_normalized, runtime_s,
+        n_threads, mlups);
+
+    error_writer.flush();
+    error_writer.close();
+
     simulation.detachListener(writer);
     solver.detachListener(writer);
-#ifdef LBM_PROFILING
-    lbm::profiling::dump_csv(cfg.profile_out);
-    lbm::profiling::reset();
+  
+       #ifdef LBM_PROFILING
+  lbm::profiling::dump_csv(cfg.profile_out);  
+  lbm::profiling::reset();                    
 #endif
-  }
+    }
 
   return 0;
 }
