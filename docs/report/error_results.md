@@ -74,6 +74,11 @@ moments and the normalization in the output header are all doing what they
 claim; had any of them been wrong, this is the case that would have shown it
 first.
 
+It is also, at this magnitude, indistinguishable from the reference offset
+described in the caveat below: a one-row error in the channel height alone is
+worth about the same few tenths of a percent on a linear profile. Read this row
+as "no defect large enough to stand out above the comparison's own bias".
+
 **Poiseuille is an order of magnitude worse on the same grid, at the same
 Reynolds number, with the same operator and the same iteration count: 4.62%.**
 The interesting column is `Linf`, at 5.10% of `u_ref`: the largest single-node
@@ -84,24 +89,53 @@ localized in a few nodes -- it is a nearly uniform shortfall of the whole
 parabola, which is exactly what a mis-calibrated driving pressure drop or a
 mis-placed effective wall produces.
 
-Two candidate explanations, both cheap to discriminate:
+Part of it is a known defect in the *comparison*, not in the solver, and it
+affects the Couette row as well. See the caveat below.
 
-1. **The pressure drop is calibrated on the nominal channel height.** `pin` is
-   derived from `H = ny - 1`, while halfway bounce-back puts the walls half a
-   lattice spacing beyond the last fluid node. Since `u_max` scales with `H^2`,
-   a one-cell error in the effective height is worth about `2/128 = 1.6%` here
-   -- the right sign, the right kind of behaviour, but not the full 5%.
-2. **The TRT magic parameter.** `CollisionParams<dim, TRT>` hard-codes
-   `Lambda = (tau+ - 1/2)(tau- - 1/2) = 1/4`, which makes the wall position
-   independent of the viscosity. The value that places a bounce-back wall
-   *exactly* midway for a parabolic profile is `Lambda = 3/16` (Ginzburg &
-   d'Humieres); the docstring in `collision-params.hpp` claims 1/4 does this,
-   and the Poiseuille error is where that claim can be tested.
+A second candidate, once that is out of the way: `CollisionParams<dim, TRT>`
+hard-codes the magic parameter
+`Lambda = (tau+ - 1/2)(tau- - 1/2) = 1/4`, which makes the wall position
+independent of the viscosity. The value that places a bounce-back wall
+*exactly* midway for a parabolic profile is `Lambda = 3/16` (Ginzburg &
+d'Humieres); the docstring in `collision-params.hpp` attributes that property
+to 1/4, and the Poiseuille case is where the claim can be tested -- a one-line
+change in the constructor, then re-run.
 
-The two experiments that separate them: re-run at 257x257 and see whether the
-`Linf` percentage halves (explanation 1 predicts it shrinks as `1/H`,
-explanation 2 predicts it stays put), and re-run with `Lambda = 3/16`, a
-one-line change in the constructor.
+### Caveat: the reference profiles are built one row too short
+
+`analysis::exact-solution.hpp` states the convention in its own header
+comment: with halfway bounce-back the walls sit at `y = -1/2` and
+`y = N - 1/2`, so the `channel_height` handed to `CouetteSolution2D` and
+`PoiseuilleSolution2D` is *the number of fluid rows*, `grid.size.y`, and the
+comment spells out "never `N - 1`", warning that getting this half cell wrong
+"is the usual reason a converged run still reports a large error".
+
+All four 2D mains pass `grid_size.y - 1`:
+
+| File | Line |
+|------|-----:|
+| `simulations/openmp/couette_d2q9_bgk.cpp` | 108 |
+| `simulations/openmp/couette_d2q9_trt.cpp` | 112 |
+| `simulations/openmp/poiseuille_d2q9_bgk.cpp` | 123 |
+| `simulations/openmp/poiseuille_d2q9_trt.cpp` | 123 |
+
+Every row of a domain-face channel is a fluid node -- the solver skips only
+nodes flagged in `solid_mask`, and a fluid node on a domain edge carries its
+face BC -- so on a 129x129 grid the channel has 129 fluid rows and the exact
+solutions are being evaluated with `H = 128`.
+
+The size of the effect is the same order as the errors in the table: on a
+linear profile a one-unit error in `H` displaces the reference by roughly
+`0.4-0.5%` of `u_ref` in RMS, and on the parabola by about `1%`. It is also
+the one inconsistency that the Poiseuille case suffers twice, because the
+pressure drop that drives it *is* calibrated on the full height --
+`pin - pout` is built from `grid_size.y * grid_size.y`, i.e. `H = ny` -- so
+the flow is driven towards one parabola and scored against another.
+
+**The numbers in the table above are therefore upper bounds on the solver's
+own error.** The fix is one line in each of the four files
+(`grid_size.y - 1` -> `grid_size.y`) followed by a re-run; until that is done,
+the ranking between the cases stands but the absolute values do not.
 
 **The cavity against Ghia is 3.2% and 4.7% at `Re = 1000` on 200x200 nodes.**
 For a benchmark at this Reynolds number on a grid this coarse, a few percent on

@@ -92,11 +92,11 @@ each leaves its CSVs under `results/<JOBID>/prof/`:
 ```
 
 ```bash
-python scripts/py/plot_strong.py results -o docs/imgResults/strong_scaling.png
+python scripts/py/plot_strong.py results -o docs/report/assets/strong_scaling.png
 ```
 
 ```bash
-python scripts/py/plot_weak.py results -o docs/imgResults/weak_scaling.png
+python scripts/py/plot_weak.py results -o docs/report/assets/weak_scaling.png
 ```
 
 Both plotters walk the directories recursively, average the repetitions, and
@@ -130,6 +130,13 @@ Fixed 129x129 grid, `Re = 100`, 100 000 iterations, 5 repetitions.
 MLUPS is `nx * ny * niters / time`, in millions of lattice updates per second.
 It is the metric to carry across grids: speedup compares a run only against
 itself.
+
+@note The wall times, speedups and efficiencies in this table and in the weak
+one below are transcribed from the summary images the plotters write,
+`docs/report/assets/strong_scaling_table.png` and `weak_scaling_table.png`.
+Those images are the record of the sweep; the MLUPS columns are derived from
+them. Re-running a sweep replaces the images, and both tables have to be
+checked against them.
 
 The node loop holds up to 16 threads (efficiency 0.83) and still pays at 32
 (0.61). At 64 it *regresses*: the time doubles back to 14.1 s and the standard

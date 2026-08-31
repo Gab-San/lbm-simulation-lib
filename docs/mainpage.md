@@ -111,8 +111,11 @@ build).
 - `docs/references/Ghia1982.pdf` — the lid-driven cavity benchmark tables used
   by `lbm::analysis::compute_ghia_error()`.
 - `docs/references/AMSC_LBM_hands_on_proposal.pdf` — the original assignment.
-- `docs/project_structure/` — the UML sketch of the class structure and the
-  task breakdown.
+- `docs/report/` — the project report: measured errors, scaling, flow
+  animations, the UML sketch (`LBM_UML.html`, editable as `LBM_UML.drawio`)
+  and the theory notes.
 - `docs/assets/` — interactive viewers for the
   [D3Q19](lbm_d3q19_directions.html) and
-  [D3Q27](lbm_d3q27_directions.html) direction sets.
+  [D3Q27](lbm_d3q27_directions.html) direction sets. The two links resolve in
+  the generated site, where the viewers are copied next to the pages; reading
+  this file in the repository, they are `docs/assets/*.html`.

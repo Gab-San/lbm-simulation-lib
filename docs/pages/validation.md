@@ -105,8 +105,14 @@ RMS -- the error is a nearly uniform shortfall of the whole parabola rather
 than a wall artefact. The cavity is the opposite: `Linf` is twice the RMS, so
 the discrepancy sits in a few points near the extrema.
 
-The raw CSVs, the derivation of each column and the two experiments that
-discriminate between the candidate causes of the Poiseuille offset are in
+@warning These numbers are upper bounds on the solver's own error. All four 2D
+mains pass `grid_size.y - 1` as the `channel_height` of the exact solution,
+while the convention documented in `analysis/exact-solution.hpp` is the number
+of fluid rows, `grid.size.y` -- the first of the three pitfalls above, in the
+code that produced this table. Fixing the four call sites and re-running is the
+prerequisite for quoting the absolute values.
+
+The raw CSVs, the derivation of each column and the full discussion are in
 `docs/report/error_results.md`.
 
 ## Measured profiles
@@ -171,11 +177,13 @@ box, pressure-periodic inlet and outlet on the `x` faces, profile taken with
   inscribed in it, so two or three nodes at each end lie between the box face
   and the shell. `HagenPoiseuilleSolution3D` returns zero there, which is what
   keeps `compute_error()` from scoring the wall as a miss.
-- The peak reaches 0.93 of the reference velocity. That residual is this page's
-  first pitfall in numbers: the wall sits half a cell outside the last fluid
-  node, so the effective radius is `r_inner + 0.5`, and on a 65-node
-  cross-section half a cell is ~1.5% of the diameter -- which enters the
-  parabola quadratically. It is a systematic offset and should shrink under
+- The peak reaches 0.93 of the reference velocity. This page's first pitfall is
+  *not* the explanation here: the main already builds `r_eff = radius + 0.5`
+  and rescales the Reynolds number by `ny / d_eff`, because `CollisionParams`
+  derives the viscosity from the box side and the pipe's characteristic length
+  is its diameter. The residual is the staircase: a rasterized cylinder is a
+  voxel boundary, and bounce-back on it is first-order for a curved wall, so a
+  few percent on a radius of ~30 nodes is expected. It should shrink under
   refinement; `configs/pipe_config_3.toml` (100x125x125) is the run that checks
   it.
 

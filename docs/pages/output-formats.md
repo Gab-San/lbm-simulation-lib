@@ -54,7 +54,7 @@ and the frame count is recovered by division:
 n_frames = len(data) // (nx * ny)      # data read as float32 after the header
 ```
 
-which is what `scripts/visualize_frames.py` does.
+which is what `scripts/py/visualize_frames.py` does.
 
 `AsyncBinaryWriter` writes on a dedicated thread and flushes every 32 chunks;
 the destructor drains the queue and closes the file, so the writer must
@@ -134,16 +134,16 @@ profile,size,collision_model,niters,type,rel,abs
 ## Reading the outputs
 
 ```bash
-python scripts/visualize_frames.py out/frames_lid_cavity.bin -o cavity.gif
+python scripts/py/visualize_frames.py out/frames_lid_cavity.bin -o cavity.gif
 ```
 
 ```bash
-python scripts/visualize_profile.py out/profile_lid_cavity.dat \
+python scripts/py/visualize_profile.py out/profile_lid_cavity.dat \
        benchmarks/ghia/data_y_100.txt --title "Re = 100" -o profile.png
 ```
 
 ```bash
-python scripts/validate_outputs.py
+python scripts/py/validate_outputs.py
 ```
 
 `validate_outputs.py` is the structural check: headers, payload lengths,

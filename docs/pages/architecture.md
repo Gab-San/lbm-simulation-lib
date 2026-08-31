@@ -19,8 +19,9 @@ resolved** (`lbm::Solid`), and **where the data goes**
 | `include/lbm-sim/solver/` | `lbm` | `SolverBase` and the `OpenMPSolver` / `CUDASolver` backends. |
 | `include/lbm-sim/data/` | `lbm` | Listeners: `AsyncBinaryWriter`, `VtkWriter`, and the observable mixin. |
 | `include/lbm-sim/analysis/` | `lbm::analysis` | Analytical solutions, error norms, the Ghia benchmark reader. |
-| `include/lbm-sim/config/` | `lbm::config` | TOML parsing into `SimulationConfig`. See @ref configuration. |
-| `include/lbm/` | `lbm::formatting`, `lbm::logging` | Backend-agnostic helpers shared with the rest of the project (CSV writer, logging facade). |
+| `include/lbm-sim/backend/` | `lbm::profiling` | `BackendProperties`: the OpenMP and CUDA runtime knobs, and the profiling instrumentation they feed. See @ref performance. |
+| `include/lbm/config/` | `lbm::config` | TOML parsing into `SimulationConfig`. See @ref configuration. |
+| `include/lbm/` | `lbm::format`, `lbm::logging` | Backend-agnostic helpers shared with the rest of the project (CSV writer, logging facade). |
 
 ## Compile-time parameters
 

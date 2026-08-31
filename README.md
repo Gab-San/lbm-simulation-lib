@@ -18,11 +18,15 @@ estimation against analytical solutions and the Ghia et al. (1982) benchmark.
   - [Anatomy of a simulation](#anatomy-of-a-simulation)
   - [Configuration files](#configuration-files)
   - [Running a simulation](#running-a-simulation)
+  - [Output files and visualization](#output-files-and-visualization)
 - [Architecture](#architecture)
   - [Velocity sets](#velocity-sets)
   - [Boundary conditions](#boundary-conditions)
   - [The time step algorithm](#the-time-step-algorithm)
+- [Embedding the library in a CMake project](#embedding-the-library-in-a-cmake-project)
+- [Design and performance](#design-and-performance)
   - [Parallelization strategy](#parallelization-strategy)
+  - [Scaling results](#scaling-results)
 - [Error estimation](#error-estimation)
   - [Against an analytical solution](#against-an-analytical-solution)
   - [Against the Ghia benchmark](#against-the-ghia-benchmark)
@@ -75,7 +79,7 @@ flow, Poiseuille flow, flow past an obstacle.
 | Configuration | TOML files parsed with [toml++](https://github.com/marzer/tomlplusplus), validated against the binary's own dimension, operator and backend |
 | Logging | Three interchangeable backends selected by `LBM_LOG_BACKEND`: [Quill](https://github.com/odygrd/quill), `ostream` (no dependency), or `none` (macros expand away); the active level is fixed at compile time |
 | Profiling | Optional chrono instrumentation (`LBM_ENABLE_PROFILING`), dumped as CSV next to the profile output |
-| Error estimation | `L1`, `L2`, `L2^2`, `Linf` norms against a user-supplied `analysis::Function<dim>`, or against the Ghia et al. tables |
+| Error estimation | `L1`, `L2`, `L2^2`, `Linf` norms against a user-supplied `functional::Function<dim>`, or against the Ghia et al. tables |
 | Post-processing | Python scripts for animations, velocity profiles, scaling plots and output validation |
 | Documentation | Doxygen targets wired into the build |
 
@@ -237,7 +241,7 @@ next configuration in the loop starts from a clean listener list.
 Moving to 3D means changing three things: `DIM`, the velocity set (`D3Q19` or
 `D3Q27`) and the profile extractor
 (`functional::extract_dx_profile_along_z_center`). See
-[`lid_cavity_d3q19_bgk.cpp`](simulations/openmp/lid_cavity_d3q19_bgk.cpp).
+[`lid_cavity_d3q19_bgk.cu`](simulations/cuda/lid_cavity_d3q19_bgk.cu).
 
 ### Configuration files
 
@@ -253,7 +257,7 @@ size = [129, 129]          # [nx, ny] in 2D, [nx, ny, nz] in 3D
 
 [conf.physics]
 reynolds = 100.0           # > 0
-size     = [0.1, 0.0]      # reference velocity; size[0] must be > 0
+init_vel = [0.1, 0.0]      # reference velocity, one component per dimension
 
 [conf.solver]
 niters  = 100000           # > 0
@@ -313,6 +317,38 @@ The CUDA executables can be run in sequence, one log per run, with:
 With no argument it runs every `cuda_*` executable found in
 `build/simulations`; a name is accepted with or without the `cuda_` prefix, and
 `BIN_DIR` and `LOG_DIR` override the defaults.
+
+### Output files and visualization
+
+There are two output products, both written off the simulation thread:
+
+- **Frames** -- the velocity magnitude at every node, emitted every
+  `niters / nframes` steps. `AsyncBinaryWriter` writes them as a raw binary
+  stream (`nx`, `ny` [, `nz`] as `int32`, then one `float32` per node per
+  frame); `VtkWriter` turns the same stream into one `.vti` file per frame plus
+  a `.pvd` series that ParaView can open *while the run is still going*.
+- **Profile** -- a 1D velocity profile along a centerline, written by
+  `LBMSimulation::output()` with an extractor from `lbm::functional`. The file
+  starts with a `%%profile <operator> <n> <u_ref>` ASCII header, followed by
+  `float64` samples.
+
+```bash
+python scripts/py/visualize_frames.py out/norms_lid_cavity.bin -o cavity.gif
+```
+
+```bash
+python scripts/py/visualize_profile.py output/lid_cavity_bgk_profile.dat benchmarks/ghia/data_y_100.txt --title "Re = 100" -o profile.png
+```
+
+```bash
+python scripts/py/validate_outputs.py
+```
+
+`visualize_frames.py` animates the raw binary frames, `visualize_profile.py`
+overlays one or more profiles (including the Ghia tables, which are already
+normalized by the lid velocity), and `validate_outputs.py` checks the produced
+files structurally and numerically -- headers, payload lengths, finite values,
+and duplicate output paths declared by different CUDA sources.
 
 ## Architecture
 
@@ -421,105 +457,6 @@ read from one array and written to the other with no aliasing and no extra
 copy. The macroscopic fields are materialized only on the steps that need them
 (a frame step, or the last iteration).
 
-### Configuration files
-
-Configurations are TOML files holding an array of `[[conf]]` tables -- one run
-each -- parsed by `lbm::config::parse_config<dim>()`:
-
-```toml
-[[conf]]
-collision = "BGK"        # BGK | TRT | MRT
-backend   = "openmp"     # openmp | cuda
-
-[conf.lattice]
-size = [129, 129]        # length must match the binary's dimension
-
-[conf.physics]
-reynolds = 100.0
-size     = [0.1, 0.0]    # initial/characteristic velocity, size[0] > 0
-
-[conf.solver]
-niters  = 100000
-nframes = 200            # must not exceed niters
-
-[conf.output]
-frames  = "output/lid_cavity_frames"
-profile = "output/lid_cavity_profile.dat"
-```
-
-Every field is mandatory except `collision` and `backend`, which default to
-`BGK` and `openmp`, and `nframes`, which defaults to `0` (no frames written).
-Failures raise `config::ConfigError` with a message naming
-the offending field, so a main can distinguish a bad configuration (print,
-exit 1) from an error raised during the solve. After parsing,
-`config::ensure_compatible(cfg, COLLISION, BACKEND)` rejects a file whose
-operator or backend does not match the binary reading it, instead of silently
-ignoring it.
-
-### Running a simulation
-
-
-```bash
-./build/simulations/couette_flow_2d_bgk configs/couette.toml
-```
-
-The first is the common case:
-`couette_flow_2d_bgk` is currently the only one that reads a `.toml` from the
-command line.
-
-Benchmark tables and the `configs/` directory are passed to the executables as
-absolute paths at configure time (`LBM_BENCHMARKS_DIR`, `LBM_CONFIGS_DIR`), so
-a binary finds its input data from any working directory and editing a `.toml`
-takes effect without recompiling. Output paths, on the other hand, are relative
-to the working directory: run from the repository root to get output under
-`output/`.
-
-The CUDA executables can be run in sequence, with one log per run, by:
-
-```bash
-./run_cuda_simulations.sh
-```
-
-```bash
-./run_cuda_simulations.sh lid_cavity_2d_bgk
-```
-
-With no arguments it runs every `cuda_*` executable found in
-`build/simulations`; `BIN_DIR` and `LOG_DIR` override the defaults.
-
-### Output files and visualization
-
-There are two output products, both written off the simulation thread:
-
-- **Frames** -- the velocity magnitude at every node, emitted every
-  `niters / nframes` steps. `AsyncBinaryWriter` writes them as a raw binary
-  stream (`nx`, `ny` [, `nz`] as `int32`, then one `float32` per node per
-  frame); `VtkWriter` turns the same stream into one `.vti` file per frame plus
-  a `.pvd` series that ParaView can open *while the run is still going*.
-- **Profile** -- a 1D velocity profile along a centerline, written by
-  `LBMSimulation::output()` with an extractor from `lbm::functional`. The file
-  starts with a `%%profile <operator> <n> <u_ref>` ASCII header, followed by
-  `float64` samples.
-
-```bash
-python scripts/py/visualize_frames.py out/norms_lid_cavity.bin -o cavity.gif
-```
-
-```bash
-python scripts/py/visualize_profile.py output/lid_cavity_bgk_profile.dat benchmarks/ghia/data_y_100.txt --title "Re = 100" -o profile.png
-```
-
-```bash
-python scripts/py/validate_outputs.py
-```
-
-`visualize_frames.py` animates the raw binary frames, `visualize_profile.py`
-overlays one or more profiles (including the Ghia tables, which are already
-normalized by the lid velocity), and `validate_outputs.py` checks the produced
-files structurally and numerically -- headers, payload lengths, finite values,
-and duplicate output paths declared by different CUDA sources.
-
-
 ## Embedding the library in a CMake project
 
 `lbm-sim` is an `INTERFACE` (header-only) target that already carries its
@@ -555,45 +492,6 @@ and adds relocatable device code plus the OpenMP flag for `nvcc`'s host pass.
 
 ## Design and performance
 
-### Architecture
-
-The library is built around compile-time polymorphism, so that the dimension,
-the velocity set and the collision operator cost nothing at run time:
-
-```
-LBMSimulation<dim, VelocitySet, CollisionModel>   owns the Lattice + CollisionParams
-        |  solve(solver)
-        v
-SolverBase<dim, VelocitySet, CollisionModel, Backend>
-        |-- OpenMPSolver<dim, VelocitySet, cm>
-        `-- CUDASolver<dim, VelocitySet, cm>
-                 uses CollisionStrategy<dim, VelocitySet, cm>   (BGK / TRT)
-
-DataObservable ---notify---> IDataListener
-        ^                        |-- AsyncBinaryWriter
-        |-- LBMSimulation        `-- VtkWriter
-        `-- SolverBase
-```
-
-Three deliberate choices shape the code:
-
-- **Strategy for collision.** `CollisionStrategy` dispatches on the
-  `CollisionModel` template parameter with `if constexpr`, so the collision
-  kernel is inlined into the fused stream-collide loop; an unimplemented
-  operator is a compile error, not a run-time branch.
-- **Observer for output.** Solvers know nothing about file formats: they push
-  raw byte chunks to listeners. Both writers drain a queue on a dedicated
-  thread, so disk I/O overlaps with computation and the format can change
-  without touching the solver.
-- **O(1) boundary description.** Domain faces are at most six bytes regardless
-  of resolution, and the per-node solid mask is 2 bytes per node -- about 1.4%
-  of the population arrays on a 1000^2 grid, which keeps obstacle support
-  essentially free.
-
-A UML view of the project lives in
-[`docs/project_structure/LBM_UML.html`](docs/project_structure/LBM_UML.html)
-(editable source: `LBM_UML.drawio`).
-
 ### Parallelization strategy
 
 LBM parallelizes well because its operations are local: at each time step
@@ -603,17 +501,24 @@ depend only on the populations stored there, so the node loop is embarrassingly
 parallel:
 
 ```cpp
-#pragma omp parallel for shared(lattice, part_stream) schedule(runtime)
-for (int cell = 0; cell < area; cell++) { /* ... */ }
+#pragma omp parallel for shared(lattice, part_stream) schedule(static)
+for (int cell = 0; cell < area; ++cell) { /* ... */ }
 ```
 
 The loops iterate over a flattened cell index and recover the coordinate with
-`iteration::unflatten`, which keeps one `parallel for` for both 2D and 3D
-instead of a `collapse(2)` / `collapse(3)` pair. `schedule(runtime)` leaves the
-schedule to `OMP_SCHEDULE`, so a scaling study can vary it without rebuilding:
+`lbm::iteration::unflatten`, which keeps one `parallel for` for both 2D and 3D
+instead of a `collapse(2)` / `collapse(3)` pair. The schedule is `static`:
+every node costs the same, so a static split is both the cheapest and the one
+that keeps a thread on the same slice of the lattice across iterations, which
+is what makes the per-thread working set stay in cache.
+
+The thread count comes from the OpenMP runtime unless a main sets it
+explicitly. Only `profiling_lid_cavity_d2q9` does -- through
+`BackendProperties<OPEN_MP>::setNumThreads()`, fed by `[conf.backend]
+n_threads` -- so for every other executable it is the environment that decides:
 
 ```bash
-OMP_NUM_THREADS=8 OMP_SCHEDULE=static ./build/simulations/lid_cavity_d2q9_bgk
+OMP_NUM_THREADS=8 ./build/simulations/lid_cavity_d2q9_bgk configs/example.toml
 ```
 
 The CUDA backend maps the same node loop onto the device, with the velocity set
@@ -811,7 +716,7 @@ const double err = simulation.compute_error(analysis::NormType::L2, exact);
 `compute_global_error()` reduces it in the requested norm; `compute_error()`
 returns the **absolute** global error. Ready-made solutions are
 `analysis::CouetteSolution2D` and `analysis::PoiseuilleSolution2D`; any other
-case is a subclass of `analysis::Function<dim>` overriding
+case is a subclass of `functional::Function<dim>` overriding
 `value(const Coordinate<dim> &)`.
 
 ### Against the Ghia benchmark
@@ -930,14 +835,18 @@ centerline, from `functional::extract_dx_profile_along_z_center`.
   the box face and the cylinder wall. The fluid region is about 92% of the
   plotted line, and the profile does start from zero exactly at the shell, so
   bounce-back is placing the wall where the geometry says it is.
-- The peak reaches 0.93 of the reference velocity that sets the viscosity. The
-  remaining 7% is the same family of effect discussed for the 2D channel: the
-  effective diameter seen by bounce-back differs by about one lattice spacing
-  from the nominal one used to derive `nu`, and on a 65-node cross-section one
-  spacing is 1.5% of the diameter -- which, entering the parabola quadratically
-  through the pressure drop, is the right order of magnitude for the gap. It is
-  a systematic offset, not noise: it should shrink under refinement, and
-  `configs/pipe_config_3.toml` (100x125x125) is the run that tests it.
+- The peak reaches 0.93 of the reference velocity that sets the viscosity, and
+  the two obvious suspects are already ruled out by the main itself: it builds
+  the effective radius as `r_eff = radius + 0.5`, so the half-cell wall offset
+  is accounted for, and it rescales the Reynolds number by `ny / d_eff` before
+  handing it to `CollisionParams`, whose viscosity is otherwise derived from
+  the box side rather than the pipe diameter. What is left is the wall itself:
+  a rasterized cylinder is a staircase, and bounce-back on a staircase is only
+  first-order accurate for a curved boundary, so a few percent on a radius of
+  about 30 nodes is the expected price. That is also the one place where TRT
+  and an interpolated bounce-back would earn their keep. It should shrink under
+  refinement: `configs/pipe_config_3.toml` (100x125x125) is the run that tests
+  it.
 
 > `pipe_profile.png` does not carry its parameters in the filename, and three
 > pipe configurations are committed (`Re = 21` and `Re = 100` on 64x65x65,
