@@ -46,9 +46,7 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
   if (cfg.reynolds <= 0.0)
     throw ConfigError(where + ": [physics].reynolds must be > 0");
 
-  std::array<double, dim> utmp;
-
-  if (auto arr = tbl["physics"]["size"].as_array()) {
+  if (auto arr = tbl["physics"]["init_vel"].as_array()) {
     if (arr->size() != dim) {
       throw ConfigError(
           "config '" + cfg.name + "': this is a " + std::to_string(dim) +
@@ -62,14 +60,12 @@ inline void parse_table(SimulationConfig<dim> &cfg, const toml::table &tbl,
       if (!val)
         throw ConfigError(where + ": [physics].size[" + std::to_string(i) +
                           "] is missing or is not a number");
-      utmp[i] = *val;
+      cfg.u0[i] = *val;
       ++i;
     }
   } else {
     throw ConfigError(where + ": [physics].size is mandatory");
   }
-
-  cfg.u0 = utmp;
 
   // --- [solver] ----------------------------------------------------------
   cfg.niters = tbl["solver"]["niters"].value_or<unsigned int>(0);

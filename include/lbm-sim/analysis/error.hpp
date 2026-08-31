@@ -16,11 +16,10 @@
 #ifndef __LBM_SIM_ANALYSIS_ERROR_HPP
 #define __LBM_SIM_ANALYSIS_ERROR_HPP
 
-// LBM SIM LIB
-#include "lbm-sim/core/grid.hpp"
-
 #include "lbm-sim/analysis/types.hpp"
+#include "lbm-sim/core/grid.hpp"
 #include "lbm-sim/core/vector.hpp"
+#include "lbm-sim/functions.hpp"
 
 // C++ STANDARD LIB
 #include <algorithm>
@@ -47,7 +46,7 @@ struct ErrorAnalysisSchema {
  * Stateless; both members are static. LBMSimulation::compute_error() chains
  * them on its own lattice, which is the usual entry point.
  */
-template <unsigned short int dim> class ErrorEvaluator {
+template <types::dim_t dim> class ErrorEvaluator {
 public:
   /**
    * @brief Per-cell magnitude of the difference between the simulated and
@@ -70,7 +69,7 @@ public:
   static std::vector<double>
   integrate_difference(const Grid<dim> &grid,
                        const std::vector<utils::Vector<double, dim>> &sim_u,
-                       const Function<dim> &exact_solution) {
+                       const functional::Function<dim> &exact_solution) {
 
     std::vector<double> error_per_cell(grid.getArea(), 0.0);
 

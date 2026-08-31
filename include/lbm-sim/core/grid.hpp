@@ -22,6 +22,7 @@
 #include "lbm-sim/backend/cuda/annotations.hpp"
 
 // C++ STANDARD LIB
+#include <array>
 #include <cstddef>
 
 namespace lbm {

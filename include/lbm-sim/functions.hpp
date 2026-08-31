@@ -15,27 +15,57 @@
 
 #include "lbm-sim/lattice.hpp"
 
+#include <cstddef>
+#include <string_view>
 #include <vector>
 
 namespace lbm {
 namespace functional {
 
+template <types::dim_t dim> class Function {
+public:
+  virtual ~Function() = default;
+
+  // Returns the exact velocity vector at the continuous point p.
+  virtual utils::Vector<double, dim>
+  value(const types::Coordinate<dim> &p) const = 0;
+
+  virtual const std::string_view &getName() const = 0;
+};
+
+template <types::dim_t dim>
 inline std::vector<double>
-extract_dx_profile_along_y_center(const Lattice<2> &lattice) {
+extract_dx_profile_along_y_center(const Lattice<dim> &lattice) {
   std::vector<double> profile(lattice.grid.size.y);
-  int x = lattice.grid.size.x / 2;
-  for (int y = 0; y < static_cast<int>(lattice.grid.size.y); ++y) {
-    profile[y] = lattice.u[lattice.grid.scalar_index({x, y})].dx;
+  const int x = lattice.grid.size.x / 2;
+  if constexpr (dim == 2) {
+    for (int y = 0; y < static_cast<int>(lattice.grid.size.y); ++y) {
+      profile[y] = lattice.u[lattice.grid.scalar_index({x, y})].dx;
+    }
+  } else {
+    const int z = lattice.grid.size.z / 2;
+    for (int y = 0; y < static_cast<int>(lattice.grid.size.y); ++y) {
+      profile[y] = lattice.u[lattice.grid.scalar_index({x, y, z})].dx;
+    }
   }
+
   return profile;
 }
 
+template <types::dim_t dim>
 inline std::vector<double>
-extract_dy_profile_along_x_center(const Lattice<2> &lattice) {
+extract_dy_profile_along_x_center(const Lattice<dim> &lattice) {
   std::vector<double> profile(lattice.grid.size.x);
-  int y = lattice.grid.size.y / 2;
-  for (int x = 0; x < static_cast<int>(lattice.grid.size.x); ++x) {
-    profile[x] = lattice.u[lattice.grid.scalar_index({x, y})].dy;
+  const int y = lattice.grid.size.y / 2;
+  if constexpr (dim == 2) {
+    for (int x = 0; x < static_cast<int>(lattice.grid.size.x); ++x) {
+      profile[x] = lattice.u[lattice.grid.scalar_index({x, y})].dy;
+    }
+  } else {
+    const int z = lattice.grid.size.z / 2;
+    for (int x = 0; x < static_cast<int>(lattice.grid.size.x); ++x) {
+      profile[x] = lattice.u[lattice.grid.scalar_index({x, y, z})].dy;
+    }
   }
   return profile;
 }

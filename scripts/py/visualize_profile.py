@@ -42,10 +42,10 @@ def read_benchmark(f, args):
 
 
 def read_profile(f, args):
-    """%%profile <model> <n> <lid_velocity>\\n then raw float64 binary data.
+    """%%profile <model> <n> <u_ref>\\n then raw float64 binary data.
     Payload is a 1D centerline (length n).
 
-    Normalized by lid_velocity (same convention Ghia's tables and
+    Normalized by u_ref (same convention Ghia's tables and
     compute_ghia_error() use) rather than by its own max, so the plotted
     curve is directly comparable in magnitude, not just shape."""
     data = np.fromfile(f, dtype=np.float64)
@@ -56,16 +56,32 @@ def read_profile(f, args):
 
     if len(args) < 3:
         raise ValueError(
-            "Profile header is missing lid_velocity (old file format) -- "
+            "Profile header is missing u_ref (old file format) -- "
             "regenerate this file with the updated output(); the plotted "
             "magnitude cannot be trusted otherwise."
         )
 
-    lid_velocity = float(args[2])
-    if lid_velocity == 0.0:
-        raise ValueError("lid_velocity in header is zero, cannot normalize.")
+    u_ref = float(args[2])
+    if u_ref == 0.0:
+        raise ValueError("u_ref in header is zero, cannot normalize.")
 
-    return data / lid_velocity
+    return data / u_ref
+
+
+def read_exact(f, args):
+    """%%exact <name> <npoints>\\n then interleaved (x, u) float64 pairs.
+
+    Coordinates are written by the simulation already normalized to [0, 1]
+    with the same cell-centered convention as the profile output, so they
+    collocate exactly with the simulation nodes and the vertical gap at
+    each marker is the pointwise error."""
+    data = np.fromfile(f, dtype=np.float64)
+
+    expected = 2 * int(args[1])
+    if data.size != expected:
+        raise ValueError("Number of data inputs not matching data size.")
+
+    return data.reshape(-1, 2)
 
 
 def read_data(files):
@@ -81,6 +97,8 @@ def read_data(files):
                 data = read_benchmark(text_f, args)
             elif kind == "profile":
                 data = read_profile(f, args)
+            elif kind == "exact":
+                data = read_exact(f, args)
             else:
                 raise ValueError(f"Unknown header kind '{kind}' in {file}")
 
@@ -106,11 +124,24 @@ def create_graph(parsed_results, title, xlabel, output_file=None):
                     raise ValueError(
                         f"Plotting unknown benchmark data ({kind}, {args})"
                     )
-        else:
+        elif kind == "exact":
+            plt.plot(
+                data[:, 0],
+                data[:, 1],
+                linestyle="none",
+                marker="o",
+                markersize=4,
+                fillstyle="none",
+                markevery=max(1, len(data) // 40),
+                label=f"{args[0]} (exact)",
+            )
+        elif kind == "profile":
             # data parte da x=0 a x=1 con passo 1/(len(data)-1)
             N = len(data)
             x = (np.arange(N) + 0.5) / N
             plt.plot(x, data, label=args[0])
+        else:
+            raise ValueError(f"Plotting unknown data kind '{kind}' ({args})")
 
     # Aggiungo i dati di Ghia et al. 1982 per confronto
     plt.xlabel(xlabel)
