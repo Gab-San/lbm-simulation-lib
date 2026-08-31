@@ -7,15 +7,18 @@
 #ifndef __LBM_SIM_LBM_SIMULATION_HPP
 #define __LBM_SIM_LBM_SIMULATION_HPP
 
+#include "lbm-sim/types/common.hpp"
+
+#include "lbm-sim/core/grid.hpp"
+
+#include "lbm-sim/collision-operators/collision-params.hpp"
+#include "lbm-sim/metadata.hpp"
+
+#include "lbm-sim/solver/solver-base.hpp"
+
 #include "lbm-sim/analysis/benchmarks.hpp"
 #include "lbm-sim/analysis/error.hpp"
-#include "lbm-sim/collision-operators/collision-params.hpp"
-#include "lbm-sim/core/grid.hpp"
-#include "lbm-sim/lattice.hpp"
 #include "lbm-sim/logging.hpp"
-#include "lbm-sim/metadata.hpp"
-#include "lbm-sim/solver/solver-base.hpp"
-#include "lbm-sim/types/common.hpp"
 
 // C++ STANDARD LIB
 #include <cstdint>
@@ -147,14 +150,25 @@ public:
    */
   double compute_error(const analysis::NormType &norm_type,
                        const analysis::Function<dim> &exact_solution) const {
-    const auto error_per_cell =
-        analysis::ErrorEvaluator<dim>::integrate_difference(
-            lattice.grid, lattice.u, exact_solution);
+    return analysis::compute_error(lattice.grid, lattice.u, exact_solution,
+                                   norm_type)
+        .absolute;
+  }
 
-    const double error = analysis::ErrorEvaluator<dim>::compute_global_error(
-        error_per_cell, norm_type);
-
-    return error;
+  /**
+   * @brief Full error analysis against an analytical solution.
+   *
+   * In addition to the absolute and relative norm, this returns RMSE and
+   * Linfinity. When @p reference_velocity is non-zero, RMSE and Linfinity are
+   * also normalised by that velocity, which is useful for Couette/Poiseuille
+   * summaries and CSV output.
+   */
+  analysis::NormErrorResult compute_error_analysis(
+      const analysis::NormType &norm_type,
+      const analysis::Function<dim> &exact_solution,
+      const double reference_velocity) const {
+    return analysis::compute_error(lattice.grid, lattice.u, exact_solution,
+                                   norm_type, reference_velocity);
   }
 
   /**
@@ -182,7 +196,7 @@ public:
       const analysis::NormType norm_type = analysis::NormType::L2) const {
     if constexpr (dim == 2) {
       return analysis::compute_ghia_error(filepath_in, lattice, params.reyn_num,
-                                          params.init_vel.dx);
+                                          params.init_vel.dx, norm_type);
     } else {
       static_assert(assertion::always_false<dim>,
                     "compute_ghia_error() is only defined for dim == 2");

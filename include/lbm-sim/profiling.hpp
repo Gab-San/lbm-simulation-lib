@@ -1,19 +1,3 @@
-/**
- * @file profiling.hpp
- * @brief Scope timers and the CSV they are dumped to.
- *
- * @c PROFILE_SCOPE(name) times the enclosing scope and accumulates total
- * time and call count per label in a process-wide registry; the solver dumps
- * the registry through a CsvWriter when the run ends.
- *
- * Active only when @c LBM_PROFILING is defined, which
- * @c -DLBM_ENABLE_PROFILING=ON does. Without it the macro expands to
- * nothing, so the instrumentation costs neither time nor code size in a
- * normal build.
- *
- * @see the "Output formats" page for the CSV schema.
- */
-
 // lbm-sim/omp/profiling.hpp
 
 #pragma once

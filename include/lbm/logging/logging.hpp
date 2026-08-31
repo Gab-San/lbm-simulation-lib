@@ -1,8 +1,3 @@
-/**
- * @file logging.hpp
- * @brief Backend-agnostic logging facade.
- */
-
 #pragma once
 
 // Backend-agnostic logging facade.
@@ -91,26 +86,22 @@ inline constexpr bool enabled_at_compile_time(LogLevel level) noexcept {
   return level >= compile_time_level;
 }
 
-/// Opaque handle. Core code holds a `Logger*` and passes it to the LBM_LOG_*
-/// macros; it never touches the members, which differ per backend. Levels are
-/// changed through set_log_level() below, never through a method.
+// Opaque handle. Core code holds a `Logger*` and passes it to the LBM_LOG_*
+// macros; it never touches the members, which differ per backend. Levels are
+// changed through set_log_level() below, never through a method.
 struct Logger;
 
-/// Starts the backend. Call once, at the top of main().
+// Starts the backend. Call once, at the top of main().
 void setup();
 
-/// Flushes and stops the backend. Call before leaving main() if the tail of
-/// the log matters.
+// Flushes and stops the backend. Call before leaving main() if the tail of
+// the log matters.
 void shutdown();
 
-/// Loggers are owned by the backend and live until shutdown(); the returned
-/// pointer is stable. Calling twice with the same name returns the same
-/// logger.
+// Loggers are owned by the backend and live until shutdown(); the returned
+// pointer is stable. Calling twice with the same name returns the same logger.
 Logger *create_or_get_logger(std::string const &name);
 
-/// Raises or lowers the run-time threshold of one logger. Statements below
-/// the compile-time level are gone from the binary and cannot be re-enabled
-/// here.
 void set_log_level(Logger *logger, LogLevel level);
 
 namespace detail {

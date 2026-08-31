@@ -1,30 +1,3 @@
-/**
- * @file benchmarks.hpp
- * @brief Reader and comparator for the Ghia et al. (1982) lid-driven cavity
- *        tables.
- *
- * The reference for the 2D lid cavity: 17 tabulated points along a
- * centreline, per Reynolds number. The file format expected here is the one
- * under `benchmarks/ghia/`:
- *
- * @verbatim
-   %% <name> <axis> <reynolds>
-   <coord> <value>
-   ...  (exactly 17 rows)
-   @endverbatim
- *
- * where @c axis is @c "y" for the vertical centreline (u_x sampled along y)
- * and anything else for the horizontal one. The header's Reynolds number is
- * checked against the simulation's and a mismatch is an error, so a run
- * cannot silently be scored against the wrong table.
- *
- * Ghia's values are already normalised by the lid velocity, so the simulated
- * profile is divided by it before the comparison rather than the tables
- * being rescaled.
- *
- * @note Only 2D. There is no tabulated 3D equivalent in this library.
- */
-
 #ifndef __LBM_SIM_ANALYSIS_GHIA_BENCHMARK_HPP
 #define __LBM_SIM_ANALYSIS_GHIA_BENCHMARK_HPP
 
@@ -39,10 +12,22 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <stdexcept>
 #include <vector>
 
-namespace lbm::analysis {
+namespace lbm {
+namespace format {
+
+inline std::string format_reyn(double reyn) {
+  std::ostringstream oss;
+  oss << reyn;
+  return oss.str();
+}
+
+} // namespace format
+
+namespace analysis {
 
 namespace detail {
 
@@ -212,9 +197,27 @@ compute_ghia_error(const std::string &filepath_in, const Lattice<2> &lattice,
         "compute_ghia_error(): reference norm is zero, check the table");
   }
 
-  return NormErrorResult{u_abs_err / u_ref_norm, u_abs_err, norm_type};
+  // Le metriche aggiuntive vengono sempre ricavate dalla distribuzione
+  // puntuale dell'errore sui 17 punti di Ghia, indipendentemente dalla norma
+  // richiesta in norm_type. Le velocita' sono gia' normalizzate con U_lid.
+  const double u_l2_err =
+      ErrorEvaluator<2>::compute_global_error(u_diff_per_point, NormType::L2);
+  const double u_linf_err = ErrorEvaluator<2>::compute_global_error(
+      u_diff_per_point, NormType::Linfty);
+  const double u_rmse = u_l2_err /
+                        std::sqrt(static_cast<double>(
+                            detail::GhiaCavityData::n_points));
+
+  NormErrorResult result{u_abs_err / u_ref_norm, u_abs_err, norm_type};
+  result.rmse = u_rmse;
+  result.linf = u_linf_err;
+  result.rmse_normalized = u_rmse;
+  result.linf_normalized = u_linf_err;
+  result.sample_count = detail::GhiaCavityData::n_points;
+  return result;
 }
 
-} // namespace lbm::analysis
+} // namespace analysis
+} // namespace lbm
 
 #endif // __LBM_SIM_ANALYSIS_GHIA_BENCHMARK_HPP

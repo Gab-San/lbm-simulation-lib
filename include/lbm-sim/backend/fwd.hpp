@@ -1,12 +1,3 @@
-/**
- * @file fwd.hpp
- * @brief Declaration-only view of BackendProperties.
- *
- * Include this to *name* the template; include backend/properties.hpp to
- * configure a backend. The split keeps @c <omp.h> and the CUDA runtime out
- * of headers that only mention the type in a signature.
- */
-
 #pragma once
 
 #include "lbm-sim/metadata.hpp"

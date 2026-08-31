@@ -14,7 +14,8 @@
 #include "lbm-sim/collision-detection/collision-area.hpp"
 #include "lbm-sim/functions.hpp"
 
-#include "lbm-sim/logging.hpp"
+#include "lbm/logging.hpp"
+#include "quill/LogMacros.h"
 
 // C++ STD LIB
 #include <memory>
@@ -40,8 +41,8 @@ template <> struct Config<2> {
   /// Reynold number
   const double reyn_num;
 
-  /// Reference velocity, used only to compute nu/tau.
-  /// It no longer moves any wall in Poiseuille!
+  /// Velocita' di riferimento, usata solo per calcolare nu/tau
+  /// NON muove piu' nessuna parete in Poiseuille!!!
   const lbm::utils::Vector<double, 2> init_vel;
 
   /// Output path for frames
@@ -50,13 +51,13 @@ template <> struct Config<2> {
   /// Output path for benchmark data
   const std::string out_data;
 
-  /// Only bodies immersed in the fluid: the channel walls live in domain_bc.
+  /// Solo i corpi immersi nel fluido: le pareti del canale sono in domain_bc.
   const std::vector<lbm::CollisionDetection::CollisionArea<DIM>> obstacles;
 
-  /// Side table: obstacle id -> {BC type, wall velocity}.
+  /// Tabella laterale: id ostacolo -> {tipo di BC, velocita' di parete}.
   const std::vector<lbm::Solid::ObstacleData<DIM>> obstacle_data;
 
-  /// BCs of the four domain faces.
+  /// BC delle quattro facce del dominio.
   const lbm::Solid::DomainBC<DIM> domain_bc;
 
   Config<2>(
@@ -73,8 +74,8 @@ template <> struct Config<2> {
         obstacle_data(std::move(obstacle_data_)), domain_bc(domain_bc_) {}
 };
 
-/// Poiseuille channel: pressure imposed at inlet and outlet, rigid top and
-/// bottom walls.
+/// Canale di Poiseuille: pressione imposta su ingresso e uscita, pareti
+/// rigide sopra e sotto.
 static lbm::Solid::DomainBC<DIM> make_channel_bc() {
   lbm::Solid::DomainBC<DIM> dbc{};
   dbc.low(0) = lbm::Solid::PRESSURE_PERIODIC_INLET;   // x = 0
@@ -95,8 +96,8 @@ int main() {
   const Coordinate<2> C(639, 128);
   const Coordinate<2> D(639, 0);
 
-  logging::setup();
-  logging::Logger *main_logger = logging::create_or_get_logger("main");
+  logging::setup_quill();
+  quill::Logger *main_logger = logging::create_or_get_logger("main");
 
   std::vector<Config<2>> configs{
       Config<2>(
@@ -104,31 +105,33 @@ int main() {
           /*init_vel*/ {0.05, 0}, "out/norms_obstacle_129_100_01_bgk.bin",
           "out/data_obstacle_129_100_01_bgk.bin",
           {
-              // The channel walls are no longer obstacles: they live in
-              // make_channel_bc(). Only the immersed body is left here.
+              // Le pareti del canale non sono piu' ostacoli: stanno in
+              // make_channel_bc(). Qui resta solo il corpo immerso.
               // CollisionDetection::CollisionArea(
               //     Coordinate<2>(
               //         0,
-              //         0), // base position (offset of the circle coordinates)
+              //         0), // posizione base (l'offset per le coord del cerchio)
               //     {CollisionDetection::Circle<DIM>(
               //         Coordinate<2>(160,
-              //                       64), // centre relative to base position
-              //         16)}               // radius in cells
+              //                       64), // centro relativo alla posizione base
+              //         16)}               // raggio in celle
               // ),
 
-              // NACA airfoil profile
+              // Profilo Airfoil NACA
               CollisionDetection::CollisionArea(
-                  Coordinate<2>(0, 0),
-                  {CollisionDetection::Airfoil<DIM>(
-                      Coordinate<2>(100, 64), // leading edge of the profile
-                      100.0,                  // chord, in cells
-                      0.12,                   // thickness    0.12 -> NACA XX12
-                      0.02,                   // max camber   0.02 -> NACA 2XXX
-                      0.4,                    // camber pos.  0.40 -> NACA X4XX
-                      5.0)}                   // angle of attack
-                  ),
+                    Coordinate<2>(0, 0),
+                    {CollisionDetection::Airfoil<DIM>(
+                        Coordinate<2>(100, 64), // leading edge del profilo
+                        100.0,                  // corda in celle
+                        0.12,                   // spessore         0.12 -> NACA XX12
+                        0.02,                   // camber massimo   0.02 -> NACA 2XXX
+                        0.4,                    // posizione camber 0.40 -> NACA X4XX
+                        5.0)}                   // angolo di attacco
+              ),
+              
+    
           },
-          // id 0 = the cylinder: rigid wall, stationary.
+          // id 0 = il cilindro: parete rigida, ferma.
           {{Solid::BB_RIGID_WALL, {0.0, 0.0}}}, make_channel_bc()),
   };
 
@@ -138,7 +141,6 @@ int main() {
   for (auto &conf : configs) {
     const auto &[grid_size, iters, frames, reyn, init_vel, out_frames, out_data,
                  obstacles, obstacle_data, domain_bc] = conf;
-
     types::solid_mask_t solid_mask =
         Solid::compute_solid_mask<DIM>(obstacles, grid_size);
 

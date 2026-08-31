@@ -1,24 +1,3 @@
-/**
- * @file exact-solution.hpp
- * @brief The closed-form solutions the library validates against.
- *
- * Three canonical cases, all steady-state and all in lattice units, so they
- * can be compared with @c lattice.u directly and without rescaling:
- * plane Couette flow, plane Poiseuille flow, and Hagen-Poiseuille flow in a
- * cylindrical pipe.
- *
- * Each is a Function<dim>, so it is passed straight to
- * LBMSimulation::compute_error(). A case with no closed form -- the 3D lid
- * cavity -- has no entry here and is validated against external reference
- * data instead.
- *
- * @note The wall position assumed by these solutions is the halfway
- *       bounce-back one: the wall sits midway between the last fluid node
- *       and the first solid node, not on the solid nodes. Getting that half
- *       cell wrong is the usual reason a converged run still reports a large
- *       error.
- */
-
 #ifndef __LBM_SIM_ANALYSIS_EXACT_SOLUTIONS_HPP
 #define __LBM_SIM_ANALYSIS_EXACT_SOLUTIONS_HPP
 
@@ -28,36 +7,36 @@ namespace lbm {
 namespace analysis {
 
 /**
- * Analytical solution for 2D Couette flow.
- * Fixed bottom wall (y = 0), moving top wall (y = H) with velocity Umax.
- * Linear velocity profile: u_x(y) = Umax * (y / H), u_y = 0.
+ * Soluzione analitica per il Flusso di Couette (2D).
+ * Parete inferiore fissa (y = 0), parete superiore mobile (y = H) con velocità
+ * Umax. Profilo di velocità lineare: u_x(y) = Umax * (y / H), u_y = 0.
  */
 class CouetteSolution2D : public Function<2> {
 private:
-  double H;    // Channel height
-  double Umax; // Velocity of the moving top wall
+  double H;    // Altezza del canale
+  double Umax; // Velocità della parete mobile superiore
 
 public:
   CouetteSolution2D(double channel_height, double max_velocity)
       : H(channel_height), Umax(max_velocity) {}
 
   utils::Vector<double, 2> value(const types::Coordinate<2> &p) const override {
-    // p.y is the vertical coordinate.
+    // p.y rappresenta la coordinata verticale[cite: 3]
     double ux = Umax * (p.y / H);
     return utils::Vector<double, 2>{ux, 0.0};
   }
 };
 
 /**
- * Analytical solution for 2D Poiseuille flow.
- * Driven by a pressure gradient / body force between two fixed walls
- * (y = 0 and y = H). Parabolic velocity profile:
- * u_x(y) = 4 * Umax * (y / H) * (1 - y / H), u_y = 0.
+ * Soluzione analitica per il Flusso di Poiseuille (2D).
+ * Guidato da gradiente di pressione / forza di volume tra due pareti fisse (y =
+ * 0 e y = H). Profilo di velocità parabolico: u_x(y) = 4 * Umax * (y / H) * (1
+ * - y / H), u_y = 0.
  */
 class PoiseuilleSolution2D : public Function<2> {
 private:
-  double H;    // Channel height
-  double Umax; // Peak velocity at the channel centre (y = H/2)
+  double H;    // Altezza del canale
+  double Umax; // Velocità massima al centro del canale (y = H/2)
 
 public:
   PoiseuilleSolution2D(double channel_height, double max_center_velocity)
@@ -71,26 +50,26 @@ public:
 };
 
 /**
- * Analytical solution for Hagen-Poiseuille flow in a 3D cylindrical pipe
- * whose axis is parallel to x.
- * Parabolic profile of revolution: u_x(r) = Umax * (1 - r^2/R^2), with r the
- * distance from the pipe axis; u_y = u_z = 0.
+ * Soluzione analitica per il flusso di Hagen-Poiseuille in un condotto
+ * cilindrico (3D), asse parallelo a x.
+ * Profilo parabolico di rivoluzione: u_x(r) = Umax * (1 - r^2/R^2), con
+ * r la distanza dall'asse del tubo; u_y = u_z = 0.
  *
- * Outside the pipe (r >= R) it evaluates to zero rather than to the negative
- * continuation of the parabola: that way the solid wall nodes, where the
- * solver leaves u = 0, do not pollute the error that
- * ErrorEvaluator<3>::integrate_difference() computes over the whole grid.
+ * Fuori dal condotto (r >= R) vale zero, non il prolungamento negativo
+ * della parabola: cosi' i nodi solidi della parete, dove il solver lascia
+ * u = 0, non inquinano l'errore calcolato su tutta la griglia da
+ * ErrorEvaluator<3>::integrate_difference().
  *
- * R is the *effective* wall radius. With halfway bounce-back the wall does
- * not sit on the solid nodes but midway between the last fluid node and the
- * first solid node, hence R = r_inner + 0.5 where r_inner is the radius
- * passed to CylindricalShell.
+ * R e' il raggio *effettivo* della parete. Con bounce-back halfway la
+ * parete non sta sui nodi solidi ma a meta' strada fra l'ultimo nodo di
+ * fluido e il primo nodo solido, quindi vale R = r_inner + 0.5 se
+ * r_inner e' il raggio passato a CylindricalShell.
  */
 class HagenPoiseuilleSolution3D : public Function<3> {
 private:
-  double R;      // Effective pipe radius
-  double Umax;   // Velocity on the axis
-  double cy, cz; // Axis position within the cross-section plane
+  double R;      // Raggio effettivo del condotto
+  double Umax;   // Velocita' sull'asse
+  double cy, cz; // Posizione dell'asse nel piano della sezione
 
 public:
   HagenPoiseuilleSolution3D(double pipe_radius, double max_axis_velocity,

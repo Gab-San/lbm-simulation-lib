@@ -1,8 +1,3 @@
-/**
- * @file backend.hpp
- * @brief The std::ostream logging backend.
- */
-
 #pragma once
 
 // std::ostream backend. Included by lbm/logging/logging.hpp; never include
@@ -24,8 +19,6 @@
 // A type is loggable here as long as it has an operator<<, which is what
 // lbm::utils::Point and Vector already rely on through ostream_formatter.
 
-#include "lbm/format/format.hpp"
-
 #include <cstddef>
 #include <memory>
 #include <ostream>
@@ -35,31 +28,53 @@
 
 namespace lbm::logging {
 
-/// @brief This backend's Logger: a name and a run-time threshold, nothing
-///        more. Owned by the backend and reached only through
-///        create_or_get_logger().
 struct Logger {
-  std::string name; ///< Shown on every line of this logger.
-  LogLevel level;   ///< Statements below this are dropped at run time.
+  std::string name;
+  LogLevel level;
 };
 
 namespace detail {
 
+// Type-erased argument: a pointer to the caller's value plus the function
+// that knows how to stream it. No allocation, no std::function.
+using ArgPrinter = void (*)(std::ostream &, void const *, std::string_view);
+
+struct Arg {
+  void const *value;
+  ArgPrinter print;
+};
+
+// Applies what of the format spec we understand to the stream.
+void apply_spec(std::ostream &os, std::string_view spec);
+
+template <class T>
+void print_arg(std::ostream &os, void const *value, std::string_view spec) {
+  auto const flags = os.flags();
+  auto const precision = os.precision();
+  apply_spec(os, spec);
+  os << *static_cast<T const *>(value);
+  os.precision(precision);
+  os.flags(flags);
+}
+
+template <class T> Arg make_arg(T const &value) noexcept {
+  return Arg{static_cast<void const *>(std::addressof(value)), &print_arg<T>};
+}
+
+void vformat_to(std::ostream &os, std::string_view fmt, Arg const *args,
+                std::size_t count);
+
 void write_line(Logger const &logger, char const *level_tag,
                 std::string const &message);
 
-/// @brief Formats one line and writes it. Everything happens on the calling
-///        thread: nothing is queued, so no line is lost by skipping
-///        shutdown().
 template <class... Ts>
 void log_line(Logger const &logger, char const *level_tag, std::string_view fmt,
               Ts const &...args) {
   // Trailing sentinel: a zero-sized array is ill-formed when there are no
   // arguments beyond the format string.
-  format::detail::Arg const packed[] = {format::detail::make_arg(args)...,
-                                        format::detail::Arg{nullptr, nullptr}};
+  Arg const packed[] = {make_arg(args)..., Arg{nullptr, nullptr}};
   std::ostringstream out;
-  format::detail::vformat_to(out, fmt, packed, sizeof...(Ts));
+  vformat_to(out, fmt, packed, sizeof...(Ts));
   write_line(logger, level_tag, out.str());
 }
 

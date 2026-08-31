@@ -1,8 +1,3 @@
-/**
- * @file format.hpp
- * @brief Minimal brace-substitution formatting over std::ostream.
- */
-
 #pragma once
 
 /// Minimal brace-substitution formatting over std::ostream. No dependencies.

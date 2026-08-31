@@ -1,8 +1,0 @@
-# These scripts are executed by bash on the Linux cluster. With CRLF endings
-# (which git forces on the working copy under Windows) the interpreter sees a
-# trailing "\r" on every line and fails with "command not found". Pinning them
-# to LF covers both a Windows checkout and a direct scp of the working copy.
-*.sh  text eol=lf
-*.pbs text eol=lf
-*.awk text eol=lf
-*.py  text eol=lf

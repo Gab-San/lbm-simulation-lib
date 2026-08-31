@@ -1,17 +1,3 @@
-/**
- * @file collision-strategy.hpp
- * @brief CollisionStrategy: the collision kernel itself, selected at compile
- *        time by the collision model.
- *
- * One object, one @c apply() entry point, and an @c if @c constexpr chain
- * that resolves to a single operator at compile time. There is no virtual
- * dispatch and no branch on the model inside the loop over the directions:
- * the strategy is constructed once per solve and inlined into the fused
- * stream-collide pass.
- *
- * @see collision-params.hpp for the relaxation constants each operator uses.
- */
-
 #ifndef _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 #define _LBM_SIM_CORE_COLLISION_OPERATORS_HPP
 
@@ -22,50 +8,15 @@
 
 namespace lbm {
 
-/**
- * @brief Relaxes the populations of one node towards equilibrium.
- *
- * @tparam dim         Spatial dimension (2 or 3).
- * @tparam VelocitySet Discrete velocity set supplying @c ndir, @c dir,
- *                     @c wi and @c opp.
- * @tparam cm_t        Collision model; also selects the CollisionParams
- *                     specialisation held by @ref params.
- *
- * All members are @c LBM_HD_FUNC, so the same code compiles for the OpenMP
- * and the CUDA backends. Adding an operator therefore means writing device-
- * compatible code: no allocation, no exceptions, no standard containers.
- */
 template <types::dim_t dim, typename VelocitySet, enum CollisionModel cm_t>
 class CollisionStrategy {
 public:
-  /// Relaxation constants, copied in at construction.
   const CollisionParams<dim, cm_t> params;
-
-  /// The model this strategy implements, readable from generic code.
   static constexpr CollisionModel type = cm_t;
 
-  /**
-   * @brief Stores a copy of the relaxation parameters.
-   * @param params Parameter set matching @p cm_t.
-   */
   LBM_HD_FUNC CollisionStrategy(const CollisionParams<dim, cm_t> &params)
       : params(params) {}
 
-  /**
-   * @brief Applies the collision operator in place.
-   *
-   * @param[in,out] fp       The @c VelocitySet::ndir populations of the node,
-   *                         overwritten with the post-collision values.
-   * @param[in]     p        Node coordinate. Unused by the current operators,
-   *                         kept in the signature for space-dependent ones
-   *                         (forcing terms, local viscosity).
-   * @param[in]     localrho Macroscopic density at the node.
-   * @param[in]     u        Macroscopic velocity at the node.
-   *
-   * Dispatch is an @c if @c constexpr chain closed by a @c static_assert, so
-   * a model that has parameters but no kernel -- @c CollisionModel::MRT --
-   * fails to compile where it is used, instead of silently doing nothing.
-   */
   LBM_HD_FUNC inline void apply(double *RESTRICT fp,
                                 const types::Coordinate<dim> p,
                                 const double localrho,
@@ -82,24 +33,6 @@ public:
   }
 
 private:
-  /**
-   * @brief Single-relaxation-time (BGK) collision.
-   *
-   * @f[
-   *   f_i \leftarrow (1-\omega)\, f_i + \omega\, f_i^{eq}(\rho, \mathbf{u})
-   * @f]
-   *
-   * with the second-order equilibrium
-   *
-   * @f[
-   *   f_i^{eq} = w_i \rho \left( 1 + 3\,\mathbf{c}_i\!\cdot\!\mathbf{u}
-   *              + \tfrac{9}{2} (\mathbf{c}_i\!\cdot\!\mathbf{u})^2
-   *              - \tfrac{3}{2} \mathbf{u}\!\cdot\!\mathbf{u} \right)
-   * @f]
-   *
-   * One pass over the directions, no cross-direction dependency, so the loop
-   * carries an @c omp @c simd on the host path.
-   */
   LBM_HD_FUNC inline void apply_bgk(double *RESTRICT fp,
                                     const types::Coordinate<dim> p,
                                     const utils::Vector<double, dim> u,
@@ -121,34 +54,21 @@ private:
     }
   }
 
-  /**
-   * @brief Two-relaxation-time (TRT) collision.
-   *
-   * Each population is split into a symmetric and an antisymmetric part with
-   * respect to its opposite direction, and the two are relaxed at different
-   * rates:
-   *
-   * @f[
-   *   f_i^{\pm} = \tfrac{1}{2}\left( f_i \pm f_{\bar\imath} \right), \qquad
-   *   f_i \leftarrow f_i - s^{+}\!\left(f_i^{+} - f_i^{eq,+}\right)
-   *                      - s^{-}\!\left(f_i^{-} - f_i^{eq,-}\right)
-   * @f]
-   *
-   * and symmetrically for @f$ f_{\bar\imath} @f$, which is why the loop
-   * updates both members of a pair at once and skips the iteration when
-   * @c i > @c iopp: each pair is visited exactly once, from its lower index.
-   * The rest direction, where @c i == @c iopp, has no antisymmetric part and
-   * reduces to a plain BGK step at rate @f$ s^{+} @f$.
-   *
-   * @warning Not yet validated against a reference to the same extent as the
-   *          BGK path, and not optimised: the equilibrium of both directions
-   *          of a pair is recomputed rather than shared, and the early
-   *          @c continue keeps the loop from vectorising as cleanly as
-   *          apply_bgk() does.
-   *
-   * @see CollisionParams<dim, CollisionModel::TRT> for how @f$ \tau^{\pm} @f$
-   *      are derived and why @f$ \Lambda = 1/4 @f$.
-   */
+  /*SOME IMPORTANT REMARKS*/
+  /*
+  the TRT collision operator
+  -me must choose a value for tau_plus, which is the relaxation time for the
+  symmetric part of the distribution function. ù This value is typically
+  chosen to be close to 1.0, which corresponds to a low viscosity fluid.
+  -Once tau_plus is chosen, we can calculate tau_minus using the relation
+  tau_minus = 0.5 + 0.25/(tau_plus - 0.5). This ensures that the relaxation
+  times are consistent with the desired viscosity of the fluid. -we must
+  discuss on the stability and the choosing of tau_plus in base of what we
+  need -the code isn't tested yed and optimized, so it may be not correct
+  and/or not efficient. -the for can be optimized by calculating the
+  equilibrium only once for each direction and reusing it for both the
+  symmetric and antisymmetric parts of the distribution function.
+  */
   LBM_HD_FUNC inline void apply_trt(double *RESTRICT fp,
                                     const types::Coordinate<dim> p,
                                     const utils::Vector<double, dim> u,
@@ -164,8 +84,7 @@ private:
       const auto iopp =
           static_cast<std::ptrdiff_t>(detail::opposite<VelocitySet>(i));
 
-      // Each (i, iopp) pair is handled once, from its lower index: the body
-      // below writes both fp[i] and fp[iopp].
+      // NOTE: WHY THIS CHECK?
       if (i > iopp) {
         continue;
       }
@@ -176,8 +95,9 @@ private:
           (1.0 + 3.0 * cidotu_i + 4.5 * cidotu_i * cidotu_i + omusq);
 
       if (i == iopp) {
-        // The rest direction is its own opposite: no antisymmetric part, so
-        // this degenerates to a BGK relaxation at rate s_plus.
+        // TODO: THIS COMMENT IS SHIT ENGLISH
+        //
+        // Center Direction: no antisymmetric component.
         fp[i] = fp[i] - params.s_plus * (fp[i] - feq_i);
         continue;
       }

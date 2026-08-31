@@ -75,11 +75,6 @@ if(LBM_LOG_BACKEND STREQUAL "quill")
        "${LBM_LOGGING_INCLUDE_DIR}/quill/nvcc-compat.hpp")
 endif()
 
-if(LBM_LOG_BACKEND STREQUAL "ostream")
-  list(APPEND LBM_LOGGING_HEADERS
-  "${PROJECT_SOURCE_DIR}/include/lbm/format/format.hpp")
-endif()
-
 # Cheap, because a missing backend .cpp otherwise surfaces as a pile of
 # undefined references at link time in whichever executable happens to be first.
 foreach(LBM_LOGGING_FILE IN LISTS LBM_LOGGING_SOURCES LBM_LOGGING_HEADERS)

@@ -2,23 +2,22 @@
 #include "lbm-sim/analysis/exact-solution.hpp"
 #include "lbm-sim/boundaries/utils.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
+#include "lbm-sim/config/config-parser.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/data/async-binary-writer.hpp"
-#include "lbm-sim/formatting.hpp"
 #include "lbm-sim/functions.hpp"
 #include "lbm-sim/lbm-simulation.hpp"
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/solver/openmp-solver.hpp"
-#include "lbm/config/config-parser.hpp"
 
 // C++ STD LIB
 #include <memory>
 #include <string>
 #include <vector>
 
-// Path to the Ghia benchmarks, injected by CMake (see
-// simulations/CMakeLists.txt) so it does not depend on the working directory.
-// The fallback only applies when building outside CMake.
+// Path ai benchmark di Ghia, iniettato da CMake (vedi
+// simulations/CMakeLists.txt) per non dipendere dalla working directory.
+// Il fallback vale solo se si compila fuori da CMake.
 #ifndef LBM_BENCHMARKS_DIR
 #define LBM_BENCHMARKS_DIR "benchmarks"
 #endif
@@ -43,10 +42,10 @@ int main(int argc, char **argv) {
   try {
     configs = config::parse_config<DIM>(argv[1]);
   } catch (const config::ConfigError &err) {
-    std::cerr << "Configuration error: " << err.what() << "\n";
+    std::cerr << "Errore di configurazione: " << err.what() << "\n";
     return 1;
   }
-  // --- 2. INSTANTIATE LOGGER ---------------------------------------------
+  // --- 2. ISTANZIA LOGGER ------------------------------------------------
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
 
@@ -63,26 +62,26 @@ int main(int argc, char **argv) {
         cfg.name, grid_size, cfg.reynolds, init_vel, cfg.niters, cfg.nframes,
         cfg.frames_out, cfg.profile_out);
 
-    // --- 3. CREATE OBSTACLES -----------------------------------------------
+    // --- 3. CREA OSTACOLI --------------------------------------------------
 
-    // For the lid cavity the "boundaries" are not obstacles painted on the
-    // border nodes, but the four domain faces: three rigid walls + the moving
-    // lid on top. Four bytes in total, independent of the resolution.
+    // Per la lid cavity i "confini" non sono ostacoli disegnati sui nodi di
+    // bordo, ma le quattro facce del dominio: tre pareti rigide + il lid mobile
+    // in alto. Quattro byte in tutto, indipendenti dalla risoluzione.
     Solid::DomainBC<DIM> dbc{};
     dbc.low(0) = Solid::BB_RIGID_WALL;   // x = 0
     dbc.high(0) = Solid::BB_RIGID_WALL;  // x = nx-1
     dbc.low(1) = Solid::BB_RIGID_WALL;   // y = 0
-    dbc.high(1) = Solid::BB_MOVING_WALL; // the lid, y = ny-1
+    dbc.high(1) = Solid::BB_MOVING_WALL; // il lid, y = ny-1
 
-    // --- 4. CREATE MASK ----------------------------------------------------
-    // No obstacle immersed in the fluid: the mask is entirely types::FLUID.
+    // --- 4. CREA MASCHERA --------------------------------------------------
+    // Nessun ostacolo immerso nel fluido: la maschera e' tutta types::FLUID.
     types::solid_mask_t solid_mask =
         Solid::compute_solid_mask<DIM>({}, grid_size);
 
-    // --- 5. RUN SIMULATION -------------------------------------------------
-    // frames_out is the DIRECTORY; the file basename comes from the config
-    // name, so different runs in the same directory do not overwrite each
-    // other.
+    // --- 5. LANCIA SIMULAZIONE ---------------------------------------------
+    // frames_out e' la CARTELLA; il basename dei file lo da' il nome della
+    // configurazione, cosi' run diversi nella stessa cartella non si
+    // sovrascrivono a vicenda.
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(cfg.frames_out);
 
@@ -100,9 +99,9 @@ int main(int argc, char **argv) {
     simulation.output(cfg.profile_out.c_str(),
                       functional::extract_dy_profile_along_x_center);
 
-    // --- 7. ERROR COMPUTATION ----------------------------------------------
-    // Comparison against Ghia et al. (1982). Norm chosen here: L2.
-    const std::string path_to_benchmark =
+    // --- 7. CALCOLO DELL'ERRORE --------------------------------------------
+    // Confronto con Ghia et al. (1982). Norma scelta qui: L2.
+    /*const std::string path_to_benchmark =
         std::string(LBM_BENCHMARKS_DIR) + "/ghia/";
 
     const auto ghia_y = simulation.compute_ghia_error(
@@ -128,6 +127,43 @@ int main(int argc, char **argv) {
     lbm::profiling::dump_csv(cfg.profile_out);
     lbm::profiling::reset();
 #endif
+  }*/
+  const std::string path_to_benchmark =
+        std::string(LBM_BENCHMARKS_DIR) + "/ghia/";
+
+    format::CsvWriter<analysis::ErrorAnalysisSchema> error_writer(
+        "out/error_" + cfg.name + "_" + format::format_reyn(cfg.reynolds) +
+            ".csv",
+        true);
+
+    const auto ghia_y = simulation.compute_ghia_error(
+        path_to_benchmark + "data_y_" + format::format_reyn(cfg.reynolds) +
+        ".txt");
+
+    LBM_LOG_NOTICE(main_logger, "Ghia ({}) | uy(x/2): rel={} abs={}",
+                   analysis::to_string(analysis::NormType::L2), ghia_y.relative,
+                   ghia_y.absolute);
+
+    const auto ghia_x = simulation.compute_ghia_error(
+        path_to_benchmark + "data_x_" + format::format_reyn(cfg.reynolds) +
+        ".txt");
+
+    LBM_LOG_NOTICE(main_logger, "Ghia ({}) | ux(y/2): rel={} abs={}",
+                   analysis::to_string(analysis::NormType::L2), ghia_x.relative,
+                   ghia_x.absolute);
+
+    error_writer.append_row("uy", grid_size,
+                            collision_model_to_string(COLLISION), cfg.niters,
+                            analysis::to_string(analysis::NormType::L2),
+                            ghia_y.relative, ghia_y.absolute);
+
+    error_writer.append_row("ux", grid_size,
+                            collision_model_to_string(COLLISION), cfg.niters,
+                            analysis::to_string(analysis::NormType::L2),
+                            ghia_x.relative, ghia_x.absolute);
+
+    error_writer.flush();
+    error_writer.close();
   }
   return 0;
 }

@@ -1,8 +1,3 @@
-/**
- * @file backend.hpp
- * @brief The quill logging backend.
- */
-
 #pragma once
 
 // Quill backend. Included by lbm/logging/logging.hpp; never include directly.

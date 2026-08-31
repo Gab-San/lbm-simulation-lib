@@ -1,22 +1,21 @@
-# The mains use paths relative to the working directory: "out/..." for frames
-# and profiles, "benchmarks/ghia/..." for the comparison against Ghia et al.
-# They therefore have to be launched from this build dir (which also holds the
-# executables), so that the output lands in build/simulations/out/. So that
-# the benchmarks resolve from here too, we copy them next to the executables
-# at configure time.
+# I main usano path relativi alla working directory: "out/..." per i frame e
+# i profili, "benchmarks/ghia/..." per il confronto con Ghia et al. Vanno
+# quindi lanciati da questa build dir (dove stanno anche gli eseguibili), cosi'
+# l'output finisce in build/simulations/out/. Perche' anche i benchmark
+# risolvano da qui, li copiamo accanto agli eseguibili in fase di configure.
 #
-# PROJECT_SOURCE_DIR and not CMAKE_SOURCE_DIR: the latter points to the root
-# of the CMake tree, which is not this project when it is add_subdirectory()'d.
+# PROJECT_SOURCE_DIR e non CMAKE_SOURCE_DIR: il secondo punta alla radice
+# dell'albero CMake, che non e' questo progetto quando lo si add_subdirectory().
 if(EXISTS "${PROJECT_SOURCE_DIR}/benchmarks")
   file(COPY "${PROJECT_SOURCE_DIR}/benchmarks"
        DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
 endif()
 
-# The input data (.toml configurations and Ghia benchmarks) lives in the
-# sources, not in the build. We pass their absolute paths as defines, so the
-# executables find them from any working directory. We do not copy them:
-# pointing at the source directory means editing a .toml takes effect right
-# away, without recompiling or re-running cmake.
+# I dati di input (configurazioni .toml e benchmark di Ghia) stanno nei
+# sorgenti, non nella build. Passiamo i loro path assoluti come define, cosi'
+# gli eseguibili li trovano da qualunque working directory. Non li copiamo:
+# puntando alla cartella sorgente, modificare un .toml ha effetto subito,
+# senza ricompilare ne' rilanciare cmake.
 function(lbm_add_data_paths TARGET_NAME)
   target_compile_definitions(${TARGET_NAME} PRIVATE
     LBM_CONFIGS_DIR="${PROJECT_SOURCE_DIR}/configs"
@@ -27,12 +26,12 @@ function(lbm_add_simulation SOURCE PREFIX)
   get_filename_component(TARGET_NAME ${SOURCE} NAME_WE)
   set(TARGET_NAME "${PREFIX}${TARGET_NAME}")
 
-  # The glob is recursive: two same-named sources in different directories
-  # would give a duplicate-target error much later, and not on this line.
+  # Il glob e' ricorsivo: due sorgenti omonime in cartelle diverse darebbero un
+  # errore di target duplicato molto piu' avanti, e non su questa riga.
   if(TARGET ${TARGET_NAME})
     message(FATAL_ERROR
-      "Duplicate target name '${TARGET_NAME}' (from ${SOURCE}): two sources "
-      "under simulations/ have the same file name.")
+      "Nome di target duplicato '${TARGET_NAME}' (da ${SOURCE}): due sorgenti "
+      "sotto simulations/ hanno lo stesso nome file.")
   endif()
 
   add_executable(${TARGET_NAME} ${SOURCE})

@@ -8,9 +8,9 @@ reynolds = 100.0
 size     = [0.1, 0.0]
 
 [conf.solver]
-niters  = 100000
-nframes = 200
+niters  = 200000
+nframes = 100
 
 [conf.output]
-frames  = "out/frames.out"
-profile = "out/profile.dat"
+frames  = "out/frames.bin"
+profile = "out/profile.bin"

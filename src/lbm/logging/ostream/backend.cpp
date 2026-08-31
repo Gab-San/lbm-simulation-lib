@@ -7,7 +7,6 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <sstream>
 #include <unordered_map>
 
 namespace lbm::logging {
@@ -29,6 +28,8 @@ std::mutex &output_mutex() {
   static std::mutex mutex;
   return mutex;
 }
+
+bool is_digit(char c) noexcept { return c >= '0' && c <= '9'; }
 
 std::tm local_time(std::time_t t) noexcept {
   std::tm tm{};
@@ -67,27 +68,4 @@ void set_log_level(Logger *logger, LogLevel level) {
   }
 }
 
-namespace detail {
-
-void write_line(Logger const &logger, char const *level_tag,
-                std::string const &message) {
-  auto const now = std::chrono::system_clock::now();
-  auto const secs = std::chrono::system_clock::to_time_t(now);
-  auto const ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                      now.time_since_epoch()) %
-                  std::chrono::seconds(1);
-  std::tm const tm = local_time(secs);
-
-  // La riga viene composta fuori dal lock: sotto il mutex resta solo la
-  // scrittura, e un singolo operator<< non può essere spezzato a metà.
-  std::ostringstream line;
-  line << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0')
-       << std::setw(3) << ms.count() << " [" << logger.name << "] ["
-       << level_tag << "] " << message << '\n';
-
-  std::lock_guard<std::mutex> lock(output_mutex());
-  std::clog << line.str();
-}
-
-} // namespace detail
 } // namespace lbm::logging
