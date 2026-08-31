@@ -1,0 +1,16 @@
+[[conf]]
+
+[conf.lattice]
+size = [64, 65, 65]
+
+[conf.physics]
+reynolds = 21.0
+init_vel = [0.05, 0.0]
+
+[conf.solver]
+niters  = 20000
+nframes = 200
+
+[conf.output]
+frames  = "out/frames_pipe_flow_64_65_65_21_bgk.vtk"
+profile = "out/profile_pipe_flow_64_65_65_21_bgk.dat"
