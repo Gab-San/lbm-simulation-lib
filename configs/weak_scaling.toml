@@ -1,31 +1,3 @@
-# Weak scaling: the work per thread is held constant, so the lattice grows with
-# the thread count instead of staying fixed. Ideal weak scaling shows up as a
-# FLAT wall-time curve; whatever slope appears is parallel overhead plus the
-# growing memory footprint.
-#
-# The cost of one LBM iteration is proportional to the number of cells, and
-# niters is the same everywhere, so "constant work per thread" means
-#
-#     nx * ny  ~  n_threads * 129^2
-#
-# i.e. each side scales as sqrt(n_threads). Sides are rounded to the nearest odd
-# value, which keeps a true centre cell for the centreline profile:
-#
-#     threads   side   cells     cells/thread   deviation from 129^2
-#        1      129     16641      16641.0          0.00%
-#        2      183     33489      16744.5         +0.62%
-#        4      257     66049      16512.2         -0.77%
-#        8      365    133225      16653.1         +0.07%
-#       16      515    265225      16576.6         -0.39%
-#
-# Note that with reynolds and the lid velocity fixed, nu = u0 * ny / Re grows
-# with the lattice, so tau differs between blocks. That changes the physics but
-# not the cost: an LBM iteration does the same arithmetic per cell whatever tau
-# is, which is what a scaling study measures. It stays stable throughout, since
-# tau only moves further above the 0.5 floor as the grid grows.
-#
-# Run it with:  bash submit_weak.sh [REPS]
-
 [[conf]]
 
 [conf.lattice]
@@ -33,7 +5,7 @@ size = [129, 129]
 
 [conf.physics]
 reynolds = 100.0
-size     = [0.1, 0.0]
+init_vel     = [0.1, 0.0]
 
 [conf.solver]
 niters  = 100000
@@ -53,7 +25,7 @@ size = [183, 183]
 
 [conf.physics]
 reynolds = 100.0
-size     = [0.1, 0.0]
+init_vel     = [0.1, 0.0]
 
 [conf.solver]
 niters  = 100000
@@ -73,7 +45,7 @@ size = [257, 257]
 
 [conf.physics]
 reynolds = 100.0
-size     = [0.1, 0.0]
+init_vel     = [0.1, 0.0]
 
 [conf.solver]
 niters  = 100000
@@ -93,7 +65,7 @@ size = [365, 365]
 
 [conf.physics]
 reynolds = 100.0
-size     = [0.1, 0.0]
+init_vel     = [0.1, 0.0]
 
 [conf.solver]
 niters  = 100000
@@ -113,7 +85,7 @@ size = [515, 515]
 
 [conf.physics]
 reynolds = 100.0
-size     = [0.1, 0.0]
+init_vel     = [0.1, 0.0]
 
 [conf.solver]
 niters  = 100000
@@ -134,7 +106,7 @@ size = [1000, 1000]
 
 [conf.physics]
 reynolds = 100.0
-size     = [0.1, 0.0]
+init_vel     = [0.1, 0.0]
 
 [conf.solver]
 niters  = 100000
@@ -155,7 +127,7 @@ size = [2000, 2000]
 
 [conf.physics]
 reynolds = 1000.0
-size     = [0.1, 0.0]
+init_vel     = [0.1, 0.0]
 
 [conf.solver]
 niters  = 100000

@@ -11,6 +11,7 @@
 #include "lbm-sim/analysis/error.hpp"
 #include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/core/grid.hpp"
+#include "lbm-sim/functions.hpp"
 #include "lbm-sim/lattice.hpp"
 #include "lbm-sim/logging.hpp"
 #include "lbm-sim/metadata.hpp"
@@ -146,7 +147,7 @@ public:
    *         analysis::compute_error() in analysis/error.hpp.
    */
   double compute_error(const analysis::NormType &norm_type,
-                       const analysis::Function<dim> &exact_solution) const {
+                       const functional::Function<dim> &exact_solution) const {
     const auto error_per_cell =
         analysis::ErrorEvaluator<dim>::integrate_difference(
             lattice.grid, lattice.u, exact_solution);
@@ -229,9 +230,11 @@ public:
 
     std::ofstream fout(outpath, std::ios::binary);
 
-    // FIXME: Should throw error?
     if (!fout.is_open()) {
-      LBM_LOG_ERROR(data_logger, "Failed to create file: {}", filepath);
+      LBM_LOG_ERROR(data_logger,
+                    "Failed to create file: {}\nProfile for this simulation "
+                    "will not be dumped!",
+                    filepath);
       return;
     }
 
@@ -245,10 +248,15 @@ public:
 
     fout.write(header.data(), header.size());
 
+    LBM_LOG_DEBUG(data_logger, "Writing data to file {}", filepath);
+
     fout.write(reinterpret_cast<const char *>(profile.data()),
                profile.size() * sizeof(double));
 
     fout.close();
+
+    LBM_LOG_DEBUG(data_logger, "[File: {}] Profile generation complete...",
+                  filepath);
   };
 
 private:

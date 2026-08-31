@@ -5,7 +5,7 @@ size = [200, 200, 200]
 
 [conf.physics]
 reynolds = 1000.0
-size     = [0.1, 0.0, 0.0]
+init_vel     = [0.1, 0.0, 0.0]
 
 [conf.solver]
 niters  = 100000
