@@ -80,7 +80,8 @@ int main(int argc, char **argv) {
 
     std::shared_ptr<AsyncBinaryWriter> writer =
         std::make_shared<AsyncBinaryWriter>(
-            std::string(frames_path) + "_" +
+            //std::string(frames_path) + "_" +
+            frames_path.string() + "_" +
             std::string(analysis::CouetteSolution2D::name) + "_d2q9_" +
             format::file_format(grid_size) + "_" +
             format::file_format(cfg.reynolds) + "_" +
@@ -104,7 +105,7 @@ int main(int argc, char **argv) {
                     "_d2q9_" + format::file_format(grid_size) + "_" +
                     format::file_format(cfg.reynolds) + "_" +
                     format::file_format(COLLISION) +
-                    std::string(profile_ref_path.extension());
+                    profile_ref_path.extension().string();
 
     simulation.output(profile_path.string().c_str(),
                       functional::extract_dx_profile_along_y_center<DIM>);

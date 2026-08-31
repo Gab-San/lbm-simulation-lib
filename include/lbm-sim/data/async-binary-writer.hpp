@@ -51,7 +51,7 @@ public:
     file_.open(output_filename, std::ios::out | std::ios::binary);
     if (!file_.is_open()) {
       LBM_LOG_CRITICAL(writer_logger, "Cannot open {} for writing", path);
-      throw std::invalid_argument("Can't open " + std::string(output_filename) +
+      throw std::invalid_argument("Can't open " + output_filename.string() +
                                   " for writing");
     }
     worker_ = std::thread(&AsyncBinaryWriter::run, this);
