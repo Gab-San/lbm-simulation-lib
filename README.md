@@ -124,14 +124,13 @@ runtime.
 |--------|---------|---------|
 | `LBM_ENABLE_CUDA` | `OFF` | Enable the CUDA language, build `lbm-sim-cuda` and the `cuda_*` executables |
 | `LBM_ENABLE_CONFIG` | `ON` | Build the TOML configuration support (fetches toml++) |
-| `LBM_ENABLE_PROFILING` | `OFF` | Compile the chrono-based profiling instrumentation (`LBM_PROFILING`) |
+| `LBM_ENABLE_PROFILING` | `OFF` | Compile the chrono-based profiling instrumentation (`LBM_PROFILING`); required for the CSVs the scaling plots and the error tables are built from |
 | `LBM_ENABLE_LOGGING` | `ON` | Emit log output; `OFF` forces `LBM_LOG_BACKEND=none` |
 | `LBM_LOG_BACKEND` | `quill` | Logging backend: `quill` (fetched), `ostream` (no dependency), `none` |
 | `LBM_LOG_LEVEL` | `INFO` | Compile-time active level: `TRACE_L3`, `TRACE_L2`, `TRACE_L1`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `LBM_BUILD_SIMULATIONS` | top-level | Build the executables under `simulations/`; off by default when the project is embedded |
 | `LBM_BUILD_DOCS` | top-level | Configure the `docs/` Doxygen targets; off by default when the project is embedded |
 | `LBM_SANITIZE` | *(empty)* | Sanitizers to build with: `address`, `undefined`, `thread`, `leak` (comma- or semicolon-separated) |
-| `LBM_ENABLE_PROFILING` | `OFF` | Compile the chrono instrumentation (`LBM_PROFILING`); required for the profiler CSV the scaling plots are built from |
 | `CMAKE_CUDA_ARCHITECTURES` | `75` | Target GPU architecture(s) |
 | `CMAKE_CUDA_HOST_COMPILER` | `CMAKE_CXX_COMPILER` | Host compiler driven by `nvcc`; override only for host compilers `nvcc` rejects |
 
@@ -520,10 +519,6 @@ normalized by the lid velocity), and `validate_outputs.py` checks the produced
 files structurally and numerically -- headers, payload lengths, finite values,
 and duplicate output paths declared by different CUDA sources.
 
-<p align="center">
-  <img src="images/bench_data_100.png" width="45%" />
-  <img src="images/bench_data_1000.png" width="45%" />
-</p>
 
 ## Embedding the library in a CMake project
 
@@ -651,7 +646,7 @@ Each repetition is a separate PBS job (`scripts/cpu_job.pbs`, one node,
 ```
 
 ```bash
-python scripts/py/plot_strong.py results -o docs/imgResults/strong_scaling.png
+python scripts/py/plot_strong.py results -o docs/report/assets/strong_scaling.png
 ```
 
 `plot_strong.py` and `plot_weak.py` walk `results/<JOBID>/prof/` recursively,
@@ -661,9 +656,9 @@ count present in that series*, never against a hardcoded 1.
 
 #### Strong scaling -- fixed 129x129 grid
 
-![strong scaling](docs/imgResults/strong_scaling.png)
+![strong scaling](docs/report/assets/strong_scaling.png)
 
-![strong scaling table](docs/imgResults/strong_scaling_table.png)
+![strong scaling table](docs/report/assets/strong_scaling_table.png)
 
 | threads | mean [s] | std [s] | speedup | efficiency | MLUPS |
 |--------:|---------:|--------:|--------:|-----------:|------:|
@@ -726,9 +721,9 @@ actually used rather than what was asked for.
 
 #### Weak scaling -- constant work per thread
 
-![weak scaling](docs/imgResults/weak_scaling.png)
+![weak scaling](docs/report/assets/weak_scaling.png)
 
-![weak scaling table](docs/imgResults/weak_scaling_table.png)
+![weak scaling table](docs/report/assets/weak_scaling_table.png)
 
 | threads | grid | cells/thread | mean [s] | MLUPS | MLUPS per thread |
 |--------:|------|-------------:|---------:|------:|-----------------:|
@@ -838,10 +833,9 @@ default) and returns both the absolute and the relative error in an
 cavity has no tabulated equivalent here, so 3D runs are validated by exporting
 the centerline profile and comparing it against external reference data.
 
-<p align="center">
-  <img src="docs/report/assets/bench_data_x_100.png" width="45%" />
-  <img src="docs/report/assets/bench_data_x_1000.png" width="45%" />
-</p>
+Measured errors for both centerlines -- `Re = 1000` on a 200x200 grid, and the
+Couette and Poiseuille cases against their analytical solutions -- are tabulated
+in [`docs/report/error_results.md`](docs/report/error_results.md).
 
 ## Simulation results
 
@@ -860,8 +854,8 @@ centerline, `v(x, ny/2)`, which is what
 `functional::extract_dy_profile_along_x_center` extracts.
 
 <p align="center">
-  <img src="docs/imgResults/profile_lid_cavity_d2q9_2000_2000_7500_trt.png" width="47%" />
-  <img src="docs/imgResults/profile_comparison_lid_cavity_d2q9_7500.png" width="47%" />
+  <img src="docs/report/assets/profile_lid_cavity_d2q9_2000_2000_7500_trt.png" width="47%" />
+  <img src="docs/report/assets/profile_comparison_lid_cavity_d2q9_7500.png" width="47%" />
 </p>
 
 The shape is right: the profile leaves the left wall, peaks just inside it,
@@ -922,7 +916,7 @@ the `x` faces, rigid walls elsewhere. The profile is `u_x` along the `z`
 centerline, from `functional::extract_dx_profile_along_z_center`.
 
 <p align="center">
-  <img src="docs/imgResults/pipe_profile.png" width="60%" />
+  <img src="docs/report/assets/pipe_profile.png" width="60%" />
 </p>
 
 - The profile is the parabola Hagen-Poiseuille predicts across a diameter, and
@@ -960,7 +954,7 @@ the velocity magnitude on the exported frames, rendered with
 `scripts/py/visualize_frames.py`:
 
 <p align="center">
-  <img src="docs/report/assets/lid_cavity_3d.gif" width="60%" />
+  <img src="docs/imgResults/lid_cavity_3d.gif" width="60%" />
 </p>
 
 There is no tabulated 3D counterpart to Ghia in `benchmarks/`, and

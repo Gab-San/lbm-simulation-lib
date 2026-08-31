@@ -87,7 +87,7 @@ set(DOXYGEN_PREDEFINED
 # Figures referenced from the pages: the older benchmark plots next to the
 # README, and the result figures the scaling and validation pages point at.
 set(DOXYGEN_IMAGE_PATH
-  "${PROJECT_SOURCE_DIR}/images"
+  "${CMAKE_CURRENT_SOURCE_DIR}/report/assets"
   "${CMAKE_CURRENT_SOURCE_DIR}/imgResults")
 
 # The interactive velocity-set viewers are copied verbatim into the HTML

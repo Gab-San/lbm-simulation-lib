@@ -1,49 +1,47 @@
 # Flow Animations
 
-Animations of the velocity norm produced by the 2D OpenMP solvers, one frame
-every `niters / nframes` steps (200 frames for the reference configuration:
-100 000 iterations, `nframes = 200`). They are rendered by
-`scripts/visualize_frames.py` from the raw `AsyncBinaryWriter` output: `jet`
-colormap, origin at the bottom-left, colour scale fixed to the maximum velocity
-norm reached over the whole run, so brightness is comparable frame to frame.
+Animations of the velocity magnitude, rendered by `scripts/py/visualize_frames.py`
+from the raw frame stream: `jet` colormap, origin at the bottom left, colour
+scale fixed to the maximum norm reached over the whole run, so brightness is
+comparable frame to frame. One frame is emitted every `niters / nframes` steps.
 
-All runs are at `Re = 100` with reference velocity `u0 = (0.1, 0)`; `129x129`
-is the square reference domain, `400x200` the elongated channel.
+## Lid-driven cavity, 3D
 
-## Couette flow
+`D3Q19`, 200x200x200, `Re = 1000`, lid on the `z = nz-1` face
+([`configs/lid_cavity_3d.toml`](../../configs/lid_cavity_3d.toml)):
 
-Rigid bounce-back bottom wall, moving top wall, periodic left/right faces. The
-animation shows the linear profile building up from rest as momentum diffuses
-down from the lid.
+![3D lid-driven cavity, Re = 1000](../imgResults/lid_cavity_3d.gif)
 
-| Grid | BGK | TRT |
-|------|-----|-----|
-| 129x129 | [couette_129_bgk.mp4](../imgResults/frames_couette_129_129_100_01_bgk.mp4) | [couette_129_trt.mp4](../imgResults/frames_couette_129_129_100_01_trt.mp4) |
-| 400x200 | [couette_400x200_bgk.mp4](../imgResults/frames_couette_400_200_100_01_bgk.mp4) | [couette_400x200_trt.mp4](../imgResults/frames_couette_400_200_100_01_trt.mp4) |
+Also available as [`lid_cavity_3d.mp4`](../imgResults/lid_cavity_3d.mp4), which
+is a tenth of the size of the GIF -- prefer it wherever the target renders
+video.
 
-## Poiseuille flow
+There is no tabulated 3D counterpart to Ghia in `benchmarks/`, so this case is
+checked qualitatively here (the primary vortex forming under the lid, the
+corner recirculations) and quantitatively through the exported centerline.
 
-`D2Q9`, rigid bounce-back top and bottom walls, pressure-periodic inlet and
-outlet (see [`error_results.md`](error_results.md) for the pressure drop). The
-animation shows the parabolic profile developing from the uniform initial
-condition until the pressure gradient and the viscous stresses balance.
+## Pipe flow, 3D
 
-| Grid | BGK | TRT |
-|------|-----|-----|
-| 129x129 | [poiseuille_129_bgk.mp4](../imgResults/frames_poiseuille_d2q9_129_129_100_bgk.mp4) | [poiseuille_129_trt.mp4](../imgResults/frames_poiseuille_d2q9_129_129_100_trt.mp4) |
-| 400x200 | [poiseuille_400x200_bgk.mp4](../imgResults/frames_poiseuille_d2q9_400_200_100_bgk.mp4) | [poiseuille_400x200_trt.mp4](../imgResults/frames_poiseuille_d2q9_400_200_100_trt.mp4) |
+`D3Q19` on the CUDA backend, a `CylindricalShell` rasterized inside a box with
+pressure-periodic inlet and outlet
+([`configs/pipe_config.toml`](../../configs/pipe_config.toml) and its
+variants):
 
-> The files are `.mp4`: GitHub plays them inline once the link is opened, and
-> any local player handles them directly. As with the profiles, BGK and TRT are
-> visually indistinguishable on these two flows.
+![3D pipe, Hagen-Poiseuille](../imgResults/pipe_poiseuille.gif)
+
+The steady profile this run converges to, and the error it scores against
+`HagenPoiseuilleSolution3D`, are in [`error_results.md`](error_results.md).
 
 ## Reproducing an animation
 
 `-o` is what turns the interactive window into a saved file; the `.mp4` writer
-needs `ffmpeg` on the `PATH` (drop the extension to `.gif` to fall back to
-`pillow`). Paths are the frame files written by the run, relative to
-`build/simulations/`:
+needs `ffmpeg` on the `PATH`, while a `.gif` extension falls back to `pillow`:
 
 ```bash
-python scripts/visualize_frames.py out/norms_poiseuille_openmp_129_100_01_bgk.bin --title "Sim: 2D Poiseuille flow" -o docs/imgResults/frames_poiseuille_d2q9_129_129_100_bgk.mp4
+python scripts/py/visualize_frames.py out/frames_lid_cavity_3d.bin --title "Sim: 3D lid-driven cavity" -o docs/imgResults/lid_cavity_3d.mp4
 ```
+
+> The 2D Couette and Poiseuille animations that this page used to list were
+> dropped along with their frame files. Re-render them from a fresh run if they
+> are wanted back: the commands above are the same, only the input file and the
+> title change.

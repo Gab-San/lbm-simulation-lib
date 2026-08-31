@@ -115,7 +115,7 @@ worth knowing before reading their output:
 
 Fixed 129x129 grid, `Re = 100`, 100 000 iterations, 5 repetitions.
 
-![Strong scaling](../imgResults/strong_scaling.png)
+![Strong scaling](../report/assets/strong_scaling.png)
 
 | threads | mean [s] | std [s] | speedup | efficiency | MLUPS |
 |--------:|---------:|--------:|--------:|-----------:|------:|
@@ -153,7 +153,7 @@ Re-run it with `select=...:ncpus=` matching the sweep.
 
 Grid grown with the thread count, same 100 000 iterations per point.
 
-![Weak scaling](../imgResults/weak_scaling.png)
+![Weak scaling](../report/assets/weak_scaling.png)
 
 | threads | grid | cells/thread | mean [s] | MLUPS | MLUPS per thread |
 |--------:|------|-------------:|---------:|------:|-----------------:|

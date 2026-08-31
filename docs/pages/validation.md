@@ -81,6 +81,34 @@ the error relative to the norm of the reference, in a
 Defined for `dim == 2` only. Instantiating it on a 3D simulation is a compile
 error; a 3D run that never calls it compiles fine.
 
+## Measured errors
+
+What the two entry points above return, on runs with TRT and 100 000
+iterations. `rel` is the error relative to the norm of the reference; the RMS
+column is `abs / sqrt(N)` expressed as a percentage of the reference scale
+(`u_ref` for the analytical cases, `1.0` for Ghia's tables, which are already
+normalised by the lid velocity).
+
+| Case | Grid | Re | Profile | `rel` | RMS | `Linf` |
+|------|------|---:|---------|------:|----:|-------:|
+| Couette | 129x129 | 100 | `ux` | 0.39% | 0.23% | 0.39% |
+| Poiseuille | 129x129 | 100 | `ux` | 4.62% | 3.36% | 5.10% |
+| Lid cavity vs Ghia | 200x200 | 1000 | `uy` | 4.67% | 1.46% | 2.84% |
+| Lid cavity vs Ghia | 200x200 | 1000 | `ux` | 3.23% | 1.32% | 3.78% |
+
+Couette is essentially exact, which is the case to check first when something
+looks wrong: a linear profile carries no truncation error in the bulk, so an
+error above a fraction of a percent there means the walls, the moments or the
+output normalisation are misbehaving. Poiseuille is an order of magnitude
+worse on the same grid, and its `Linf` (5.10% of `u_ref`) is only 1.5 times its
+RMS -- the error is a nearly uniform shortfall of the whole parabola rather
+than a wall artefact. The cavity is the opposite: `Linf` is twice the RMS, so
+the discrepancy sits in a few points near the extrema.
+
+The raw CSVs, the derivation of each column and the two experiments that
+discriminate between the candidate causes of the Poiseuille offset are in
+`docs/report/error_results.md`.
+
 ## Measured profiles
 
 The figures below come from runs of the shipped simulations; the timings of the
@@ -96,9 +124,9 @@ so a curve below the reference is slower, not merely rescaled.
 quantity is `v(x, ny/2)` -- the vertical velocity along the horizontal
 centreline, from `functional::extract_dy_profile_along_x_center()`.
 
-![Lid cavity Re 7500, TRT against Ghia](../imgResults/profile_lid_cavity_d2q9_2000_2000_7500_trt.png)
+![Lid cavity Re 7500, TRT against Ghia](../report/assets/profile_lid_cavity_d2q9_2000_2000_7500_trt.png)
 
-![Lid cavity Re 7500, BGK and TRT against Ghia](../imgResults/profile_comparison_lid_cavity_d2q9_7500.png)
+![Lid cavity Re 7500, BGK and TRT against Ghia](../report/assets/profile_comparison_lid_cavity_d2q9_7500.png)
 
 | | simulation | Ghia et al. | difference |
 |---|---:|---:|---:|
@@ -130,7 +158,9 @@ centreline, from `functional::extract_dy_profile_along_x_center()`.
 box, pressure-periodic inlet and outlet on the `x` faces, profile taken with
 `functional::extract_dx_profile_along_z_center()`.
 
-![Pipe velocity profile](../imgResults/pipe_profile.png)
+![Pipe velocity profile](../report/assets/pipe_profile.png)
+
+![3D pipe, velocity magnitude](../imgResults/pipe_poiseuille.gif)
 
 - The parabola is symmetric about the axis to within the line width. Nothing in
   the setup enforces that: the wall is a rasterised shell, so a lopsided profile
