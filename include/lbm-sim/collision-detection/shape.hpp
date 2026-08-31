@@ -76,6 +76,9 @@ public:
     return static_cast<const DerivedShape *>(this)->aabb();
   };
 
+  // no-op for shapes that don't need precomputation. DerivedShape can override it.
+  void precompute() const {}   
+
 protected:
   Shape() = default;
 };
@@ -277,6 +280,8 @@ public:
       : position(position_), chord(chord_), thickness(thickness_),
         max_camber(max_camber_), camber_pos(camber_pos_),
         aoa_rad(aoa_deg_ * 3.14159265358979323846 / 180.0) {}
+
+  void precompute() const { buildPolygon(); }   // override, chiamato sequenzialmente
 
   bool contains(const types::Coordinate<dim> &point) const {
     // trasforma point in coordinate normalizzate locali (inversa di toGrid)

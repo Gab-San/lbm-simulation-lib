@@ -25,6 +25,47 @@
 namespace lbm {
 namespace cuda_detail {
 
+/// Equilibrium value for one direction, given local rho/u. Same formula as
+/// init_equilibrium(), factored out so the sponge layer can call it per-node.
+template <types::dim_t dim, typename VelocitySet>
+__device__ inline double equilibrium_i(std::size_t diridx, double r,
+                                        const utils::Vector<double, dim> &u) {
+  const double u_sq = utils::ops::dot(u, u);
+  const double cidotu =
+      utils::ops::dot(cuda::vs_dir<dim, VelocitySet>[diridx], u);
+  return cuda::vs_wi<VelocitySet>[diridx] * r *
+         (1.0 + numbers::invcs_2 * cidotu + 4.5 * cidotu * cidotu - 1.5 * u_sq);
+}
+
+/// 0 outside the sponge zone, rising to `max_strength` at the outflow face
+/// itself. Only faces configured as OPEN_OUTFLOW absorb; walls/periodic axes
+/// are left untouched (their own BC already handles them correctly).
+template <types::dim_t dim>
+__device__ inline double
+sponge_strength(const Grid<dim> &grid, const Solid::DomainBC<dim> &dbc,
+                const types::Coordinate<dim> &p, int width,
+                double max_strength) {
+  using utils::ops::axis;
+
+  double s = 0.0;
+  for (types::dim_t a = 0; a < dim; ++a) {
+    const int n = static_cast<int>(axis(grid.size, a));
+    const int c = axis(p, a);
+
+    if (dbc.low(a) == Solid::OPEN_OUTFLOW) {
+      const int dist = c;                 // 0 at the face, grows inward
+      if (dist < width)
+        s = fmax(s, max_strength * (1.0 - static_cast<double>(dist) / width));
+    }
+    if (dbc.high(a) == Solid::OPEN_OUTFLOW) {
+      const int dist = n - 1 - c;
+      if (dist < width)
+        s = fmax(s, max_strength * (1.0 - static_cast<double>(dist) / width));
+    }
+  }
+  return s; // combine faces with max(), not sum(): avoid double-damping in corners
+}
+
 template <types::dim_t dim, typename VelocitySet>
 __global__ void
 init_equilibrium(double *__restrict__ part_stream,
@@ -128,6 +169,34 @@ __global__ void update_stream_collide(
 
   cs.apply(fp, p, r, u);
 
+  // SPONGE LAYER: extra relaxation toward equilibrium near OPEN_OUTFLOW faces,
+  // damping any residual wave -- acoustic or convective -- before it reaches
+  // the boundary. width/max_strength are tuning knobs; start conservative.
+  {
+    constexpr int sponge_width = 1;         // cells; try 10-20% of domain length
+    constexpr double sponge_max = 0.3;      // 0 = off, up to 0.5 before it visibly damps the mean flow too
+
+    const double s = cuda_detail::sponge_strength<dim>(grid, dbc, p, sponge_width, sponge_max);
+    if (s > 0.0) {
+      // Reference (quiescent) state the sponge pulls the node toward.
+      // Tune to your case: rho0 is usually 1.0; u_ref is typically zero for a
+      // channel starting from rest, or the expected free-stream value.
+      const double rho_ref = 1.0;
+      const utils::Vector<double, dim> u_ref(0.0, 0.0);
+
+      // Blend the CONSERVED quantities toward the reference -- this is what
+      // actually removes the wave, unlike relaxing fp toward feq(r,u) unchanged.
+      const double r_blend = r + s * (rho_ref - r);
+      utils::Vector<double, dim> u_blend = u;
+      u_blend.dx += s * (u_ref.dx - u.dx);
+      u_blend.dy += s * (u_ref.dy - u.dy);
+
+      for (auto diridx = 0; diridx < VelocitySet::ndir; diridx++) {
+          fp[diridx] = cuda_detail::equilibrium_i<dim, VelocitySet>(diridx, r_blend, u_blend);
+      }
+    }
+  }
+
   // COPY BACK ON DEVICE BUFFER
   for (auto diridx = 0; diridx < VelocitySet::ndir; diridx++) {
     fto[grid.field_index(p, diridx, VelocitySet::ndir)] = fp[diridx];
@@ -194,7 +263,7 @@ public:
     cuda::upload_lattice_constants<dim, VelocitySet>();
 
     std::size_t area = lattice.grid.getArea();
-    std::size_t allocation_size = area * sizeof(double) * VelocitySet::ndir;
+    // std::size_t allocation_size = area * sizeof(double) * VelocitySet::ndir;
 
     cuda::DeviceBuffer<double> ffrom(area * VelocitySet::ndir);
     cuda::DeviceBuffer<double> fto(area * VelocitySet::ndir);

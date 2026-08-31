@@ -25,9 +25,10 @@ using CollisionShapesT = std::conditional_t<
 template <unsigned short int dim> class CollisionArea {
 
   types::Coordinate<dim> position;
-  const std::vector<CollisionShapesT<dim>> collision_shapes;
 
 public:
+  const std::vector<CollisionShapesT<dim>> collision_shapes;
+  
   CollisionArea(const types::Coordinate<dim> position_,
                 std::vector<CollisionShapesT<dim>> collision_shapes_)
       : position(position_), collision_shapes(std::move(collision_shapes_)) {}

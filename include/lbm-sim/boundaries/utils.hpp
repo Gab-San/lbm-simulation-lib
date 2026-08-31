@@ -61,6 +61,11 @@ types::solid_mask_t compute_solid_mask(
 
     const auto id = static_cast<types::obstacle_id_t>(oid);
 
+    // popola la cache in modo sequenziale, un solo thread, nessuna race possibile
+    for (const auto &shape_variant : obstacles[oid].collision_shapes) {
+        std::visit([](const auto &shape) { shape.precompute(); }, shape_variant);
+    }
+
     if constexpr (dim == 2) {
 #pragma omp parallel for shared(mask, obstacles, grid) schedule(static)
       for (int y = lo.y; y <= hi.y; ++y) {
@@ -138,16 +143,29 @@ LBM_HD_FUNC inline LinkResolution<dim> resolve_link(
   //     A wall beats a wrap, because this runs after step 1.
   //
   //     pass A: a moving wall claims the link if any violated face carries one
+  // for (types::dim_t a = 0; a < dim; ++a) {
+  //   const int n = static_cast<int>(axis(grid.size, a));
+  //   const int s = axis(src, a);
+  //   if (s < 0 && dbc.low(a) == BB_MOVING_WALL)
+  //     return {src, BB_MOVING_WALL, types::FLUID};
+  //   if (s >= n && dbc.high(a) == BB_MOVING_WALL)
+  //     return {src, BB_MOVING_WALL, types::FLUID};
+  // }
+
+  //     pass B: if any violated axis is an OPEN_OUTFLOW face, keep that
+  //     boundary on corner/edge links before falling back to the generic
+  //     x -> y -> z face selection below. This prevents a corner of an outlet
+  //     from being silently classified as a wall or plain streaming.
   for (types::dim_t a = 0; a < dim; ++a) {
     const int n = static_cast<int>(axis(grid.size, a));
     const int s = axis(src, a);
-    if (s < 0 && dbc.low(a) == BB_MOVING_WALL)
-      return {src, BB_MOVING_WALL, types::FLUID};
-    if (s >= n && dbc.high(a) == BB_MOVING_WALL)
-      return {src, BB_MOVING_WALL, types::FLUID};
+    if (s < 0 && dbc.low(a) == OPEN_OUTFLOW)
+      return {src, OPEN_OUTFLOW, types::FLUID};
+    if (s >= n && dbc.high(a) == OPEN_OUTFLOW)
+      return {src, OPEN_OUTFLOW, types::FLUID};
   }
 
-  //     pass B: first violated axis, in x -> y -> z order
+  //     pass C: first violated axis, in x -> y -> z order
   for (types::dim_t a = 0; a < dim; ++a) {
     const int n = static_cast<int>(axis(grid.size, a));
     const int s = axis(src, a);
@@ -177,9 +195,11 @@ LBM_HD_FUNC inline bool on_pressure_face(const Grid<dim> &grid,
   for (types::dim_t a = 0; a < dim; ++a) {
     const int n = static_cast<int>(axis(grid.size, a));
     const int c = axis(p, a);
-    if (c == 0 && is_pressure(dbc.low(a)))
+    const auto lo = dbc.low(a);
+    const auto hi = dbc.high(a);
+    if (c == 0 && (is_pressure(lo) || lo == OPEN_OUTFLOW))
       return true;
-    if (c == n - 1 && is_pressure(dbc.high(a)))
+    if (c == n - 1 && (is_pressure(hi) || hi == OPEN_OUTFLOW))
       return true;
   }
   return false;

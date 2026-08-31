@@ -83,8 +83,8 @@ static lbm::Solid::DomainBC<DIM> make_channel_bc() {
 
   dbc.low(0) = lbm::Solid::BB_MOVING_WALL; // x = 0
   dbc.high(0) = lbm::Solid::OPEN_OUTFLOW; // x = nx-1
-  dbc.low(1) = lbm::Solid::BB_RIGID_WALL;             // y = 0
-  dbc.high(1) = lbm::Solid::BB_RIGID_WALL;            // y = ny-1
+  dbc.low(1) = lbm::Solid::OPEN_OUTFLOW;             // y = 0
+  dbc.high(1) = lbm::Solid::OPEN_OUTFLOW;            // y = ny-1
   return dbc;
 }
 
@@ -107,52 +107,21 @@ int main() {
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {640*scale, 129*scale}, /*iters*/ 10000, /*frames*/ 200, /*reyn*/ 300.0,
-          /*init_vel*/ {0.05, 0}, "out/norms_obstacle_bgk.bin",
-          "out/data_obstacle_bgk.bin",
+          {640*scale, 129*scale}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 7000.0,
+          /*init_vel*/ {0.1, 0}, "out/norms_circle_bgk.bin",
+          "out/data_circle_bgk.bin",
           {
-              // Le pareti del canale non sono piu' ostacoli: stanno in
-              // make_channel_bc(). Qui resta solo il corpo immerso.
-              
-              // Parallelogramma: 4 vertici, 2 diagonali
               CollisionDetection::CollisionArea(
-                  Coordinate<2>(100*scale, 0), // posizione base (l'offset per le coord del parallelogramma)
-                  {CollisionDetection::Parallelogram<DIM>(
-                      // Senso anti-orario dei vertici, rispetto alla posizione base
-                      Coordinate<2>{0, 0},
-                      Coordinate<2>{0, 80*scale},
-                      Coordinate<2>{32*scale, 80*scale},
-                      Coordinate<2>{32*scale, 0})
-                  } 
+                  Coordinate<2>(0, 0),        // posizione base (l'offset per le coord del cerchio)
+                  {CollisionDetection::Circle<DIM>(
+                      Coordinate<2>(160*scale, 64*scale), // centro relativo alla posizione base
+                      16*scale)}                    // raggio in celle
               ),
-
-              CollisionDetection::CollisionArea(
-                Coordinate<2>(300*scale, 48*scale), // posizione base (l'offset per le coord del parallelogramma)
-                {CollisionDetection::Parallelogram<DIM>(
-                    // Senso anti-orario dei vertici, rispetto alla posizione base
-                    Coordinate<2>{0, 0},
-                    Coordinate<2>{0, 80*scale},
-                    Coordinate<2>{32*scale, 80*scale},
-                    Coordinate<2>{32*scale, 0})               
-                } 
-              ),
-
-              CollisionDetection::CollisionArea(
-                 Coordinate<2>(500*scale, 0), // posizione base (l'offset per le coord del parallelogramma)
-                 {CollisionDetection::Parallelogram<DIM>(
-                     // Senso anti-orario dei vertici, rispetto alla posizione base
-                     Coordinate<2>{0, 0},
-                     Coordinate<2>{0, 80*scale},
-                     Coordinate<2>{32*scale, 80*scale},
-                     Coordinate<2>{32*scale, 0})
-                 } 
-              ),       
-    
           },
           // id 0 = il cilindro: parete rigida, ferma.
           {{Solid::BB_RIGID_WALL, {0.0, 0.0}},
-           {Solid::BB_RIGID_WALL, {0.0, 0.0}},
-           {Solid::BB_RIGID_WALL, {0.0, 0.0}},
+           // {Solid::BB_RIGID_WALL, {0.0, 0.0}},
+           // {Solid::BB_RIGID_WALL, {0.0, 0.0}},
           }, 
           make_channel_bc()),
   };
