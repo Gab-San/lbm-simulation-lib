@@ -19,7 +19,14 @@ def read_data(file_name):
 
 
 def create_frames(nx, ny, data, num_iterations, vmax, output_file, save, title):
-    fig, ax = plt.subplots()
+    # Calcola il rapporto d'aspetto basato sulla griglia
+    aspect_ratio = nx / ny
+    
+    # Imposta la dimensione della figura per adattarsi alla griglia
+    # base_width = 10, l'altezza viene calcolata proporzionalmente
+    base_width = 10
+    fig_height = base_width / aspect_ratio
+    fig, ax = plt.subplots(figsize=(base_width, fig_height))
 
     frame0 = data[0 : nx * ny].reshape(ny, nx)
     im = ax.imshow(frame0, cmap="jet", origin="lower", vmin=0, vmax=vmax)
@@ -27,7 +34,9 @@ def create_frames(nx, ny, data, num_iterations, vmax, output_file, save, title):
         1, 1.015, "", ha="right", va="bottom", transform=ax.transAxes, fontsize=12
     )
     ax.set_title(title, loc="left")
-    plt.colorbar(im, ax=ax, label="Velocity norms")
+    
+    # Colorbar con la stessa altezza del plot
+    plt.colorbar(im, ax=ax, label="Velocity norms", fraction=0.046, pad=0.04)
 
     def update(iter):
         frame_data = data[iter * nx * ny : (iter + 1) * nx * ny].reshape(ny, nx)
@@ -44,7 +53,7 @@ def create_frames(nx, ny, data, num_iterations, vmax, output_file, save, title):
         anim.save(output_file, writer=writer, fps=10)
         print(f"Plot saved in {output_file}")
 
-    plt.show()  # only for interactive viewing, after saving
+    plt.show()
 
 
 def existing_file(path_str: str) -> Path:
