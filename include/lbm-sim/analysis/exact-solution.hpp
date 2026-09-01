@@ -65,7 +65,7 @@ inline constexpr double halfway_wall_offset = 0.5;
 class CouetteSolution2D : public functional::Function<2> {
 private:
   double H;      // Channel height == number of fluid rows
-  double Umax;   // Velocity of the moving top wall
+  double Uwall;  // Velocity of the moving top wall
   double offset; // Wall offset (halfway bounce-back by default)
 
 public:
@@ -73,12 +73,12 @@ public:
 
   CouetteSolution2D(double channel_height, double max_velocity,
                     double wall_offset = halfway_wall_offset)
-      : H(channel_height), Umax(max_velocity), offset(wall_offset) {}
+      : H(channel_height), Uwall(max_velocity), offset(wall_offset) {}
 
   utils::Vector<double, 2> value(const types::Coordinate<2> &p) const override {
     // p.y is a node index; the wall lies `offset` below node 0.
     const double y_phys = static_cast<double>(p.y) + offset;
-    const double ux = Umax * (y_phys / H);
+    const double ux = Uwall * (y_phys / H);
     return utils::Vector<double, 2>{ux, 0.0};
   }
 
@@ -112,6 +112,7 @@ public:
       : H(channel_height), Umax(max_center_velocity), offset(wall_offset) {}
 
   utils::Vector<double, 2> value(const types::Coordinate<2> &p) const override {
+    // FIXME: where does this function pop up?
     const double y_phys = static_cast<double>(p.y) + offset;
     const double y_norm = y_phys / H;
     const double ux = 4.0 * Umax * y_norm * (1.0 - y_norm);
