@@ -897,7 +897,7 @@ None of the three cases has a reference dataset comparable to Ghia et al. that c
 
 #### Circle (`Circle_flow_2d_bgk.cu`)
 
-![Circle](https://github.com/user-attachments/assets/747ceae6-c62f-4227-9158-993258adf963)
+https://github.com/user-attachments/assets/b32c35d0-7bdd-436b-bd8c-a7f785b08b41
 
 The simplest of the three cases: a `CollisionDetection::Circle` is immersed in the channel. The video shows the formation of the wake behind the obstacle and the shedding of vortices downstream, with no evidence of flow passing through the circle (i.e., no "leakage" through the solid). This indirectly confirms that `compute_solid_mask()` correctly marks the entire body rather than an incomplete shell.
 
@@ -905,7 +905,7 @@ This case is also the most direct reference for evaluating the absorption perfor
 
 #### Four-Digit NACA Airfoil (`NACA_flow_2d_bgk.cu`)
 
-![NACA](https://github.com/user-attachments/assets/985da4b4-4273-40c8-862b-5067860edf86)
+https://github.com/user-attachments/assets/747ceae6-c62f-4227-9158-993258adf963
 
 The airfoil is generated through `CollisionDetection::Airfoil`, which implements the **four-digit NACA convention** (NACA *MPXX*): the first digit (*M*) represents the maximum camber as a percentage of the chord; the second digit (*P*) represents the location of the maximum camber along the chord, expressed in tenths of the chord; and the final two digits (*XX*) represent the maximum thickness as a percentage of the chord.
 
@@ -917,7 +917,7 @@ The video shows asymmetric flow separation between the upper and lower surfaces,
 
 #### Generic Geometry / Immersed Obstacle (`obstacle_flow_2d_bgk.cu`)
 
-![Obstacles](https://github.com/user-attachments/assets/b32c35d0-7bdd-436b-bd8c-a7f785b08b41)
+https://github.com/user-attachments/assets/985da4b4-4273-40c8-862b-5067860edf86
 
 The same domain setup is applied to an arbitrary geometry through `CollisionArea`, providing a test case for the open boundary conditions independently of the specific obstacle shape.
 
