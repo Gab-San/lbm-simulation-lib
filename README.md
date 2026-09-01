@@ -430,7 +430,7 @@ the resolution:
 - **Domain faces** -- `Solid::DomainBC<dim>` holds one `boundary_t` per face
   (4 bytes in 2D, 6 in 3D), set through `low(axis)` and `high(axis)`.
   Available values: `NONE`, `BB_RIGID_WALL`, `BB_MOVING_WALL`, `PERIODIC`,
-  `PRESSURE_PERIODIC_INLET`, `PRESSURE_PERIODIC_OUTLET`. A periodic axis must
+  `PRESSURE_PERIODIC_INLET`, `PRESSURE_PERIODIC_OUTLET`, `OPEN_OUTFLOW`. A periodic axis must
   wrap on both faces (`assert_consistent_domain_bc`).
 - **Immersed obstacles** -- analytic shapes are rasterized into a
   `types::solid_mask_t` (one 16-bit obstacle id per node, `types::FLUID`

@@ -135,6 +135,7 @@ conditions are
 | `lbm::Solid::PERIODIC` | coordinate wrap |
 | `lbm::Solid::PRESSURE_PERIODIC_INLET` | wrap, then rescale to the inlet pressure |
 | `lbm::Solid::PRESSURE_PERIODIC_OUTLET` | wrap, then rescale to the outlet pressure |
+| `lbm::Solid::OPEN_OUTFLOW` | adds a sponge layer used to minimize refelction at the boundaries |
 
 Resolution order matters and is fixed: a link that wraps does so *first*, then
 a non-periodic face may claim it, and a moving wall wins over a rigid one on a
