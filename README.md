@@ -80,8 +80,7 @@ flow, Poiseuille flow, flow past an obstacle.
 | Logging | Three interchangeable backends selected by `LBM_LOG_BACKEND`: [Quill](https://github.com/odygrd/quill), `ostream` (no dependency), or `none` (macros expand away); the active level is fixed at compile time |
 | Profiling | Optional chrono instrumentation (`LBM_ENABLE_PROFILING`), dumped as CSV next to the profile output |
 | Error estimation | `L1`, `L2`, `L2^2`, `Linf` norms against a user-supplied `functional::Function<dim>`, or against the Ghia et al. tables |
-| Post-processing | Python scripts for animations, velocity profiles, scaling plots and output validation |
-| Documentation | Doxygen targets wired into the build |
+| Post-processing | Python scripts for animations, velocity profiles and scaling plots  |
 
 ## Installation and configuration
 
@@ -144,6 +143,11 @@ run pays nothing for them:
 ```bash
 cmake -S . -B build -DLBM_LOG_LEVEL=DEBUG
 ```
+
+There are also some presets that one can use. To list them:
+`cmake --preset list`
+and then to run them:
+`cmake --preset <preset-name>`
 
 ### Python tooling
 
@@ -238,10 +242,8 @@ grid-size header, the solver emits the velocity-norm frames, and they are two
 distinct `DataObservable`s. Detach it from both at the end of a run, so the
 next configuration in the loop starts from a clean listener list.
 
-Moving to 3D means changing three things: `DIM`, the velocity set (`D3Q19` or
-`D3Q27`) and the profile extractor
-(`functional::extract_dx_profile_along_z_center`). See
-[`lid_cavity_d3q19_bgk.cu`](simulations/cuda/lid_cavity_d3q19_bgk.cu).
+Moving to 3D means changing three things: `DIM`, the velocity set (`D3Q19` or `D3Q27`). 
+See [`lid_cavity_d3q19_bgk.cu`](simulations/cuda/lid_cavity_d3q19_bgk.cu).
 
 ### Configuration files
 
@@ -481,13 +483,30 @@ target_link_libraries(my_sim PRIVATE lbm-sim)
 
 Or with a vendored copy:
 
-```cmake
-add_subdirectory(external/lbm-simulation-lib)
-target_link_libraries(my_sim PRIVATE lbm-sim)
+**Directory Structure**
+```
+my_project/
+├── CMakeLists.txt
+├── lbm-simulation-lib
+└── main.cpp
+```
+
+**Minimal CMakeLists.txt**
+```
+cmake(VERSION 3.21)
+project(my_project)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_subdirectory(lbm-simulation-lib)
+add_executable(${PROJECT_NAME} main.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE lbm::sim) 
+# If LBM_ENABLE_CUDA=ON link CUDA with lbm::sim-cuda
 ```
 
 For the CUDA backend, configure the consuming project with
-`-DLBM_ENABLE_CUDA=ON` and link `lbm-sim-cuda` instead: it pulls `lbm-sim` in
+`-DLBM_ENABLE_CUDA=ON` and link `lbm::sim-cuda` instead: it pulls `lbm-sim` in
 and adds relocatable device code plus the OpenMP flag for `nvcc`'s host pass.
 
 ## Design and performance
@@ -759,8 +778,7 @@ centerline, `v(x, ny/2)`, which is what
 `functional::extract_dy_profile_along_x_center` extracts.
 
 <p align="center">
-  <img src="docs/report/assets/profile_lid_cavity_d2q9_2000_2000_7500_trt.png" width="47%" />
-  <img src="docs/report/assets/profile_comparison_lid_cavity_d2q9_7500.png" width="47%" />
+  <img src="docs/report/assets/profile_comparison_lid_cavity_d2q9_7500.png" width="70%" />
 </p>
 
 The shape is right: the profile leaves the left wall, peaks just inside it,
@@ -821,7 +839,7 @@ the `x` faces, rigid walls elsewhere. The profile is `u_x` along the `z`
 centerline, from `functional::extract_dx_profile_along_z_center`.
 
 <p align="center">
-  <img src="docs/report/assets/pipe_profile.png" width="60%" />
+  <img src="docs/report/assets/profile_pipe_poiseuille_64_65_65_21_bgk.png" width="60%" />
 </p>
 
 - The profile is the parabola Hagen-Poiseuille predicts across a diameter, and
@@ -844,13 +862,11 @@ centerline, from `functional::extract_dx_profile_along_z_center`.
   a rasterized cylinder is a staircase, and bounce-back on a staircase is only
   first-order accurate for a curved boundary, so a few percent on a radius of
   about 30 nodes is the expected price. That is also the one place where TRT
-  and an interpolated bounce-back would earn their keep. It should shrink under
-  refinement: `configs/pipe_config_3.toml` (100x125x125) is the run that tests
-  it.
+  and an interpolated bounce-back would earn their keep.
 
-> `pipe_profile.png` does not carry its parameters in the filename, and three
-> pipe configurations are committed (`Re = 21` and `Re = 100` on 64x65x65,
-> `Re = 100` on 100x125x125), so which one it is cannot be recovered from the
+> `profile_pipe_poiseuille_64_65_65_21_bgk.png` does not carry its parameters in the filename, and three
+> pipe configurations are committed (`Re = 21` and `Re = 100` on 64x65x65),
+> so which one it is cannot be recovered from the
 > file. Renaming it to the convention the other figures use --
 > `profile_pipe_d3q19_<nx>_<ny>_<nz>_<Re>_<operator>.png` -- costs nothing now
 > and saves the next reader a guess.
@@ -860,18 +876,14 @@ centerline, from `functional::extract_dx_profile_along_z_center`.
 `D3Q19`, 200x200x200 nodes, `Re = 1000`, lid on the `z = nz-1` face
 ([`configs/lid_cavity_3d.toml`](configs/lid_cavity_3d.toml)). The animation is
 the velocity magnitude on the exported frames, rendered with
-`scripts/py/visualize_frames.py`:
-
-<p align="center">
-  <img src="docs/imgResults/lid_cavity_3d.gif" width="60%" />
-</p>
+`scripts/py/visualize_frames.py`.
 
 There is no tabulated 3D counterpart to Ghia in `benchmarks/`, and
 `compute_ghia_error()` is `dim == 2` only, so this case is validated
 qualitatively -- the primary vortex forms under the lid and the corner
 recirculations appear where they should -- and quantitatively only through the
 exported centerline, which has to be compared against external reference data.
-The same run is available as [`lid_cavity_3d.mp4`](docs/imgResults/lid_cavity_3d.mp4)
+The same run is available as [`lid_cavity_3d.mp4`](https://drive.google.com/file/d/1LXoR7dcdQXW0F0D8UrwZvzgfBTKwPcxX/view?usp=sharing)
 (the GIF is ten times larger than the MP4, so prefer the MP4 when linking it
 from anywhere that plays video).
 
