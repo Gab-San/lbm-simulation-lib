@@ -889,6 +889,43 @@ The same run is available as [`lid_cavity_3d.mp4`](https://drive.google.com/file
 (the GIF is ten times larger than the MP4, so prefer the MP4 when linking it
 from anywhere that plays video).
 
+### Flow Around Immersed Obstacles: Circle, NACA Airfoil, and Generic Geometry
+
+Three cases using the same domain structure — `BB_MOVING_WALL` on the left boundary as the source of motion, `OPEN_OUTFLOW` on the other three boundaries, and an immersed obstacle handled through `compute_solid_mask()` — are used to qualitatively validate the open boundary condition pipeline together with the sponge layer, as well as the geometry of the shapes themselves.
+
+None of the three cases has a reference dataset comparable to Ghia et al. that can be used for point-by-point validation. The validation here is therefore visual, following the same approach used for the 3D cavity described above: the goal is to verify that the flow behaves as expected around the obstacle, rather than to match a tabulated reference profile.
+
+#### Circle (`Circle_flow_2d_bgk.cu`)
+
+![Circle](https://github.com/user-attachments/assets/747ceae6-c62f-4227-9158-993258adf963)
+
+The simplest of the three cases: a `CollisionDetection::Circle` is immersed in the channel. The video shows the formation of the wake behind the obstacle and the shedding of vortices downstream, with no evidence of flow passing through the circle (i.e., no "leakage" through the solid). This indirectly confirms that `compute_solid_mask()` correctly marks the entire body rather than an incomplete shell.
+
+This case is also the most direct reference for evaluating the absorption performance of `OPEN_OUTFLOW`. Since the geometry is symmetric, any spurious reflection from the right boundary would be clearly visible as a disturbance propagating back along the wake axis.
+
+#### Four-Digit NACA Airfoil (`NACA_flow_2d_bgk.cu`)
+
+![NACA](https://github.com/user-attachments/assets/985da4b4-4273-40c8-862b-5067860edf86)
+
+The airfoil is generated through `CollisionDetection::Airfoil`, which implements the **four-digit NACA convention** (NACA *MPXX*): the first digit (*M*) represents the maximum camber as a percentage of the chord; the second digit (*P*) represents the location of the maximum camber along the chord, expressed in tenths of the chord; and the final two digits (*XX*) represent the maximum thickness as a percentage of the chord.
+
+For example, a NACA 2412 airfoil has a maximum camber of 2% located at 4/10 of the chord and a maximum thickness of 12%. These correspond directly to the three parameters exposed by the `Airfoil` constructor — `max_camber`, `camber_pos`, and `thickness` — together with the angle of attack.
+
+The airfoil boundary is generated analytically using the standard NACA thickness equation and a piecewise camber-line formulation. The resulting geometry is then tested point-by-point using a ray-casting point-in-polygon algorithm, rather than being manually rasterized as with the other shapes.
+
+The video shows asymmetric flow separation between the upper and lower surfaces, consistently with the imposed angle of attack. The wake develops downstream of the trailing edge without visible artifacts at the airfoil attachment, where the local curvature is higher and rasterization errors would be more apparent.
+
+#### Generic Geometry / Immersed Obstacle (`obstacle_flow_2d_bgk.cu`)
+
+![Obstacles](https://github.com/user-attachments/assets/b32c35d0-7bdd-436b-bd8c-a7f785b08b41)
+
+The same domain setup is applied to an arbitrary geometry through `CollisionArea`, providing a test case for the open boundary conditions independently of the specific obstacle shape.
+
+Only one `OPEN_OUTFLOW` boundary was used for the right exiting flux, while on the left boundary `BB_MOVING_WALL` was used as the source of motion and two `BB_RIGID_WALL` where used as the orizontal walls. This is also the case used to tune the sponge layer placed before the `OPEN_OUTFLOW` boundary. Without the sponge layer, the impulsive wave generated when the moving wall starts was visibly reflected by the right boundary. With the sponge layer enabled — relaxing `rho` and `u` toward the quiescent state over the last cells before the boundary — the initial transient leaves the domain without producing a perceptible reflected wave.
+
+> NOTE: None of the three configurations is currently present in `configs/`: they were run using ad-hoc parameters during the tuning of the boundary conditions and currentrly do not present a `.toml` file.
+
+
 ## Documentation and report
 
 API documentation is generated with Doxygen when it is found at configure
