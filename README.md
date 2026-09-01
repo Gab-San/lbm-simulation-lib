@@ -878,6 +878,8 @@ centerline, from `functional::extract_dx_profile_along_z_center`.
 the velocity magnitude on the exported frames, rendered with
 `scripts/py/visualize_frames.py`.
 
+![Lid Cavity 3D](https://github.com/user-attachments/assets/281cd5fc-b509-48ba-803a-12cedcc88749)
+
 There is no tabulated 3D counterpart to Ghia in `benchmarks/`, and
 `compute_ghia_error()` is `dim == 2` only, so this case is validated
 qualitatively -- the primary vortex forms under the lid and the corner
