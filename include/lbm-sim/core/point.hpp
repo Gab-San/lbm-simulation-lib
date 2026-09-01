@@ -26,6 +26,7 @@
 // C++ STANDARD LIB
 #include <iostream>
 #include <type_traits>
+#include <utility>
 
 namespace lbm {
 
@@ -61,7 +62,8 @@ template <typename T> struct Point<T, 2> {
   /// @warning Not @c explicit and not constrained, so it is a greedy
   ///          converting constructor: a type with @c operator[] converts
   ///          silently.
-  template <typename Container>
+  template <typename Container,
+            typename = decltype(std::declval<const Container &>()[0])>
   constexpr Point(Container c) : Point(c[0], c[1]) {}
 
   ~Point() = default;
@@ -86,7 +88,8 @@ template <typename T> struct Point<T, 3> {
         z(static_cast<T>(other.z)) {}
 
   /// @brief Builds from anything indexable. Same caveat as the 2D overload.
-  template <typename Container>
+  template <typename Container,
+            typename = decltype(std::declval<const Container &>()[0])>
   constexpr Point(Container c) : Point(c[0], c[1], c[2]) {}
 
   ~Point() = default;

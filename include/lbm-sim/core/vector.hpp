@@ -21,8 +21,7 @@
  *      arithmetic and the free algebra (dot, cross).
  */
 
-#ifndef __CORE_VECTOR_HPP
-#define __CORE_VECTOR_HPP
+#pragma once
 
 #include "lbm-sim/backend/cuda/annotations.hpp"
 #include "lbm-sim/types/fwd.hpp"
@@ -52,7 +51,8 @@ template <typename T> struct Vector<T, 2> {
   ///        out of a config file becomes a vector without an intermediate.
   /// @warning Not @c explicit and not constrained: a type with
   ///          @c operator[] converts silently.
-  template <typename Container>
+  template <typename Container,
+            typename = decltype(std::declval<const Container &>()[0])>
   constexpr Vector(Container c) : Vector(c[0], c[1]) {}
 
   /// @brief The zero vector. Unlike Point, a default-constructed Vector *is*
@@ -80,7 +80,8 @@ template <typename T> struct Vector<T, 3> {
       : Vector(B_.x - A_.x, B_.y - A_.y, B_.z - A_.z) {}
 
   /// @brief Builds from anything indexable. Same caveat as the 2D overload.
-  template <typename Container>
+  template <typename Container,
+            typename = decltype(std::declval<const Container &>()[0])>
   constexpr Vector(Container c) : Vector(c[0], c[1], c[2]) {}
 
   ~Vector() = default;
@@ -174,6 +175,20 @@ operator*(const Vector<T, dim> &lhs, const K &scalar) {
   }
 }
 
+/// @brief Scaling. The @f$ f_i \mathbf{c}_i @f$ of the momentum sum: an
+///        @c int direction times a @c double population, promoted.
+/// @note Only this operand order exists; @c scalar * vector does not compile.
+template <typename T, typename K, types::dim_t dim>
+LBM_HD_FUNC inline Vector<std::common_type_t<T, K>, dim>
+operator*(const K &scalar, const Vector<T, dim> &rhs) {
+  using R = std::common_type_t<T, K>;
+  if constexpr (dim == 2) {
+    return Vector<R, 2>(rhs.dx * scalar, rhs.dy * scalar);
+  } else {
+    return Vector<R, 3>(rhs.dx * scalar, rhs.dy * scalar, rhs.dz * scalar);
+  }
+}
+
 /// @brief In-place division by a scalar, the @f$ \mathbf{u} = \rho\mathbf{u}
 ///        / \rho @f$ that closes the moment computation.
 /// @warning No check on @p scalar: a node whose density has collapsed to
@@ -203,5 +218,3 @@ static_assert(
 
 } // namespace utils
 } // namespace lbm
-
-#endif // __CORE_VECTOR_HPP

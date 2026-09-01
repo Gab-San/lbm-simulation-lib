@@ -77,13 +77,13 @@ template <> struct Config<2> {
 /// rigide sopra e sotto.
 static lbm::Solid::DomainBC<DIM> make_channel_bc() {
   lbm::Solid::DomainBC<DIM> dbc{};
-  //dbc.low(0) = lbm::Solid::PRESSURE_PERIODIC_INLET;   // x = 0
-  //dbc.high(0) = lbm::Solid::PRESSURE_PERIODIC_OUTLET; // x = nx-1
+  // dbc.low(0) = lbm::Solid::PRESSURE_PERIODIC_INLET;   // x = 0
+  // dbc.high(0) = lbm::Solid::PRESSURE_PERIODIC_OUTLET; // x = nx-1
 
   dbc.low(0) = lbm::Solid::BB_MOVING_WALL; // x = 0
-  dbc.high(0) = lbm::Solid::OPEN_OUTFLOW; // x = nx-1
-  dbc.low(1) = lbm::Solid::OPEN_OUTFLOW;             // y = 0
-  dbc.high(1) = lbm::Solid::OPEN_OUTFLOW;            // y = ny-1
+  dbc.high(0) = lbm::Solid::OPEN_OUTFLOW;  // x = nx-1
+  dbc.low(1) = lbm::Solid::OPEN_OUTFLOW;   // y = 0
+  dbc.high(1) = lbm::Solid::OPEN_OUTFLOW;  // y = ny-1
   return dbc;
 }
 
@@ -101,27 +101,34 @@ int main() {
   logging::setup();
   logging::Logger *main_logger = logging::create_or_get_logger("main");
 
-  // fattore di scala per aumentare la risoluzione della griglia, senza cambiare le proporzioni
+  // fattore di scala per aumentare la risoluzione della griglia, senza cambiare
+  // le proporzioni
   const int scale = 2;
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {640*scale, 129*scale}, /*iters*/ 100000, /*frames*/ 200, /*reyn*/ 7000.0,
+          {640 * scale, 129 * scale}, /*iters*/ 100000, /*frames*/ 200,
+          /*reyn*/ 7000.0,
           /*init_vel*/ {0.1, 0}, "out/norms_circle_bgk.bin",
           "out/data_circle_bgk.bin",
           {
               CollisionDetection::CollisionArea(
-                  Coordinate<2>(0, 0),        // posizione base (l'offset per le coord del cerchio)
+                  Coordinate<2>(
+                      0,
+                      0), // posizione base (l'offset per le coord del cerchio)
                   {CollisionDetection::Circle<DIM>(
-                      Coordinate<2>(160*scale, 64*scale), // centro relativo alla posizione base
-                      16*scale)}                    // raggio in celle
-              ),
+                      Coordinate<2>(
+                          160 * scale,
+                          64 * scale), // centro relativo alla posizione base
+                      16 * scale)}     // raggio in celle
+                  ),
           },
           // id 0 = il cilindro: parete rigida, ferma.
-          {{Solid::BB_RIGID_WALL, {0.0, 0.0}},
-           // {Solid::BB_RIGID_WALL, {0.0, 0.0}},
-           // {Solid::BB_RIGID_WALL, {0.0, 0.0}},
-          }, 
+          {
+              {Solid::BB_RIGID_WALL, {0.0, 0.0}},
+              // {Solid::BB_RIGID_WALL, {0.0, 0.0}},
+              // {Solid::BB_RIGID_WALL, {0.0, 0.0}},
+          },
           make_channel_bc()),
   };
 
@@ -142,8 +149,8 @@ int main() {
     // const double pin =
     //     pout +
     //     numbers::invcs_2 *
-    //         (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) * 8 *
-    //         params.nu * params.init_vel.dx;
+    //         (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
+    //         8 * params.nu * params.init_vel.dx;
     // Simulation simulation(grid_size, std::move(solid_mask), obstacle_data,
     //                       domain_bc, params, pin, pout);
 
@@ -156,7 +163,7 @@ int main() {
 
     simulation.solve(solver);
     simulation.output(out_data.c_str(),
-                      functional::extract_dx_profile_along_y_center);
+                      functional::extract_dx_profile_along_y_center<DIM>);
 
     simulation.detachListener(writer);
     solver.detachListener(writer);

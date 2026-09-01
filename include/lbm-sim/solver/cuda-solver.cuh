@@ -31,8 +31,7 @@
  *          the include paths before relying on anything documented here.
  */
 
-#ifndef __LBM_SIM_SOLVER_CUDA_SOLVER_CUH
-#define __LBM_SIM_SOLVER_CUDA_SOLVER_CUH
+#pragma once
 
 #include "lbm-sim/backend/cuda/properties.cuh"
 #include "lbm-sim/backend/cuda/structs.cuh"
@@ -42,6 +41,7 @@
 #include "lbm-sim/collision-operators/collision-params.hpp"
 #include "lbm-sim/collision-operators/collision-strategy.hpp"
 #include "lbm-sim/constants.hpp"
+#include "lbm-sim/core/point.hpp"
 #include "lbm-sim/core/vector.hpp"
 #include "lbm-sim/core/velocity-sets.hpp"
 #include "lbm-sim/logging.hpp"
@@ -63,7 +63,7 @@ namespace cuda_detail {
 /// init_equilibrium(), factored out so the sponge layer can call it per-node.
 template <types::dim_t dim, typename VelocitySet>
 __device__ inline double equilibrium_i(std::size_t diridx, double r,
-                                        const utils::Vector<double, dim> &u) {
+                                       const utils::Vector<double, dim> &u) {
   const double u_sq = utils::ops::dot(u, u);
   const double cidotu =
       utils::ops::dot(cuda::vs_dir<dim, VelocitySet>[diridx], u);
@@ -75,10 +75,10 @@ __device__ inline double equilibrium_i(std::size_t diridx, double r,
 /// itself. Only faces configured as OPEN_OUTFLOW absorb; walls/periodic axes
 /// are left untouched (their own BC already handles them correctly).
 template <types::dim_t dim>
-__device__ inline double
-sponge_strength(const Grid<dim> &grid, const Solid::DomainBC<dim> &dbc,
-                const types::Coordinate<dim> &p, int width,
-                double max_strength) {
+__device__ inline double sponge_strength(const Grid<dim> &grid,
+                                         const Solid::DomainBC<dim> &dbc,
+                                         const types::Coordinate<dim> &p,
+                                         int width, double max_strength) {
   using utils::ops::axis;
 
   double s = 0.0;
@@ -87,7 +87,7 @@ sponge_strength(const Grid<dim> &grid, const Solid::DomainBC<dim> &dbc,
     const int c = axis(p, a);
 
     if (dbc.low(a) == Solid::OPEN_OUTFLOW) {
-      const int dist = c;                 // 0 at the face, grows inward
+      const int dist = c; // 0 at the face, grows inward
       if (dist < width)
         s = fmax(s, max_strength * (1.0 - static_cast<double>(dist) / width));
     }
@@ -97,7 +97,8 @@ sponge_strength(const Grid<dim> &grid, const Solid::DomainBC<dim> &dbc,
         s = fmax(s, max_strength * (1.0 - static_cast<double>(dist) / width));
     }
   }
-  return s; // combine faces with max(), not sum(): avoid double-damping in corners
+  return s; // combine faces with max(), not sum(): avoid double-damping in
+            // corners
 }
 
 /// @brief One thread per node: writes the equilibrium of the initial fields.
@@ -222,26 +223,30 @@ __global__ void update_stream_collide(
   // damping any residual wave -- acoustic or convective -- before it reaches
   // the boundary. width/max_strength are tuning knobs; start conservative.
   {
-    constexpr int sponge_width = 1;         // cells; try 10-20% of domain length
-    constexpr double sponge_max = 0.3;      // 0 = off, up to 0.5 before it visibly damps the mean flow too
+    constexpr int sponge_width = 1; // cells; try 10-20% of domain length
+    constexpr double sponge_max =
+        0.3; // 0 = off, up to 0.5 before it visibly damps the mean flow too
 
-    const double s = cuda_detail::sponge_strength<dim>(grid, dbc, p, sponge_width, sponge_max);
+    const double s = cuda_detail::sponge_strength<dim>(
+        grid, dbc, p, sponge_width, sponge_max);
+
     if (s > 0.0) {
       // Reference (quiescent) state the sponge pulls the node toward.
       // Tune to your case: rho0 is usually 1.0; u_ref is typically zero for a
       // channel starting from rest, or the expected free-stream value.
       const double rho_ref = 1.0;
-      const utils::Vector<double, dim> u_ref(0.0, 0.0);
+      const utils::Vector<double, dim> u_ref;
 
       // Blend the CONSERVED quantities toward the reference -- this is what
-      // actually removes the wave, unlike relaxing fp toward feq(r,u) unchanged.
+      // actually removes the wave, unlike relaxing fp toward feq(r,u)
+      // unchanged.
       const double r_blend = r + s * (rho_ref - r);
       utils::Vector<double, dim> u_blend = u;
-      u_blend.dx += s * (u_ref.dx - u.dx);
-      u_blend.dy += s * (u_ref.dy - u.dy);
+      u_blend += s * (u_ref - u);
 
       for (auto diridx = 0; diridx < VelocitySet::ndir; diridx++) {
-          fp[diridx] = cuda_detail::equilibrium_i<dim, VelocitySet>(diridx, r_blend, u_blend);
+        fp[diridx] = cuda_detail::equilibrium_i<dim, VelocitySet>(
+            diridx, r_blend, u_blend);
       }
     }
   }
@@ -470,5 +475,3 @@ private:
 };
 
 } // namespace lbm
-
-#endif // __LBM_SIM_SOLVER_CUDA_SOLVER_CUH
