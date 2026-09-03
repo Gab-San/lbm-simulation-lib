@@ -19,9 +19,7 @@ estimation against analytical solutions and the Ghia et al. (1982) benchmark.
   - [Configuration files](#configuration-files)
   - [Running a simulation](#running-a-simulation)
   - [Output files and visualization](#output-files-and-visualization)
-- [Architecture](#architecture)
-  - [Velocity sets](#velocity-sets)
-  - [Boundary conditions](#boundary-conditions)
+- [Architecture Overview](#architecture-overview)
   - [The time step algorithm](#the-time-step-algorithm)
 - [Embedding the library in a CMake project](#embedding-the-library-in-a-cmake-project)
 - [Design and performance](#design-and-performance)
@@ -42,7 +40,7 @@ estimation against analytical solutions and the Ghia et al. (1982) benchmark.
 
 ## Introduction
 
-### What the library is
+### Project Proposal
 
 The Lattice Boltzmann equation describes the dynamics of a gas at the
 *mesoscopic* scale; through a Chapman-Enskog expansion its solutions recover
@@ -51,19 +49,52 @@ Boltzmann equation is analytically harder than the NSE, but its numerical
 scheme is far simpler and highly local, which is why it is a popular choice
 for CFD codes -- and an excellent target for parallelization.
 
+**Project Proposal**
+
 `lbm-simulation-lib` grew out of an AMSC hands-on on the 2D lid-driven cavity
-and was extended into a reusable simulation library:
+and was extended into a modular and extensible simulation library:
 
-- 2D **and** 3D problems (`D2Q9`, `D3Q19`, `D3Q27`);
-- several collision operators (BGK, TRT);
-- two execution backends (OpenMP, CUDA) behind a common solver interface;
-- domain-face and immersed-obstacle boundary conditions;
-- asynchronous output (raw binary, or a VTK series for ParaView);
-- error estimation against analytical solutions and reference benchmarks.
+- 2D **and** 3D problems (`D2Q9`, `D3Q19`, `D3Q27`) :white_check_mark: ;
+- two collision operators (BGK, TRT) :white_check_mark:;
+- two execution backends (OpenMP, CUDA) behind a common 
+  solver interface :white_check_mark:;
+- domain-face and immersed-obstacle boundary conditions 🔶;
+- error estimation against analytical solutions and reference benchmarks 🔶.
 
-The library itself is header-only (`include/lbm-sim/`); the executables under
+> 🔶: features not included in our project proposal, but which 
+> stem from the architectural choices.
+
+
+> We strongly recommend running 3D simulations only with CUDA as the bulk of the 
+> computation grows extremely fast as the grid becomes large and OpenMP
+> cannot guarantee fast enough computation on CPUs.
+>
+> This is an HW limit more than a software and parallelization limit.
+
+**The Library**
+
+The core library itself is header-only (`include/lbm-sim/`); the executables under
 `simulations/` are *examples* of how to drive it -- lid-driven cavity, Couette
 flow, Poiseuille flow, flow past an obstacle.
+
+There are two more modules that come bundled with it: 
+- a configuration module that uses [toml](https://toml.io/en/) as backend;
+- a logging module that uses either [quill](https://github.com/odygrd/quill) 
+  or `ostream` as backends.
+
+Both modules are completely opt-out (see [below :point_down:](#cmake-options) and 
+do not alter the core library's functionalities.
+
+> :warning: When logging is **DISABLED** actual logging macros are 
+> replaced by no-ops that are then optimized out if using any optimization flag 
+> (as in happens **Release** mode).
+
+This library also offers:
+- asynchronous output (raw binary, or a VTK series for ParaView).
+
+> :warning: For 3D even though AsynchronousBinaryWriter can generate an output, 
+> we have no post-processing scripts in place to parse and visualize it. \
+> Therefore for 3D simulations stick with .vtk outputs.
 
 ## Properties and features
 
@@ -72,7 +103,7 @@ flow, Poiseuille flow, flow past an obstacle.
 | Dimensions | 2D and 3D, selected by the `dim` template parameter (checked against the velocity set) |
 | Velocity sets | `D2Q9`, `D3Q19`, `D3Q27` ([`core/velocity-sets.hpp`](include/lbm-sim/core/velocity-sets.hpp)) |
 | Collision operators | `CollisionModel::BGK`, `CollisionModel::TRT` (`MRT` is reserved, currently a `static_assert`) |
-| Backends | `ExecutionBackend::OPEN_MP` (`OpenMPSolver`), `ExecutionBackend::CUDA` (`CUDASolver`, opt-in at configure time) |
+| Backends | `ExecutionBackend::OPEN_MP` (`OpenMPSolver`), `ExecutionBackend::CUDA` (`CUDASolver`, opt-in) |
 | Boundary conditions | Rigid-wall and moving-wall bounce-back, periodic, pressure-periodic inlet/outlet -- per domain face (`Solid::DomainBC`) or per immersed obstacle (`Solid::ObstacleData`) |
 | Obstacles | Rasterized from analytic shapes: `Segment`, `Circle`, `Parallelogram`, `Airfoil` (2D only), `CylindricalShell` (3D only) through `CollisionDetection::CollisionArea` |
 | Output | `AsyncBinaryWriter` (raw binary, background thread) and `VtkWriter` (`.vti` frames + a `.pvd` series for ParaView) |
@@ -89,7 +120,7 @@ flow, Poiseuille flow, flow past an obstacle.
 - **CMake** >= 3.18
 - A **C++17** compiler with **OpenMP** support (GCC, Clang, or MSVC -- MSVC
   builds use `/openmp:experimental`)
-- **Git** and network access at configure time, unless both optional
+- **Git** and network access at configure time, **unless** both optional
   dependencies are disabled: Quill (`v12.1.0`) is fetched only when
   `LBM_LOG_BACKEND=quill` (the default) and toml++ (`v3.4.0`) only when
   `LBM_ENABLE_CONFIG=ON` (the default)
@@ -125,17 +156,22 @@ runtime.
 
 | Option | Default | Meaning |
 |--------|---------|---------|
-| `LBM_ENABLE_CUDA` | `OFF` | Enable the CUDA language, build `lbm-sim-cuda` and the `cuda_*` executables |
 | `LBM_ENABLE_CONFIG` | `ON` | Build the TOML configuration support (fetches toml++) |
-| `LBM_ENABLE_PROFILING` | `OFF` | Compile the chrono-based profiling instrumentation (`LBM_PROFILING`); required for the CSVs the scaling plots and the error tables are built from |
+| `LBM_ENABLE_PROFILING` | `OFF` | Compile the chrono-based profiling instrumentation (`LBM_PROFILING`); required for the CSVs the scaling plots are built from |
 | `LBM_ENABLE_LOGGING` | `ON` | Emit log output; `OFF` forces `LBM_LOG_BACKEND=none` |
 | `LBM_LOG_BACKEND` | `quill` | Logging backend: `quill` (fetched), `ostream` (no dependency), `none` |
 | `LBM_LOG_LEVEL` | `INFO` | Compile-time active level: `TRACE_L3`, `TRACE_L2`, `TRACE_L1`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `LBM_BUILD_SIMULATIONS` | top-level | Build the executables under `simulations/`; off by default when the project is embedded |
 | `LBM_BUILD_DOCS` | top-level | Configure the `docs/` Doxygen targets; off by default when the project is embedded |
 | `LBM_SANITIZE` | *(empty)* | Sanitizers to build with: `address`, `undefined`, `thread`, `leak` (comma- or semicolon-separated) |
+| `LBM_ENABLE_CUDA` | `OFF` | Enable the CUDA language, build `lbm-sim-cuda` and the `cuda_*` executables |
 | `CMAKE_CUDA_ARCHITECTURES` | `75` | Target GPU architecture(s) |
 | `CMAKE_CUDA_HOST_COMPILER` | `CMAKE_CXX_COMPILER` | Host compiler driven by `nvcc`; override only for host compilers `nvcc` rejects |
+
+
+> :warning: Enabling profiling automatically disables the writers;
+> the output files and folders might be created but they will be empty.
+
 
 Log statements below `LBM_LOG_LEVEL` are compiled out entirely, so a release
 run pays nothing for them:
@@ -144,16 +180,54 @@ run pays nothing for them:
 cmake -S . -B build -DLBM_LOG_LEVEL=DEBUG
 ```
 
+#### CMake presets
+
 There are also some presets that one can use. To list them:
 `cmake --preset list`
 and then to run them:
 `cmake --preset <preset-name>`
+
+**Default Generator**: `Ninja` for its compatibility.
+
+To change generator use the flag: 
+```bash
+-DCMAKE_GENERATOR=<generator>
+```
+
+for example:
+```bash
+cmake --preset release -DCMAKE_GENERATOR="Unix Makefiles"
+``` 
+
+will use `make` as backend.
+
+
+| *Options x Preset* | *debug*  | *release* | *bench* | *profiling* |
+| ------------------ | ------- | ---------  | ------- | ----------- |
+| `CMAKE_BUILD_TYPE` | `Debug` | `Release`  | `Release` | `Release` |
+| `LBM_ENABLE_CONFIG` | `ON` | `ON` | `ON`  | `ON` |
+| `LBM_ENABLE_PROFILING` | `OFF` | `OFF`    | `ON` | `ON` |
+| `LBM_ENABLE_LOGGING` | `ON` |  `ON` | `ON`| `ON` |
+| `LBM_LOG_BACKEND` | `quill` | `quill`     | `none` | `quill` |
+| `LBM_ENABLE_CUDA` | `OFF` |`OFF` | `ON`   | `OFF` |
+
+
+> Presets **cuda-debug** and **cuda** are the respective of **debug and **release**
+> with CUDA activated.
 
 ### Python tooling
 
 ```bash
 python -m venv .venv && pip install -r scripts/py/requirements.txt
 ```
+
+Python scripts live in `scripts/py` folder; the two useful ones are:
+
+- `scripts/py/visualize_profile.py` to visualize `.dat` profile outputs;
+- `scripts/py/visualize_frames.py` that generates an animation from the binary
+  writer output.
+
+See [below :point_down:](#output-files-and-visualization)
 
 ## Usage and simulation model
 
@@ -166,7 +240,7 @@ A simulation main is short and always follows the same steps. Condensed from
 using namespace lbm;
 using types::DimPoint;
 
-// --- 1. READ THE CONFIGURATION FILE --------------------------------------
+// --- 1. READ THE CONFIGURATION FILE (OPTIONAL) ---------------------------
 if (argc < 2) {
   config::print_usage(argv[0]);
   return 1;
@@ -175,6 +249,9 @@ if (argc < 2) {
 // --- 2. SET UP THE LOGGER ------------------------------------------------
 logging::setup();
 logging::Logger *main_logger = logging::create_or_get_logger("main");
+// If the logger is not set up nothing will show on screen.
+// This does not mean that logging functions will be 
+// optimized out or skipped!
 
 std::vector<config::SimulationConfig<DIM>> configs;
 try {
@@ -306,6 +383,11 @@ to the working directory, and the files under `configs/` write to `out/...`:
 launch from `build/simulations/` to collect the output under
 `build/simulations/out/`, or point `[conf.output]` somewhere else.
 
+**CUDA executables**
+
+> CUDA executables mainly purpose is to relieve the Colab Notebooks 
+> of long chains of commands.
+
 The CUDA executables can be run in sequence, one log per run, with:
 
 ```bash
@@ -334,6 +416,8 @@ There are two output products, both written off the simulation thread:
   starts with a `%%profile <operator> <n> <u_ref>` ASCII header, followed by
   `float64` samples.
 
+**Python tooling**
+
 ```bash
 python scripts/py/visualize_frames.py out/norms_lid_cavity.bin -o cavity.gif
 ```
@@ -346,13 +430,11 @@ python scripts/py/visualize_profile.py output/lid_cavity_bgk_profile.dat benchma
 python scripts/py/validate_outputs.py
 ```
 
-`visualize_frames.py` animates the raw binary frames, `visualize_profile.py`
-overlays one or more profiles (including the Ghia tables, which are already
-normalized by the lid velocity), and `validate_outputs.py` checks the produced
-files structurally and numerically -- headers, payload lengths, finite values,
-and duplicate output paths declared by different CUDA sources.
+- `visualize_frames.py` animates the raw binary frames;
+- `visualize_profile.py`overlays one or more profiles (including the Ghia tables, which are already normalized by the lid velocity); 
+- `validate_outputs.py` checks the produced files structurally and numerically -- headers, payload lengths, finite values, and duplicate output paths.
 
-## Architecture
+## Architecture Overview
 
 The library is built around compile-time polymorphism, so that the dimension,
 the velocity set and the collision operator cost nothing at run time:
@@ -391,7 +473,7 @@ A UML view of the project lives in
 [`docs/report/LBM_UML.html`](docs/report/LBM_UML.html)
 (editable source: `LBM_UML.drawio`).
 
-### Velocity sets
+- [**Velocity sets**](docs/report/architecture.md)
 
 Each velocity set is a compile-time struct exposing `dim`, `ndir`, the weights
 `wi[]`, the discrete directions `dir[]` and the opposite-direction table
@@ -422,7 +504,7 @@ usual compromise for 3D cavities; `D3Q27` adds the 8 vertex neighbours for
 better isotropy at a higher per-node cost. Rendered direction diagrams live in
 [`docs/assets/`](docs/assets).
 
-### Boundary conditions
+- [**Boundary conditions**](docs/report/architecture.md)
 
 Boundaries come in two flavours, and neither costs anything proportional to
 the resolution:
@@ -780,6 +862,8 @@ centerline, `v(x, ny/2)`, which is what
 <p align="center">
   <img src="docs/report/assets/profile_comparison_lid_cavity_d2q9_7500.png" width="70%" />
 </p>
+
+https://github.com/user-attachments/assets/ac2f4b29-612d-4792-bb47-8280fb7cacb5
 
 The shape is right: the profile leaves the left wall, peaks just inside it,
 crosses zero at mid-cavity and reaches a deeper negative extremum near the

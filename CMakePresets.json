@@ -21,24 +21,6 @@
     },
 
     {
-      "name": "debug",
-      "inherits": "base",
-      "cacheVariables": {
-        "LBM_LOG_BACKEND": "ostream",
-        "LBM_LOG_LEVEL": "TRACE_L1",
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
-    },
-
-    {
-      "name": "cuda-debug",
-      "inherits": "debug",
-      "cacheVariables": {
-        "LBM_ENABLE_CUDA": "ON"
-      }
-    },
-
-    {
       "name": "quill",
       "inherits": "base",
       "cacheVariables": {
@@ -55,20 +37,40 @@
     },
 
     {
-      "name": "profiling",
-      "inherits": "ostream",
+      "name": "debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "LBM_ENABLE_PROFILING": "ON",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "LBM_LOG_LEVEL": "TRACE_L1",
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+
+    {
+      "name": "cuda-debug",
+      "inherits": "debug",
+      "cacheVariables": {
+        "LBM_ENABLE_CUDA": "ON",
+        "LBM_LOG_BACKEND": "ostream"
+      }
+    },
+
+    {
+      "name": "release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_BUILD_TYPE": "Release"
       }
     },
 
     {
-      "name": "bench",
-      "inherits": "silent",
+      "name": "profiling",
+      "inherits": "release",
       "cacheVariables": {
         "LBM_ENABLE_PROFILING": "ON",
-        "CMAKE_BUILD_TYPE": "Release"
       }
     },
 
@@ -78,18 +80,18 @@
       "cacheVariables": {
         "LBM_LOG_BACKEND": "ostream",
         "LBM_ENABLE_CUDA": "ON",
-        "CMAKE_BUILD_TYPE": "Release"
       }
     },
 
     {
-      "name": "release",
-      "inherits": "base",
+      "name": "bench",
+      "inherits": "cuda",
       "cacheVariables": {
-        "LBM_LOG_BACKEND": "quill",
-        "CMAKE_BUILD_TYPE": "Release"
+        "LBM_ENABLE_PROFILING": "ON",
+        "LBM_ENABLE_LOGGING": "OFF"
       }
     }
+
   ],
   "buildPresets": [
     {
