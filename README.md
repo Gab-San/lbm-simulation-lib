@@ -474,33 +474,15 @@ A UML view of the project lives in
 (editable source: `LBM_UML.drawio`).
 
 - [**Velocity sets**](/docs/report/architecture.md#velocity-sets)
-- [**Boundary conditions**](docs/report/architecture.md)
-
-Boundaries come in two flavours, and neither costs anything proportional to
-the resolution:
-
-- **Domain faces** -- `Solid::DomainBC<dim>` holds one `boundary_t` per face
-  (4 bytes in 2D, 6 in 3D), set through `low(axis)` and `high(axis)`.
-  Available values: `NONE`, `BB_RIGID_WALL`, `BB_MOVING_WALL`, `PERIODIC`,
-  `PRESSURE_PERIODIC_INLET`, `PRESSURE_PERIODIC_OUTLET`, `OPEN_OUTFLOW`. A periodic axis must
-  wrap on both faces (`assert_consistent_domain_bc`).
-- **Immersed obstacles** -- analytic shapes are rasterized into a
-  `types::solid_mask_t` (one 16-bit obstacle id per node, `types::FLUID`
-  elsewhere) by `Solid::compute_solid_mask`, and a side table of
-  `Solid::ObstacleData<dim>` maps each id to its BC type and wall velocity.
-
-No-slip walls are enforced with bounce-back: incoming populations are
-reflected into their opposite directions (`VelocitySet::opp`). A moving wall
-uses the same scheme plus the momentum correction that imposes the prescribed
-wall velocity -- that is how the cavity lid is driven.
+- [**Boundary conditions**](/docs/report/architecture.md#boundary-conditions)
 
 ### The time step algorithm
 
 Each iteration of `OpenMPSolver::solve` performs:
 
 1. streaming, with boundary conditions resolved link by link;
-2. computation of the macroscopic moments $\rho(x,t)$ and $u(x,t)$;
-3. computation of the equilibrium $f^{eq}_i(x,t)$;
+2. computation of the macroscopic moments `rho(x,t)` and `u(x,t)`;
+3. computation of the equilibrium `f^{eq}_i(x,t)`;
 4. collision;
 5. every `niters / nframes` steps, emission of a velocity-norm frame to the
    attached listeners.
@@ -596,7 +578,7 @@ The CUDA backend maps the same node loop onto the device, with the velocity set
 uploaded to `__constant__` memory and the domain BC passed by value as a kernel
 argument (`DomainBC` is trivially copyable by design).
 
-### Scaling results
+### Scaling Results
 
 #### How the numbers were measured
 
@@ -607,12 +589,29 @@ the wall time of the whole iteration loop, with initialization, allocation and
 output excluded. The profiling main also sets `setBenchmarkMode(true)`, which
 suppresses frame emission, so the writer thread is not part of the measurement.
 
-The sweeps are the `[[conf]]` lists in
-[`configs/profiling.toml`](configs/profiling.toml) (strong) and
-[`configs/weak_scaling.toml`](configs/weak_scaling.toml) (weak): the thread
-count is `[conf.backend].n_threads`, applied through
-`BackendProperties<OPEN_MP>::scopedApply()`, and every configuration runs
-`niters = 100000` steps of the 2D lid-driven cavity with `D2Q9` at `Re = 100`.
+The sweeps are the `[[conf]]` lists in:
+ - [`configs/profiling.toml`](configs/profiling.toml) (strong)
+ - [`configs/profiling_couette.toml`](configs/profiling_couette.toml) (strong)
+ - [`configs/weak_scaling.toml`](configs/weak_scaling.toml) (weak)
+
+the thread count is dynamically set through the configuration entry 
+`[conf.backend].n_threads`, applied through `BackendProperties<OPEN_MP>::scopedApply()`. 
+
+For the **strong scaling** we have set up two different 2D problems:
+1. a lid cavity problem with:
+  - grid size: 129x129;
+  - Reynolds number: 100;
+  - number of iterations: 100000.
+2. a couette problem with:
+  - grid size: 300x300;
+  - Reynolds number: 200;
+  - number of iterations: 100000.
+
+For the **weak scaling** we have set up one configuration on a 2D 
+lid cavity simulation.
+
+> NOTE: the configuration results is set up to 64 threads but the simulations with 
+> 32 and 64 threads were lost and we did not manage to re-run them yet.
 
 Each repetition is a separate PBS job (`scripts/cpu_job.pbs`, one node,
 `ncpus=64`, 30 minutes of walltime), submitted N times:
@@ -634,7 +633,8 @@ count present in that series*, never against a hardcoded 1.
 
 ![strong scaling](docs/report/assets/strong_scaling.png)
 
-![strong scaling table](docs/report/assets/strong_scaling_table.png)
+**Lid Cavity D2Q9**
+
 
 | threads | mean [s] | std [s] | speedup | efficiency | MLUPS |
 |--------:|---------:|--------:|--------:|-----------:|------:|
@@ -645,6 +645,22 @@ count present in that series*, never against a hardcoded 1.
 | 16 |  10.567 | 0.271 | 13.29 | 0.83 | 157.5 |
 | 32 |   7.207 | 0.523 | 19.49 | 0.61 | 230.9 |
 | 64 |  14.092 | 5.891 | 9.97  | 0.16 | 118.1 |
+
+
+**Couette D2Q9**
+
+
+| threads | mean [s] | std [s] | speedup | efficiency | MLUPS   |
+|--------:|---------:|--------:|--------:|-----------:|--------:|
+| 1       | 960.569  | 1.853   |  1.00   | 1.00       | 9.37    |
+| 2       |  482.318 | 3.188   |  1.991  | 0.996      | 18.66   |
+| 4       |  246.033 | 0.198   |  3.904  | 0.976      | 36.58   |
+| 8       |  126.055 | 0.449   |  7.620  | 0.953      | 71.4    |
+| 16      |  66.827  | 2.367   |  14.374 | 0.898      | 134.68  |
+| 32      |  41.643  | 2.005   |  23.067 | 0.721      | 216.122 |
+| 64      |  40.523  | 1.657   |  23.704 | 0.370      | 222.1   |
+
+
 
 MLUPS (million lattice updates per second) is
 `nx * ny * niters / time`; it is the number to compare across grids, since
@@ -686,6 +702,23 @@ pin it down:
   account), so the serial code path is identical;
 - the 64-thread 300x300 run has the same throughput as its own serial run.
 
+**The 300×300 series in the figure scales cleanly up to 32 threads and then stalls**, 
+and it's worth spelling out why the last data point should be read as a bandwidth 
+ceiling rather than a property of the solver: 
+
+- wall time drops from 41.643 s at 32 threads to 40.523 s at 64, a 2.8% improvement for a doubling of thread count, pushing the speedup from 23.067 to just 23.704; 
+- efficiency makes the picture unambiguous — it holds above 0.72 through 32 threads (0.996, 0.976, 0.953, 0.898, 0.721 at 2, 4, 8, 16, 32) and then collapses to 0.370 at 64;
+
+A genuinely compute-bound loop would keep gaining share of the extra cores; 
+a curve that flattens sharply on the *last* doubling after tracking near-ideal 
+scaling up to that point is the signature of memory bandwidth saturating rather than 
+the solver failing to parallelize. 
+This is corroborated by throughput: 216.1 MLUPS at 32 threads versus 222.1 MLUPS at 64
+— essentially the same delivered bandwidth despite twice the threads, 
+meaning the additional 32 threads bought almost nothing.
+
+---
+
 Since the `n_threads` column of the CSV is the value *requested* through
 `BackendProperties::getNumThreads()` and not one measured inside the parallel
 region with `omp_get_num_threads()`, a job that was granted fewer CPUs than it
@@ -699,7 +732,6 @@ actually used rather than what was asked for.
 
 ![weak scaling](docs/report/assets/weak_scaling.png)
 
-![weak scaling table](docs/report/assets/weak_scaling_table.png)
 
 | threads | grid | cells/thread | mean [s] | MLUPS | MLUPS per thread |
 |--------:|------|-------------:|---------:|------:|-----------------:|
@@ -708,8 +740,7 @@ actually used rather than what was asked for.
 | 4  | 257x257   | 16512 | 146.945 | 45.0  | 11.2 |
 | 8  | 365x365   | 16653 | 151.584 | 87.9  | 11.0 |
 | 16 | 515x515   | 16577 | 151.768 | 174.8 | 10.9 |
-| 32 | 1000x1000 | 31250 | 325.416 | 307.3 |  9.6 |
-| 64 | 2000x2000 | 62500 | 1447.020| 276.4 |  4.3 |
+
 
 The first five rows are a textbook weak-scaling sweep: the grid grows so that
 every thread keeps about 16 600 nodes, and the ideal is a **flat** time curve.
@@ -718,55 +749,6 @@ efficiency 0.934 -- which is the same story the strong-scaling curve tells from
 the other side: the node loop itself parallelizes cleanly, and what little
 slope there is comes from the growing footprint rather than from
 synchronization.
-
-**The last two rows are a different experiment and must not be read as a
-continuation of the first five.** `configs/weak_scaling.toml` gives 32 threads
-a 1000x1000 grid and 64 threads a 2000x2000 one, which is 31 250 and 62 500
-nodes per thread instead of 16 600: the work per thread doubles, then doubles
-again. `plot_weak.py` detects this -- it groups repetitions into series by the
-work per thread at their baseline -- and plots them as a separate orange series
-whose efficiency restarts at 1.0 by construction at 32 threads. The efficiency
-column of the table image, which does not carry the series label, is what makes
-the two look continuous.
-
-Normalizing by throughput instead removes the ambiguity, because MLUPS per
-thread is comparable across every row:
-
-- 1 to 16 threads: 11.7 -> 10.9 MLUPS per thread, a 7% loss;
-- 32 threads: 9.6 MLUPS per thread, 82% of the single-thread rate;
-- 64 threads: 4.3 MLUPS per thread, 37%.
-
-The collapse at the last point is a memory-hierarchy effect, and the footprint
-makes it concrete. Two population buffers of `ndir = 9` doubles cost 144 bytes
-per node, plus about 28 bytes for `u`, `rho` and the norm buffer:
-
-| grid | populations | total working set |
-|------|------------:|------------------:|
-| 515x515   |  38 MB |  46 MB |
-| 1000x1000 | 144 MB | 172 MB |
-| 2000x2000 | 576 MB | 688 MB |
-
-Up to 515x515 the whole simulation fits in the aggregate last-level cache of a
-64-core node; at 2000x2000 every one of the 100 000 iterations streams 688 MB
-from DRAM twice (read `ffrom`, write `fto`). LBM is bandwidth-bound by nature
--- one stream-collide step does a few dozen flops per node against 144 bytes of
-traffic -- so once the working set leaves cache the memory controllers, not the
-cores, set the pace. That is why the 64-thread point loses a factor of 2.5 in
-per-thread throughput while the 1-to-16 sweep, which never leaves cache, loses
-7%.
-
-To turn the last two points into a real weak-scaling measurement, keep the work
-per thread constant: 16 641 nodes per thread means 730x730 at 32 threads and
-1032x1032 at 64. Keeping the 2000x2000 run as well is worth it -- it is the
-only data point in the report that measures the solver against DRAM rather than
-against cache -- but it belongs to its own series.
-
-> Two practical notes for whoever re-runs this. The 32- and 64-thread points
-> were averaged over 4 repetitions instead of 5, so they come from a separate
-> submission; and the 2000x2000 run alone spends 1447 s inside `solve_total`
-> against the 1800 s walltime in `cpu_job.pbs`, which leaves no margin for
-> initialization and for copying the results back. Raise the walltime before
-> adding repetitions at that size.
 
 ## Error estimation
 

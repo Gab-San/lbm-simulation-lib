@@ -147,3 +147,25 @@ this is the set already in use for the 3D BGK lid-cavity solver.
 </div>
 </div>
 
+## Boundary Conditions
+
+
+Boundaries come in two flavours, and neither costs anything proportional to
+the resolution:
+
+- **Domain faces** -- `Solid::DomainBC<dim>` holds one `boundary_t` per face
+  (4 bytes in 2D, 6 in 3D), set through `low(axis)` and `high(axis)`.
+  Available values: `NONE`, `BB_RIGID_WALL`, `BB_MOVING_WALL`, `PERIODIC`,
+  `PRESSURE_PERIODIC_INLET`, `PRESSURE_PERIODIC_OUTLET`, `OPEN_OUTFLOW`. A periodic axis must
+  wrap on both faces (`assert_consistent_domain_bc`).
+- **Immersed obstacles** -- analytic shapes are rasterized into a
+  `types::solid_mask_t` (one 16-bit obstacle id per node, `types::FLUID`
+  elsewhere) by `Solid::compute_solid_mask`, and a side table of
+  `Solid::ObstacleData<dim>` maps each id to its BC type and wall velocity.
+
+No-slip walls are enforced with bounce-back: incoming populations are
+reflected into their opposite directions (`VelocitySet::opp`). A moving wall
+uses the same scheme plus the momentum correction that imposes the prescribed
+wall velocity -- that is how the cavity lid is driven.
+
+
