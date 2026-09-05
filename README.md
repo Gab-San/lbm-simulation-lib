@@ -473,37 +473,7 @@ A UML view of the project lives in
 [`docs/report/LBM_UML.html`](docs/report/LBM_UML.html)
 (editable source: `LBM_UML.drawio`).
 
-- [**Velocity sets**](docs/report/architecture.md)
-
-Each velocity set is a compile-time struct exposing `dim`, `ndir`, the weights
-`wi[]`, the discrete directions `dir[]` and the opposite-direction table
-`opp[]`. `D2Q9` uses the following numbering:
-
-```
------- +x
-|7 4 8
-|3 0 1
-|6 2 5
-+y
-```
-
-| i | c_i | Meaning | w_i |
-|--:|:---:|---------|-----|
-| 0 | ( 0, 0) | rest | 4/9 |
-| 1 | (+1, 0) | east | 1/9 |
-| 2 | ( 0,+1) | north | 1/9 |
-| 3 | (-1, 0) | west | 1/9 |
-| 4 | ( 0,-1) | south | 1/9 |
-| 5 | (+1,+1) | north-east | 1/36 |
-| 6 | (-1,+1) | north-west | 1/36 |
-| 7 | (-1,-1) | south-west | 1/36 |
-| 8 | (+1,-1) | south-east | 1/36 |
-
-`D3Q19` (rest, 6 face and 12 edge neighbours; weights 1/3, 1/18, 1/36) is the
-usual compromise for 3D cavities; `D3Q27` adds the 8 vertex neighbours for
-better isotropy at a higher per-node cost. Rendered direction diagrams live in
-[`docs/assets/`](docs/assets).
-
+- [**Velocity sets**](/docs/report/architecture.md#velocity-sets)
 - [**Boundary conditions**](docs/report/architecture.md)
 
 Boundaries come in two flavours, and neither costs anything proportional to
