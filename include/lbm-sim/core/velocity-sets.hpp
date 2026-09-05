@@ -55,30 +55,16 @@ struct D2Q9 {
   /// Diagonal weight
   static inline constexpr double wd = 1.0 / 36.0;
 
-  /**
-   * Direction weights map.
-   *
-   * The direction numbering scheme is: \n
-   * ------ + x \n
-   * |7 4 8 \n
-   * |3 0 1 \n
-   * |6 2 5 \n
-   * +\n
-   * y
-   */
   static inline constexpr double wi[ndir] = {w0, ws, ws, ws, ws,
                                              wd, wd, wd, wd};
 
   /**
-   * Array of directions following the numbering scheme.
+   * Array of directions for D3Q19.
    *
-   * The direction numbering scheme is: \n
-   * ------ + x \n
-   * |7 4 8 \n
-   * |3 0 1 \n
-   * |6 2 5 \n
-   * \n
-   * y
+   * \htmlonly
+   * <iframe src="lbm_d2q9_directions.html" width="580" height="560"
+   * style="border:none;"></iframe>
+   * \endhtmlonly
    */
   static inline constexpr types::Direction<dim> dir[ndir] = {
       types::Direction<dim>(0, 0),  types::Direction<dim>(1, 0),

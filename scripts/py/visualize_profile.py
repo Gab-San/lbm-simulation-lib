@@ -111,7 +111,7 @@ def plot_ghia_data(plt, ghia_data):
     plt.plot(ghia_data[:, 0], ghia_data[:, 1], label="Ghia et al. (1982)", marker="s")
 
 
-def create_graph(parsed_results, title, xlabel, output_file=None):
+def create_graph(parsed_results, title, xlabel, ylabel, output_file=None):
     # creo un grafico per i valori di data e lo mostro
     plt.figure()
 
@@ -145,7 +145,7 @@ def create_graph(parsed_results, title, xlabel, output_file=None):
 
     # Aggiungo i dati di Ghia et al. 1982 per confronto
     plt.xlabel(xlabel)
-    plt.ylabel("u velocity")
+    plt.ylabel(ylabel)
     plt.title(title)
     plt.legend(fontsize="small", loc="best")
     plt.grid(True)
@@ -210,7 +210,15 @@ def parse_args():
         "--xlabel",
         nargs="?",
         type=str,
-        default="uy(x,y/2)",
+        default="x-coordinate evaluated at y/2",
+        help="Custom xlabel",
+    )
+
+    parser.add_argument(
+        "--ylabel",
+        nargs="?",
+        type=str,
+        default="uy(x, y/2)",
         help="Custom xlabel",
     )
 
@@ -225,7 +233,13 @@ def main():
     args = parse_args()
 
     results = read_data(args.files)
-    create_graph(results, title=args.title, xlabel=args.xlabel, output_file=args.output)
+    create_graph(
+        results,
+        title=args.title,
+        xlabel=args.xlabel,
+        ylabel=args.ylabel,
+        output_file=args.output,
+    )
 
 
 if __name__ == "__main__":
