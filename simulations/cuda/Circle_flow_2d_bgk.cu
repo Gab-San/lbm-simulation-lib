@@ -15,6 +15,7 @@
 #include "lbm-sim/functions.hpp"
 
 #include "lbm-sim/logging.hpp"
+#include "lbm-sim/data/vtk-writer.hpp"
 
 // C++ STD LIB
 #include <memory>
@@ -73,8 +74,7 @@ template <> struct Config<2> {
         obstacle_data(std::move(obstacle_data_)), domain_bc(domain_bc_) {}
 };
 
-/// Canale di Poiseuille: pressione imposta su ingresso e uscita, pareti
-/// rigide sopra e sotto.
+
 static lbm::Solid::DomainBC<DIM> make_channel_bc() {
   lbm::Solid::DomainBC<DIM> dbc{};
   // dbc.low(0) = lbm::Solid::PRESSURE_PERIODIC_INLET;   // x = 0
@@ -103,12 +103,14 @@ int main() {
 
   // fattore di scala per aumentare la risoluzione della griglia, senza cambiare
   // le proporzioni
-  const int scale = 2;
+  const int scale = 5;
+  const int rad = 16;
+  const int RE =  1000; // RE to be tested with the benchmark
 
   std::vector<Config<2>> configs{
       Config<2>(
-          {640 * scale, 129 * scale}, /*iters*/ 100000, /*frames*/ 200,
-          /*reyn*/ 7000.0,
+          {640 * scale, 129 * scale}, /*iters*/ 150000, /*frames*/ 300,
+          /*reyn*/ RE * 129 / (2 * rad), // scaling for the benchmark
           /*init_vel*/ {0.1, 0}, "out/norms_circle_bgk.bin",
           "out/data_circle_bgk.bin",
           {
@@ -120,7 +122,7 @@ int main() {
                       Coordinate<2>(
                           160 * scale,
                           64 * scale), // centro relativo alla posizione base
-                      16 * scale)}     // raggio in celle
+                          rad * scale)}     // raggio in celle
                   ),
           },
           // id 0 = il cilindro: parete rigida, ferma.
@@ -141,24 +143,18 @@ int main() {
     types::solid_mask_t solid_mask =
         Solid::compute_solid_mask<DIM>(obstacles, grid_size);
 
-    std::shared_ptr<AsyncBinaryWriter> writer =
-        std::make_shared<AsyncBinaryWriter>(conf.out_frames);
+    // std::shared_ptr<AsyncBinaryWriter> writer =
+    //     std::make_shared<AsyncBinaryWriter>(conf.out_frames);
+    std::shared_ptr<VtkWriter> writer =
+        std::make_shared<VtkWriter>(conf.out_frames, /*with_vel_comp=*/true);
 
     CollisionParams<DIM, CollisionType> params(reyn, grid_size, init_vel);
-    // const double pout = 1;
-    // const double pin =
-    //     pout +
-    //     numbers::invcs_2 *
-    //         (grid_size.x / static_cast<double>(grid_size.y * grid_size.y)) *
-    //         8 * params.nu * params.init_vel.dx;
-    // Simulation simulation(grid_size, std::move(solid_mask), obstacle_data,
-    //                       domain_bc, params, pin, pout);
 
     Simulation simulation(grid_size, std::move(solid_mask), obstacle_data,
                           domain_bc, params);
     simulation.attachListener(writer);
 
-    CUDASolver<DIM, D2Q9, CollisionType> solver(iters, frames);
+    CUDASolver<DIM, D2Q9, CollisionType> solver(iters, frames, /*write_vel_comp=*/true);
     solver.attachListener(writer);
 
     simulation.solve(solver);

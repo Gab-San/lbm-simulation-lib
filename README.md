@@ -19,9 +19,7 @@ estimation against analytical solutions and the Ghia et al. (1982) benchmark.
   - [Configuration files](#configuration-files)
   - [Running a simulation](#running-a-simulation)
   - [Output files and visualization](#output-files-and-visualization)
-- [Architecture](#architecture)
-  - [Velocity sets](#velocity-sets)
-  - [Boundary conditions](#boundary-conditions)
+- [Architecture Overview](#architecture-overview)
   - [The time step algorithm](#the-time-step-algorithm)
 - [Embedding the library in a CMake project](#embedding-the-library-in-a-cmake-project)
 - [Design and performance](#design-and-performance)
@@ -34,6 +32,13 @@ estimation against analytical solutions and the Ghia et al. (1982) benchmark.
   - [Lid-driven cavity at Re = 7500](#lid-driven-cavity-at-re--7500)
   - [Pipe flow in 3D](#pipe-flow-in-3d)
   - [Lid-driven cavity in 3D](#lid-driven-cavity-in-3d)
+- [Flow Around Immersed Obstacles](#flow-around-immersed-obstacles-circle-naca-airfoil-and-generic-geometry)
+  - [Circle Object](#circle-circle_flow_2d_bgkcu)
+  - [NACA Airfoil](#four-digit-naca-airfoil-naca_flow_2d_bgkcu)
+  - [Immersed Obstacle](#flow-around-immersed-obstacles-circle-naca-airfoil-and-generic-geometry)
+- [Validation of Obstacles Flow ](#validation-of-obstacles-flow-using-the-strouhal-number)
+  - [Strouhal Numbers plot on Reynolds Numbers](#strouhal-number-as-a-function-of-reynolds-number)
+  - [Validation of Spatial Scaling](#validation-of-spatial-scaling)
 - [Documentation and report](#documentation-and-report)
 - [References](#references)
 - [License](#license)
@@ -42,7 +47,7 @@ estimation against analytical solutions and the Ghia et al. (1982) benchmark.
 
 ## Introduction
 
-### What the library is
+### Project Proposal
 
 The Lattice Boltzmann equation describes the dynamics of a gas at the
 *mesoscopic* scale; through a Chapman-Enskog expansion its solutions recover
@@ -51,19 +56,52 @@ Boltzmann equation is analytically harder than the NSE, but its numerical
 scheme is far simpler and highly local, which is why it is a popular choice
 for CFD codes -- and an excellent target for parallelization.
 
+**Project Proposal**
+
 `lbm-simulation-lib` grew out of an AMSC hands-on on the 2D lid-driven cavity
-and was extended into a reusable simulation library:
+and was extended into a modular and extensible simulation library:
 
-- 2D **and** 3D problems (`D2Q9`, `D3Q19`, `D3Q27`);
-- several collision operators (BGK, TRT);
-- two execution backends (OpenMP, CUDA) behind a common solver interface;
-- domain-face and immersed-obstacle boundary conditions;
-- asynchronous output (raw binary, or a VTK series for ParaView);
-- error estimation against analytical solutions and reference benchmarks.
+- 2D **and** 3D problems (`D2Q9`, `D3Q19`, `D3Q27`) :white_check_mark: ;
+- two collision operators (BGK, TRT) :white_check_mark:;
+- two execution backends (OpenMP, CUDA) behind a common 
+  solver interface :white_check_mark:;
+- domain-face and immersed-obstacle boundary conditions 🔶;
+- error estimation against analytical solutions and reference benchmarks 🔶.
 
-The library itself is header-only (`include/lbm-sim/`); the executables under
+> 🔶: features not included in our project proposal, but which 
+> stem from the architectural choices.
+
+
+> We strongly recommend running 3D simulations only with CUDA as the bulk of the 
+> computation grows extremely fast as the grid becomes large and OpenMP
+> cannot guarantee fast enough computation on CPUs.
+>
+> This is an HW limit more than a software and parallelization limit.
+
+**The Library**
+
+The core library itself is header-only (`include/lbm-sim/`); the executables under
 `simulations/` are *examples* of how to drive it -- lid-driven cavity, Couette
 flow, Poiseuille flow, flow past an obstacle.
+
+There are two more modules that come bundled with it: 
+- a configuration module that uses [toml](https://toml.io/en/) as backend;
+- a logging module that uses either [quill](https://github.com/odygrd/quill) 
+  or `ostream` as backends.
+
+Both modules are completely opt-out (see [below :point_down:](#cmake-options) and 
+do not alter the core library's functionalities.
+
+> :warning: When logging is **DISABLED** actual logging macros are 
+> replaced by no-ops that are then optimized out if using any optimization flag 
+> (as in happens **Release** mode).
+
+This library also offers:
+- asynchronous output (raw binary, or a VTK series for ParaView).
+
+> :warning: For 3D even though AsynchronousBinaryWriter can generate an output, 
+> we have no post-processing scripts in place to parse and visualize it. \
+> Therefore for 3D simulations stick with .vtk outputs.
 
 ## Properties and features
 
@@ -72,7 +110,7 @@ flow, Poiseuille flow, flow past an obstacle.
 | Dimensions | 2D and 3D, selected by the `dim` template parameter (checked against the velocity set) |
 | Velocity sets | `D2Q9`, `D3Q19`, `D3Q27` ([`core/velocity-sets.hpp`](include/lbm-sim/core/velocity-sets.hpp)) |
 | Collision operators | `CollisionModel::BGK`, `CollisionModel::TRT` (`MRT` is reserved, currently a `static_assert`) |
-| Backends | `ExecutionBackend::OPEN_MP` (`OpenMPSolver`), `ExecutionBackend::CUDA` (`CUDASolver`, opt-in at configure time) |
+| Backends | `ExecutionBackend::OPEN_MP` (`OpenMPSolver`), `ExecutionBackend::CUDA` (`CUDASolver`, opt-in) |
 | Boundary conditions | Rigid-wall and moving-wall bounce-back, periodic, pressure-periodic inlet/outlet -- per domain face (`Solid::DomainBC`) or per immersed obstacle (`Solid::ObstacleData`) |
 | Obstacles | Rasterized from analytic shapes: `Segment`, `Circle`, `Parallelogram`, `Airfoil` (2D only), `CylindricalShell` (3D only) through `CollisionDetection::CollisionArea` |
 | Output | `AsyncBinaryWriter` (raw binary, background thread) and `VtkWriter` (`.vti` frames + a `.pvd` series for ParaView) |
@@ -80,8 +118,7 @@ flow, Poiseuille flow, flow past an obstacle.
 | Logging | Three interchangeable backends selected by `LBM_LOG_BACKEND`: [Quill](https://github.com/odygrd/quill), `ostream` (no dependency), or `none` (macros expand away); the active level is fixed at compile time |
 | Profiling | Optional chrono instrumentation (`LBM_ENABLE_PROFILING`), dumped as CSV next to the profile output |
 | Error estimation | `L1`, `L2`, `L2^2`, `Linf` norms against a user-supplied `functional::Function<dim>`, or against the Ghia et al. tables |
-| Post-processing | Python scripts for animations, velocity profiles, scaling plots and output validation |
-| Documentation | Doxygen targets wired into the build |
+| Post-processing | Python scripts for animations, velocity profiles and scaling plots  |
 
 ## Installation and configuration
 
@@ -90,7 +127,7 @@ flow, Poiseuille flow, flow past an obstacle.
 - **CMake** >= 3.18
 - A **C++17** compiler with **OpenMP** support (GCC, Clang, or MSVC -- MSVC
   builds use `/openmp:experimental`)
-- **Git** and network access at configure time, unless both optional
+- **Git** and network access at configure time, **unless** both optional
   dependencies are disabled: Quill (`v12.1.0`) is fetched only when
   `LBM_LOG_BACKEND=quill` (the default) and toml++ (`v3.4.0`) only when
   `LBM_ENABLE_CONFIG=ON` (the default)
@@ -126,17 +163,22 @@ runtime.
 
 | Option | Default | Meaning |
 |--------|---------|---------|
-| `LBM_ENABLE_CUDA` | `OFF` | Enable the CUDA language, build `lbm-sim-cuda` and the `cuda_*` executables |
 | `LBM_ENABLE_CONFIG` | `ON` | Build the TOML configuration support (fetches toml++) |
-| `LBM_ENABLE_PROFILING` | `OFF` | Compile the chrono-based profiling instrumentation (`LBM_PROFILING`); required for the CSVs the scaling plots and the error tables are built from |
+| `LBM_ENABLE_PROFILING` | `OFF` | Compile the chrono-based profiling instrumentation (`LBM_PROFILING`); required for the CSVs the scaling plots are built from |
 | `LBM_ENABLE_LOGGING` | `ON` | Emit log output; `OFF` forces `LBM_LOG_BACKEND=none` |
 | `LBM_LOG_BACKEND` | `quill` | Logging backend: `quill` (fetched), `ostream` (no dependency), `none` |
 | `LBM_LOG_LEVEL` | `INFO` | Compile-time active level: `TRACE_L3`, `TRACE_L2`, `TRACE_L1`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `LBM_BUILD_SIMULATIONS` | top-level | Build the executables under `simulations/`; off by default when the project is embedded |
 | `LBM_BUILD_DOCS` | top-level | Configure the `docs/` Doxygen targets; off by default when the project is embedded |
 | `LBM_SANITIZE` | *(empty)* | Sanitizers to build with: `address`, `undefined`, `thread`, `leak` (comma- or semicolon-separated) |
+| `LBM_ENABLE_CUDA` | `OFF` | Enable the CUDA language, build `lbm-sim-cuda` and the `cuda_*` executables |
 | `CMAKE_CUDA_ARCHITECTURES` | `75` | Target GPU architecture(s) |
 | `CMAKE_CUDA_HOST_COMPILER` | `CMAKE_CXX_COMPILER` | Host compiler driven by `nvcc`; override only for host compilers `nvcc` rejects |
+
+
+> :warning: Enabling profiling automatically disables the writers;
+> the output files and folders might be created but they will be empty.
+
 
 Log statements below `LBM_LOG_LEVEL` are compiled out entirely, so a release
 run pays nothing for them:
@@ -145,11 +187,54 @@ run pays nothing for them:
 cmake -S . -B build -DLBM_LOG_LEVEL=DEBUG
 ```
 
+#### CMake presets
+
+There are also some presets that one can use. To list them:
+`cmake --preset list`
+and then to run them:
+`cmake --preset <preset-name>`
+
+**Default Generator**: `Ninja` for its compatibility.
+
+To change generator use the flag: 
+```bash
+-DCMAKE_GENERATOR=<generator>
+```
+
+for example:
+```bash
+cmake --preset release -DCMAKE_GENERATOR="Unix Makefiles"
+``` 
+
+will use `make` as backend.
+
+
+| *Options x Preset* | *debug*  | *release* | *bench* | *profiling* |
+| ------------------ | ------- | ---------  | ------- | ----------- |
+| `CMAKE_BUILD_TYPE` | `Debug` | `Release`  | `Release` | `Release` |
+| `LBM_ENABLE_CONFIG` | `ON` | `ON` | `ON`  | `ON` |
+| `LBM_ENABLE_PROFILING` | `OFF` | `OFF`    | `ON` | `ON` |
+| `LBM_ENABLE_LOGGING` | `ON` |  `ON` | `ON`| `ON` |
+| `LBM_LOG_BACKEND` | `quill` | `quill`     | `none` | `quill` |
+| `LBM_ENABLE_CUDA` | `OFF` |`OFF` | `ON`   | `OFF` |
+
+
+> Presets **cuda-debug** and **cuda** are the respective of **debug and **release**
+> with CUDA activated.
+
 ### Python tooling
 
 ```bash
 python -m venv .venv && pip install -r scripts/py/requirements.txt
 ```
+
+Python scripts live in `scripts/py` folder; the two useful ones are:
+
+- `scripts/py/visualize_profile.py` to visualize `.dat` profile outputs;
+- `scripts/py/visualize_frames.py` that generates an animation from the binary
+  writer output.
+
+See [below :point_down:](#output-files-and-visualization)
 
 ## Usage and simulation model
 
@@ -162,7 +247,7 @@ A simulation main is short and always follows the same steps. Condensed from
 using namespace lbm;
 using types::DimPoint;
 
-// --- 1. READ THE CONFIGURATION FILE --------------------------------------
+// --- 1. READ THE CONFIGURATION FILE (OPTIONAL) ---------------------------
 if (argc < 2) {
   config::print_usage(argv[0]);
   return 1;
@@ -171,6 +256,9 @@ if (argc < 2) {
 // --- 2. SET UP THE LOGGER ------------------------------------------------
 logging::setup();
 logging::Logger *main_logger = logging::create_or_get_logger("main");
+// If the logger is not set up nothing will show on screen.
+// This does not mean that logging functions will be 
+// optimized out or skipped!
 
 std::vector<config::SimulationConfig<DIM>> configs;
 try {
@@ -238,10 +326,8 @@ grid-size header, the solver emits the velocity-norm frames, and they are two
 distinct `DataObservable`s. Detach it from both at the end of a run, so the
 next configuration in the loop starts from a clean listener list.
 
-Moving to 3D means changing three things: `DIM`, the velocity set (`D3Q19` or
-`D3Q27`) and the profile extractor
-(`functional::extract_dx_profile_along_z_center`). See
-[`lid_cavity_d3q19_bgk.cu`](simulations/cuda/lid_cavity_d3q19_bgk.cu).
+Moving to 3D means changing three things: `DIM`, the velocity set (`D3Q19` or `D3Q27`). 
+See [`lid_cavity_d3q19_bgk.cu`](simulations/cuda/lid_cavity_d3q19_bgk.cu).
 
 ### Configuration files
 
@@ -304,6 +390,11 @@ to the working directory, and the files under `configs/` write to `out/...`:
 launch from `build/simulations/` to collect the output under
 `build/simulations/out/`, or point `[conf.output]` somewhere else.
 
+**CUDA executables**
+
+> CUDA executables mainly purpose is to relieve the Colab Notebooks 
+> of long chains of commands.
+
 The CUDA executables can be run in sequence, one log per run, with:
 
 ```bash
@@ -332,6 +423,8 @@ There are two output products, both written off the simulation thread:
   starts with a `%%profile <operator> <n> <u_ref>` ASCII header, followed by
   `float64` samples.
 
+**Python tooling**
+
 ```bash
 python scripts/py/visualize_frames.py out/norms_lid_cavity.bin -o cavity.gif
 ```
@@ -344,13 +437,11 @@ python scripts/py/visualize_profile.py output/lid_cavity_bgk_profile.dat benchma
 python scripts/py/validate_outputs.py
 ```
 
-`visualize_frames.py` animates the raw binary frames, `visualize_profile.py`
-overlays one or more profiles (including the Ghia tables, which are already
-normalized by the lid velocity), and `validate_outputs.py` checks the produced
-files structurally and numerically -- headers, payload lengths, finite values,
-and duplicate output paths declared by different CUDA sources.
+- `visualize_frames.py` animates the raw binary frames;
+- `visualize_profile.py`overlays one or more profiles (including the Ghia tables, which are already normalized by the lid velocity); 
+- `validate_outputs.py` checks the produced files structurally and numerically -- headers, payload lengths, finite values, and duplicate output paths.
 
-## Architecture
+## Architecture Overview
 
 The library is built around compile-time polymorphism, so that the dimension,
 the velocity set and the collision operator cost nothing at run time:
@@ -389,64 +480,16 @@ A UML view of the project lives in
 [`docs/report/LBM_UML.html`](docs/report/LBM_UML.html)
 (editable source: `LBM_UML.drawio`).
 
-### Velocity sets
-
-Each velocity set is a compile-time struct exposing `dim`, `ndir`, the weights
-`wi[]`, the discrete directions `dir[]` and the opposite-direction table
-`opp[]`. `D2Q9` uses the following numbering:
-
-```
------- +x
-|7 4 8
-|3 0 1
-|6 2 5
-+y
-```
-
-| i | c_i | Meaning | w_i |
-|--:|:---:|---------|-----|
-| 0 | ( 0, 0) | rest | 4/9 |
-| 1 | (+1, 0) | east | 1/9 |
-| 2 | ( 0,+1) | north | 1/9 |
-| 3 | (-1, 0) | west | 1/9 |
-| 4 | ( 0,-1) | south | 1/9 |
-| 5 | (+1,+1) | north-east | 1/36 |
-| 6 | (-1,+1) | north-west | 1/36 |
-| 7 | (-1,-1) | south-west | 1/36 |
-| 8 | (+1,-1) | south-east | 1/36 |
-
-`D3Q19` (rest, 6 face and 12 edge neighbours; weights 1/3, 1/18, 1/36) is the
-usual compromise for 3D cavities; `D3Q27` adds the 8 vertex neighbours for
-better isotropy at a higher per-node cost. Rendered direction diagrams live in
-[`docs/assets/`](docs/assets).
-
-### Boundary conditions
-
-Boundaries come in two flavours, and neither costs anything proportional to
-the resolution:
-
-- **Domain faces** -- `Solid::DomainBC<dim>` holds one `boundary_t` per face
-  (4 bytes in 2D, 6 in 3D), set through `low(axis)` and `high(axis)`.
-  Available values: `NONE`, `BB_RIGID_WALL`, `BB_MOVING_WALL`, `PERIODIC`,
-  `PRESSURE_PERIODIC_INLET`, `PRESSURE_PERIODIC_OUTLET`. A periodic axis must
-  wrap on both faces (`assert_consistent_domain_bc`).
-- **Immersed obstacles** -- analytic shapes are rasterized into a
-  `types::solid_mask_t` (one 16-bit obstacle id per node, `types::FLUID`
-  elsewhere) by `Solid::compute_solid_mask`, and a side table of
-  `Solid::ObstacleData<dim>` maps each id to its BC type and wall velocity.
-
-No-slip walls are enforced with bounce-back: incoming populations are
-reflected into their opposite directions (`VelocitySet::opp`). A moving wall
-uses the same scheme plus the momentum correction that imposes the prescribed
-wall velocity -- that is how the cavity lid is driven.
+- [**Velocity sets**](/docs/report/architecture.md#velocity-sets)
+- [**Boundary conditions**](/docs/report/architecture.md#boundary-conditions)
 
 ### The time step algorithm
 
 Each iteration of `OpenMPSolver::solve` performs:
 
 1. streaming, with boundary conditions resolved link by link;
-2. computation of the macroscopic moments $\rho(x,t)$ and $u(x,t)$;
-3. computation of the equilibrium $f^{eq}_i(x,t)$;
+2. computation of the macroscopic moments `rho(x,t)` and `u(x,t)`;
+3. computation of the equilibrium `f^{eq}_i(x,t)`;
 4. collision;
 5. every `niters / nframes` steps, emission of a velocity-norm frame to the
    attached listeners.
@@ -481,13 +524,30 @@ target_link_libraries(my_sim PRIVATE lbm-sim)
 
 Or with a vendored copy:
 
-```cmake
-add_subdirectory(external/lbm-simulation-lib)
-target_link_libraries(my_sim PRIVATE lbm-sim)
+**Directory Structure**
+```
+my_project/
+├── CMakeLists.txt
+├── lbm-simulation-lib
+└── main.cpp
+```
+
+**Minimal CMakeLists.txt**
+```
+cmake(VERSION 3.21)
+project(my_project)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_subdirectory(lbm-simulation-lib)
+add_executable(${PROJECT_NAME} main.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE lbm::sim) 
+# If LBM_ENABLE_CUDA=ON link CUDA with lbm::sim-cuda
 ```
 
 For the CUDA backend, configure the consuming project with
-`-DLBM_ENABLE_CUDA=ON` and link `lbm-sim-cuda` instead: it pulls `lbm-sim` in
+`-DLBM_ENABLE_CUDA=ON` and link `lbm::sim-cuda` instead: it pulls `lbm-sim` in
 and adds relocatable device code plus the OpenMP flag for `nvcc`'s host pass.
 
 ## Design and performance
@@ -525,7 +585,7 @@ The CUDA backend maps the same node loop onto the device, with the velocity set
 uploaded to `__constant__` memory and the domain BC passed by value as a kernel
 argument (`DomainBC` is trivially copyable by design).
 
-### Scaling results
+### Scaling Results
 
 #### How the numbers were measured
 
@@ -536,12 +596,29 @@ the wall time of the whole iteration loop, with initialization, allocation and
 output excluded. The profiling main also sets `setBenchmarkMode(true)`, which
 suppresses frame emission, so the writer thread is not part of the measurement.
 
-The sweeps are the `[[conf]]` lists in
-[`configs/profiling.toml`](configs/profiling.toml) (strong) and
-[`configs/weak_scaling.toml`](configs/weak_scaling.toml) (weak): the thread
-count is `[conf.backend].n_threads`, applied through
-`BackendProperties<OPEN_MP>::scopedApply()`, and every configuration runs
-`niters = 100000` steps of the 2D lid-driven cavity with `D2Q9` at `Re = 100`.
+The sweeps are the `[[conf]]` lists in:
+ - [`configs/profiling.toml`](configs/profiling.toml) (strong)
+ - [`configs/profiling_couette.toml`](configs/profiling_couette.toml) (strong)
+ - [`configs/weak_scaling.toml`](configs/weak_scaling.toml) (weak)
+
+the thread count is dynamically set through the configuration entry 
+`[conf.backend].n_threads`, applied through `BackendProperties<OPEN_MP>::scopedApply()`. 
+
+For the **strong scaling** we have set up two different 2D problems:
+1. a lid cavity problem with:
+  - grid size: 129x129;
+  - Reynolds number: 100;
+  - number of iterations: 100000.
+2. a couette problem with:
+  - grid size: 300x300;
+  - Reynolds number: 200;
+  - number of iterations: 100000.
+
+For the **weak scaling** we have set up one configuration on a 2D 
+lid cavity simulation.
+
+> NOTE: the configuration results is set up to 64 threads but the simulations with 
+> 32 and 64 threads were lost and we did not manage to re-run them yet.
 
 Each repetition is a separate PBS job (`scripts/cpu_job.pbs`, one node,
 `ncpus=64`, 30 minutes of walltime), submitted N times:
@@ -563,7 +640,8 @@ count present in that series*, never against a hardcoded 1.
 
 ![strong scaling](docs/report/assets/strong_scaling.png)
 
-![strong scaling table](docs/report/assets/strong_scaling_table.png)
+**Lid Cavity D2Q9**
+
 
 | threads | mean [s] | std [s] | speedup | efficiency | MLUPS |
 |--------:|---------:|--------:|--------:|-----------:|------:|
@@ -574,6 +652,22 @@ count present in that series*, never against a hardcoded 1.
 | 16 |  10.567 | 0.271 | 13.29 | 0.83 | 157.5 |
 | 32 |   7.207 | 0.523 | 19.49 | 0.61 | 230.9 |
 | 64 |  14.092 | 5.891 | 9.97  | 0.16 | 118.1 |
+
+
+**Couette D2Q9**
+
+
+| threads | mean [s] | std [s] | speedup | efficiency | MLUPS   |
+|--------:|---------:|--------:|--------:|-----------:|--------:|
+| 1       | 960.569  | 1.853   |  1.00   | 1.00       | 9.37    |
+| 2       |  482.318 | 3.188   |  1.991  | 0.996      | 18.66   |
+| 4       |  246.033 | 0.198   |  3.904  | 0.976      | 36.58   |
+| 8       |  126.055 | 0.449   |  7.620  | 0.953      | 71.4    |
+| 16      |  66.827  | 2.367   |  14.374 | 0.898      | 134.68  |
+| 32      |  41.643  | 2.005   |  23.067 | 0.721      | 216.122 |
+| 64      |  40.523  | 1.657   |  23.704 | 0.370      | 222.1   |
+
+
 
 MLUPS (million lattice updates per second) is
 `nx * ny * niters / time`; it is the number to compare across grids, since
@@ -615,6 +709,23 @@ pin it down:
   account), so the serial code path is identical;
 - the 64-thread 300x300 run has the same throughput as its own serial run.
 
+**The 300×300 series in the figure scales cleanly up to 32 threads and then stalls**, 
+and it's worth spelling out why the last data point should be read as a bandwidth 
+ceiling rather than a property of the solver: 
+
+- wall time drops from 41.643 s at 32 threads to 40.523 s at 64, a 2.8% improvement for a doubling of thread count, pushing the speedup from 23.067 to just 23.704; 
+- efficiency makes the picture unambiguous — it holds above 0.72 through 32 threads (0.996, 0.976, 0.953, 0.898, 0.721 at 2, 4, 8, 16, 32) and then collapses to 0.370 at 64;
+
+A genuinely compute-bound loop would keep gaining share of the extra cores; 
+a curve that flattens sharply on the *last* doubling after tracking near-ideal 
+scaling up to that point is the signature of memory bandwidth saturating rather than 
+the solver failing to parallelize. 
+This is corroborated by throughput: 216.1 MLUPS at 32 threads versus 222.1 MLUPS at 64
+— essentially the same delivered bandwidth despite twice the threads, 
+meaning the additional 32 threads bought almost nothing.
+
+---
+
 Since the `n_threads` column of the CSV is the value *requested* through
 `BackendProperties::getNumThreads()` and not one measured inside the parallel
 region with `omp_get_num_threads()`, a job that was granted fewer CPUs than it
@@ -628,7 +739,6 @@ actually used rather than what was asked for.
 
 ![weak scaling](docs/report/assets/weak_scaling.png)
 
-![weak scaling table](docs/report/assets/weak_scaling_table.png)
 
 | threads | grid | cells/thread | mean [s] | MLUPS | MLUPS per thread |
 |--------:|------|-------------:|---------:|------:|-----------------:|
@@ -637,8 +747,7 @@ actually used rather than what was asked for.
 | 4  | 257x257   | 16512 | 146.945 | 45.0  | 11.2 |
 | 8  | 365x365   | 16653 | 151.584 | 87.9  | 11.0 |
 | 16 | 515x515   | 16577 | 151.768 | 174.8 | 10.9 |
-| 32 | 1000x1000 | 31250 | 325.416 | 307.3 |  9.6 |
-| 64 | 2000x2000 | 62500 | 1447.020| 276.4 |  4.3 |
+
 
 The first five rows are a textbook weak-scaling sweep: the grid grows so that
 every thread keeps about 16 600 nodes, and the ideal is a **flat** time curve.
@@ -647,55 +756,6 @@ efficiency 0.934 -- which is the same story the strong-scaling curve tells from
 the other side: the node loop itself parallelizes cleanly, and what little
 slope there is comes from the growing footprint rather than from
 synchronization.
-
-**The last two rows are a different experiment and must not be read as a
-continuation of the first five.** `configs/weak_scaling.toml` gives 32 threads
-a 1000x1000 grid and 64 threads a 2000x2000 one, which is 31 250 and 62 500
-nodes per thread instead of 16 600: the work per thread doubles, then doubles
-again. `plot_weak.py` detects this -- it groups repetitions into series by the
-work per thread at their baseline -- and plots them as a separate orange series
-whose efficiency restarts at 1.0 by construction at 32 threads. The efficiency
-column of the table image, which does not carry the series label, is what makes
-the two look continuous.
-
-Normalizing by throughput instead removes the ambiguity, because MLUPS per
-thread is comparable across every row:
-
-- 1 to 16 threads: 11.7 -> 10.9 MLUPS per thread, a 7% loss;
-- 32 threads: 9.6 MLUPS per thread, 82% of the single-thread rate;
-- 64 threads: 4.3 MLUPS per thread, 37%.
-
-The collapse at the last point is a memory-hierarchy effect, and the footprint
-makes it concrete. Two population buffers of `ndir = 9` doubles cost 144 bytes
-per node, plus about 28 bytes for `u`, `rho` and the norm buffer:
-
-| grid | populations | total working set |
-|------|------------:|------------------:|
-| 515x515   |  38 MB |  46 MB |
-| 1000x1000 | 144 MB | 172 MB |
-| 2000x2000 | 576 MB | 688 MB |
-
-Up to 515x515 the whole simulation fits in the aggregate last-level cache of a
-64-core node; at 2000x2000 every one of the 100 000 iterations streams 688 MB
-from DRAM twice (read `ffrom`, write `fto`). LBM is bandwidth-bound by nature
--- one stream-collide step does a few dozen flops per node against 144 bytes of
-traffic -- so once the working set leaves cache the memory controllers, not the
-cores, set the pace. That is why the 64-thread point loses a factor of 2.5 in
-per-thread throughput while the 1-to-16 sweep, which never leaves cache, loses
-7%.
-
-To turn the last two points into a real weak-scaling measurement, keep the work
-per thread constant: 16 641 nodes per thread means 730x730 at 32 threads and
-1032x1032 at 64. Keeping the 2000x2000 run as well is worth it -- it is the
-only data point in the report that measures the solver against DRAM rather than
-against cache -- but it belongs to its own series.
-
-> Two practical notes for whoever re-runs this. The 32- and 64-thread points
-> were averaged over 4 repetitions instead of 5, so they come from a separate
-> submission; and the 2000x2000 run alone spends 1447 s inside `solve_total`
-> against the 1800 s walltime in `cpu_job.pbs`, which leaves no margin for
-> initialization and for copying the results back. Raise the walltime before
-> adding repetitions at that size.
 
 ## Error estimation
 
@@ -759,9 +819,10 @@ centerline, `v(x, ny/2)`, which is what
 `functional::extract_dy_profile_along_x_center` extracts.
 
 <p align="center">
-  <img src="docs/report/assets/profile_lid_cavity_d2q9_2000_2000_7500_trt.png" width="47%" />
-  <img src="docs/report/assets/profile_comparison_lid_cavity_d2q9_7500.png" width="47%" />
+  <img src="docs/report/assets/profile_comparison_lid_cavity_d2q9_7500.png" width="70%" />
 </p>
+
+https://github.com/user-attachments/assets/ac2f4b29-612d-4792-bb47-8280fb7cacb5
 
 The shape is right: the profile leaves the left wall, peaks just inside it,
 crosses zero at mid-cavity and reaches a deeper negative extremum near the
@@ -821,7 +882,7 @@ the `x` faces, rigid walls elsewhere. The profile is `u_x` along the `z`
 centerline, from `functional::extract_dx_profile_along_z_center`.
 
 <p align="center">
-  <img src="docs/report/assets/pipe_profile.png" width="60%" />
+  <img src="docs/report/assets/profile_pipe_poiseuille_64_65_65_21_bgk.png" width="60%" />
 </p>
 
 - The profile is the parabola Hagen-Poiseuille predicts across a diameter, and
@@ -844,13 +905,11 @@ centerline, from `functional::extract_dx_profile_along_z_center`.
   a rasterized cylinder is a staircase, and bounce-back on a staircase is only
   first-order accurate for a curved boundary, so a few percent on a radius of
   about 30 nodes is the expected price. That is also the one place where TRT
-  and an interpolated bounce-back would earn their keep. It should shrink under
-  refinement: `configs/pipe_config_3.toml` (100x125x125) is the run that tests
-  it.
+  and an interpolated bounce-back would earn their keep.
 
-> `pipe_profile.png` does not carry its parameters in the filename, and three
-> pipe configurations are committed (`Re = 21` and `Re = 100` on 64x65x65,
-> `Re = 100` on 100x125x125), so which one it is cannot be recovered from the
+> `profile_pipe_poiseuille_64_65_65_21_bgk.png` does not carry its parameters in the filename, and three
+> pipe configurations are committed (`Re = 21` and `Re = 100` on 64x65x65),
+> so which one it is cannot be recovered from the
 > file. Renaming it to the convention the other figures use --
 > `profile_pipe_d3q19_<nx>_<ny>_<nz>_<Re>_<operator>.png` -- costs nothing now
 > and saves the next reader a guess.
@@ -860,20 +919,147 @@ centerline, from `functional::extract_dx_profile_along_z_center`.
 `D3Q19`, 200x200x200 nodes, `Re = 1000`, lid on the `z = nz-1` face
 ([`configs/lid_cavity_3d.toml`](configs/lid_cavity_3d.toml)). The animation is
 the velocity magnitude on the exported frames, rendered with
-`scripts/py/visualize_frames.py`:
+`scripts/py/visualize_frames.py`.
 
-<p align="center">
-  <img src="docs/imgResults/lid_cavity_3d.gif" width="60%" />
-</p>
+![Lid Cavity 3D](https://github.com/user-attachments/assets/281cd5fc-b509-48ba-803a-12cedcc88749)
 
 There is no tabulated 3D counterpart to Ghia in `benchmarks/`, and
 `compute_ghia_error()` is `dim == 2` only, so this case is validated
 qualitatively -- the primary vortex forms under the lid and the corner
 recirculations appear where they should -- and quantitatively only through the
 exported centerline, which has to be compared against external reference data.
-The same run is available as [`lid_cavity_3d.mp4`](docs/imgResults/lid_cavity_3d.mp4)
+The same run is available as [`lid_cavity_3d.mp4`](https://drive.google.com/file/d/1LXoR7dcdQXW0F0D8UrwZvzgfBTKwPcxX/view?usp=sharing)
 (the GIF is ten times larger than the MP4, so prefer the MP4 when linking it
 from anywhere that plays video).
+
+### Flow Around Immersed Obstacles: Circle, NACA Airfoil, and Generic Geometry
+
+Three cases using the same domain structure — `BB_MOVING_WALL` on the left boundary as the source of motion, `OPEN_OUTFLOW` on the other three boundaries, and an immersed obstacle handled through `compute_solid_mask()` — are used to qualitatively validate the open boundary condition pipeline together with the sponge layer, as well as the geometry of the shapes themselves.
+
+None of the three cases has a reference dataset comparable to Ghia et al. that can be used for point-by-point validation. The validation here is therefore visual, following the same approach used for the 3D cavity described above: the goal is to verify that the flow behaves as expected around the obstacle, rather than to match a tabulated reference profile.
+
+#### Circle (`Circle_flow_2d_bgk.cu`)
+
+https://github.com/user-attachments/assets/b32c35d0-7bdd-436b-bd8c-a7f785b08b41
+
+The simplest of the three cases: a `CollisionDetection::Circle` is immersed in the channel. The video shows the formation of the wake behind the obstacle and the shedding of vortices downstream, with no evidence of flow passing through the circle (i.e., no "leakage" through the solid). This indirectly confirms that `compute_solid_mask()` correctly marks the entire body rather than an incomplete shell.
+
+This case is also the most direct reference for evaluating the absorption performance of `OPEN_OUTFLOW`. Since the geometry is symmetric, any spurious reflection from the right boundary would be clearly visible as a disturbance propagating back along the wake axis.
+
+#### Four-Digit NACA Airfoil (`NACA_flow_2d_bgk.cu`)
+
+https://github.com/user-attachments/assets/747ceae6-c62f-4227-9158-993258adf963
+
+The airfoil is generated through `CollisionDetection::Airfoil`, which implements the **four-digit NACA convention** (NACA *MPXX*): the first digit (*M*) represents the maximum camber as a percentage of the chord; the second digit (*P*) represents the location of the maximum camber along the chord, expressed in tenths of the chord; and the final two digits (*XX*) represent the maximum thickness as a percentage of the chord.
+
+For example, a NACA 2412 airfoil has a maximum camber of 2% located at 4/10 of the chord and a maximum thickness of 12%. These correspond directly to the three parameters exposed by the `Airfoil` constructor — `max_camber`, `camber_pos`, and `thickness` — together with the angle of attack.
+
+The airfoil boundary is generated analytically using the standard NACA thickness equation and a piecewise camber-line formulation. The resulting geometry is then tested point-by-point using a ray-casting point-in-polygon algorithm, rather than being manually rasterized as with the other shapes.
+
+The video shows asymmetric flow separation between the upper and lower surfaces, consistently with the imposed angle of attack. The wake develops downstream of the trailing edge without visible artifacts at the airfoil attachment, where the local curvature is higher and rasterization errors would be more apparent.
+
+#### Generic Geometry / Immersed Obstacle (`obstacle_flow_2d_bgk.cu`)
+
+https://github.com/user-attachments/assets/985da4b4-4273-40c8-862b-5067860edf86
+
+The same domain setup is applied to an arbitrary geometry through `CollisionArea`, providing a test case for the open boundary conditions independently of the specific obstacle shape.
+
+Only one `OPEN_OUTFLOW` boundary was used for the right exiting flux, while on the left boundary `BB_MOVING_WALL` was used as the source of motion and two `BB_RIGID_WALL` where used as the orizontal walls. This is also the case used to tune the sponge layer placed before the `OPEN_OUTFLOW` boundary. Without the sponge layer, the impulsive wave generated when the moving wall starts was visibly reflected by the right boundary. With the sponge layer enabled — relaxing `rho` and `u` toward the quiescent state over the last cells before the boundary — the initial transient leaves the domain without producing a perceptible reflected wave.
+
+> NOTE: None of the three configurations is currently present in `configs/`: they were run using ad-hoc parameters during the tuning of the boundary conditions and currentrly do not present a `.toml` file.
+
+### Validation of Obstacles Flow Using the Strouhal Number
+
+The **Strouhal number** is a dimensionless quantity used to characterize the unsteady nature of a flow and, in particular, the frequency of periodic vortex shedding behind bluff bodies such as a circular cylinder. It is defined as
+
+$$
+St = \frac{fD}{U_\infty},
+$$
+
+where \(f\) is the dominant vortex-shedding frequency, \(D\) is the characteristic length (the cylinder diameter in this case), and \(U_\infty\) is the free-stream velocity.
+
+For the present work, **the Strouhal number is used as a validation quantity for the implementation of solid-fluid interaction in our simulation**. Since the vortex-shedding frequency is a macroscopic flow quantity that depends on the Reynolds number and on the correct representation of the unsteady wake, obtaining physically consistent Strouhal numbers provides an effective check that the simulation, boundary conditions, collision model, and numerical discretization are working correctly.
+
+#### Strouhal Number for Different Reynolds Numbers
+
+The first validation consists of evaluating the Strouhal number for a range of Reynolds numbers and comparing the resulting values with the expected behavior of the flow around a circular cylinder.
+
+For each Reynolds number included in the final analysis, the simulation parameters are manually set in `Circle_flow_2d_bgk.cu`, in particular the desired Reynolds number and the spatial resolution factor (`scale`). The LBM BGK simulation is then executed until a sufficiently long time history of the flow is obtained.
+
+The dominant vortex-shedding frequency is extracted from the temporal evolution of the flow field using the following procedure:
+
+1. The LBM simulation is run for the selected Reynolds number and spatial `scale`.
+2. The resulting flow field is loaded into ParaView.
+3. A `Probe Location` is placed downstream of the cylinder at
+
+$$
+x = 256\*\text{scale}, \qquad y = 129\*\text{scale}.
+$$
+
+4. A `Plot Data Over Time` filter is applied to obtain the temporal signal at the selected probe location.
+5. The resulting time history is exported from ParaView as a `.csv` file.
+ 
+This procedure is repeated for every Reynolds number considered in the study. All the CSV signals obtained then are saved in the folder `benchmarks\strouhal` using the name convention `Eddy_Generation_RE{RaynoldNumber}_S{ScaleFactor}.csv`.
+
+##### Analysis procedure
+
+The simplified post-processing workflow used to obtain the dominant shedding frequency is illustrated below.
+
+![Simple workflow](docs/report/assets/SimpleWorkflowStrouhal.svg)
+
+*Workflow used to obtain the dominant vortex-shedding frequency from the LBM simulation, from the probe signal in ParaView to the FFT.*
+
+#### Strouhal number as a function of Reynolds number
+
+The final plot is then made executing into the folder `scripts/py` the script `analysis_strouhal_multiRE.py` where:
+- A Fast Fourier Transform (FFT) is applied to the temporal signal in order to identify its dominant frequency \(f\), corresponding to the main periodic vortex-shedding mode.
+- The extracted peak frequency is then used to calculate the Strouhal number according to the already seen fomula
+
+$$
+St = \frac{fD}{U_\infty}.
+$$
+
+The resulting \(St\)-versus-\(Re\) curve is reported in the following plot with respesct to the standard *Lienhard 1966 / Roshko St-Re diagram* for a circular cylinder based on aggregated experimental data: 
+
+![St vs Re](docs/report/assets/Plot_St_vs_Re.png)
+
+*Strouhal number obtained from the LBM BGK simulations as a function of the Reynolds number.*
+
+The consistency of the resulting curve with the expected behavior for flow past a circular cylinder is used as a validation of the implementation. In particular, the appearance of a well-defined dominant frequency in the wake and its systematic evolution with Reynolds number demonstrate that the simulation is correctly capturing the periodic vortex-shedding dynamics.
+
+### Validation of Spatial Scaling
+
+A second validation was performed to verify that the computed Strouhal number is not significantly affected by the spatial resolution of the lattice.
+
+For this purpose, a reference case at
+
+$$
+Re = 1000
+$$
+
+was simulated using different spatial scaling factors, with
+
+$$
+\text{scale} = 1,2,\ldots,7.
+$$
+
+Increasing the `scale` parameter increases the number of lattice nodes used to represent the same physical geometry while preserving the geometric proportions of the computational domain. Therefore, if the numerical implementation and the chosen simulation parameters are behaving consistently, the resulting dimensionless Strouhal number should remain approximately unchanged as the spatial resolution is increased.
+
+For each scale factor, the previous 5 post-processing steps are applied. All the CSV signals obtained then are saved in the folder `benchmarks\strouhal` using the name convention `Eddy_Generation_Signal{ScaleFactor}.csv`.
+
+#### Strouhal number versus spatial scale
+
+The final plot is then made executing into the folder `scripts/py` the script `analysis_strouhal_scale_1000.py` where the usal FFT computation and peak detection are performed to obtain the Strouhal numbers w.r.t. the scaling factor. The resulting values are reported in the following plot with respesct to the expected *Lienhard 1966 / Roshko St-Re diagram* experimental data (St. between 0.210 and 0.218 for Re = 1000): 
+
+![Strouhal number as a function of spatial scale](docs/report/assets/Plot_St_scaling.png)
+
+*Strouhal number obtained at \(Re=1000\) for spatial scaling factors from 1 to 7.*
+
+The results show that the computed Strouhal number remains consistent across the tested spatial resolutions. This demonstrates that the main dimensionless characteristic of the vortex-shedding process is preserved when the lattice resolution is increased.
+
+Therefore, the scaling study provides an additional validation of the LBM BGK implementation: the observed invariance of \(St\) with respect to the `scale` parameter indicates that the vortex-shedding dynamics are not being significantly altered by the selected spatial discretization.
+
+Overall, these two validation tests *provide a solid complementary evidence* that the LBM BGK simulation is capable of reproducing correctly the complex and unsteady flow behavior around the circular cylinder.
 
 ## Documentation and report
 

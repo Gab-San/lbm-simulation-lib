@@ -319,9 +319,11 @@ public:
    * @brief Forwards to SolverBase.
    * @param iters_  Number of time steps.
    * @param frames_ Number of frames to emit; @c 0 disables frame output.
+   * @param write_vel_comp_ Boolean flag used to parse velocity components.
    */
-  CUDASolver(const unsigned int iters_, const unsigned int frames_)
-      : Base(iters_, frames_) {};
+  CUDASolver(const unsigned int iters_, const unsigned int frames_, 
+             const bool write_vel_comp_ = false)
+      : Base(iters_, frames_), write_vel_comp_(write_vel_comp_) {};
 
   ~CUDASolver() = default;
 
@@ -418,7 +420,12 @@ public:
       if (save) {
         LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
         download_macroscopic(d_rho, d_u, lattice, stream);
-        write_norms(norms, lattice.grid, stream);
+        if (write_vel_comp_) {
+          write_frame_data(norms, lattice, stream);
+        } else {
+          write_norms(norms, lattice.grid, stream);
+        }
+        //write_norms(norms, lattice.grid, stream);
       }
     }
 
@@ -448,6 +455,9 @@ public:
   }
 
 private:
+  
+  const bool write_vel_comp_;
+
   /// @brief Copies @c rho and @c u back into the host lattice, on @p stream.
   __host__ inline void download_macroscopic(
       const cuda::DeviceBuffer<double> &d_rho,
@@ -470,6 +480,32 @@ private:
 
     std::vector<char> buf(h_norms.size() * sizeof(float));
     std::memcpy(buf.data(), h_norms.data(), buf.size());
+    this->notifyListeners(std::move(buf));
+  }
+
+  /// @brief Downloads one frame of velocity norms and its components and hands it to the
+  ///        attached listeners, in the layout the "Output formats" page
+  ///        describes.
+  __host__ inline void write_frame_data(const cuda::DeviceBuffer<float> &d_norms,
+                                       const Lattice<dim> &lattice,
+                                       cudaStream_t stream) const {
+    const std::size_t n = lattice.grid.getArea();
+
+    std::vector<float> h_norms(n);
+    d_norms.download_async(h_norms, stream);
+    LBM_CUDA_CHECK(cudaStreamSynchronize(stream));
+
+    std::vector<float> h_ux(n), h_uy(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      h_ux[i] = static_cast<float>(lattice.u[i].dx);
+      h_uy[i] = static_cast<float>(lattice.u[i].dy);
+    }
+
+    std::vector<char> buf(3 * n * sizeof(float));
+    std::memcpy(buf.data(), h_norms.data(), n * sizeof(float));
+    std::memcpy(buf.data() + n * sizeof(float), h_ux.data(), n * sizeof(float));
+    std::memcpy(buf.data() + 2 * n * sizeof(float), h_uy.data(), n * sizeof(float));
+
     this->notifyListeners(std::move(buf));
   }
 };

@@ -34,15 +34,15 @@ namespace lbm {
 
 class VtkWriter : public IDataListener {
 public:
-  VtkWriter(const std::string &output_dir, const std::string &basename)
-      : output_dir_(output_dir), basename_(basename), have_dims_(false), nx_(0),
+  VtkWriter(const std::string &output_dir, const std::string &basename, bool with_vel_comp = false)
+      : output_dir_(output_dir), basename_(basename), with_vel_comp_(with_vel_comp), have_dims_(false), nx_(0),
         ny_(0), nz_(1), frame_count_(0), stop_(false) {
     std::filesystem::create_directories(output_dir_);
     worker_ = std::thread(&VtkWriter::run, this);
   }
 
-  explicit VtkWriter(const std::string &path)
-      : VtkWriter(dir_from_path(path), basename_from_path(path)) {}
+  explicit VtkWriter(const std::string &path, bool with_vel_comp = false)
+      : VtkWriter(dir_from_path(path), basename_from_path(path), with_vel_comp) {}
 
   ~VtkWriter() override {
     {
@@ -137,7 +137,12 @@ private:
   // conversion on the writer side -- the chunk is dumped as-is.
   void write_frame(const std::vector<char> &data) {
     const std::size_t n_points = nx_ * ny_ * nz_;
-    const std::size_t expected_bytes = n_points * sizeof(float);
+    //const std::size_t expected_bytes = n_points * sizeof(float);
+
+    const std::size_t comp_bytes = n_points * sizeof(float);
+    const std::size_t expected_bytes =
+        with_vel_comp_ ? 3 * comp_bytes : comp_bytes;
+
     if (data.size() != expected_bytes) {
       std::cerr << "[VtkWriter] frame " << frame_count_ << ": received "
                 << data.size() << " bytes, expected " << expected_bytes
@@ -170,17 +175,39 @@ private:
         << "    <Piece Extent=\"" << extent << "\">\n"
         << "      <PointData Scalars=\"velocity_magnitude\">\n"
         << "        <DataArray type=\"Float32\" "
-           "Name=\"velocity_magnitude\" format=\"appended\" offset=\"0\"/>\n"
-        << "      </PointData>\n"
+           "Name=\"velocity_magnitude\" format=\"appended\" offset=\"0\"/>\n";
+
+    if (with_vel_comp_) {
+      const std::size_t offset_ux = sizeof(std::uint32_t) + comp_bytes;
+      const std::size_t offset_uy = 2 * (sizeof(std::uint32_t) + comp_bytes);
+      out << "        <DataArray type=\"Float32\" Name=\"velocity_x\" "
+            "format=\"appended\" offset=\"" << offset_ux << "\"/>\n"
+          << "        <DataArray type=\"Float32\" Name=\"velocity_y\" "
+            "format=\"appended\" offset=\"" << offset_uy << "\"/>\n";
+    }
+
+    out << "      </PointData>\n"
         << "    </Piece>\n"
         << "  </ImageData>\n"
         << "  <AppendedData encoding=\"raw\">\n"
         << "_";
 
     // Nothing may sit between '_' and the bytes, not even a space.
-    const std::uint32_t nbytes = static_cast<std::uint32_t>(expected_bytes);
-    out.write(reinterpret_cast<const char *>(&nbytes), sizeof(nbytes));
-    out.write(data.data(), static_cast<std::streamsize>(data.size()));
+    // const std::uint32_t nbytes = static_cast<std::uint32_t>(expected_bytes);
+    // out.write(reinterpret_cast<const char *>(&nbytes), sizeof(nbytes));
+    // out.write(data.data(), static_cast<std::streamsize>(data.size()));
+
+    const std::uint32_t block_bytes = static_cast<std::uint32_t>(comp_bytes);
+    out.write(reinterpret_cast<const char *>(&block_bytes), sizeof(block_bytes));
+    out.write(data.data(), static_cast<std::streamsize>(comp_bytes));
+
+    if (with_vel_comp_) {
+      out.write(reinterpret_cast<const char *>(&block_bytes), sizeof(block_bytes));
+      out.write(data.data() + comp_bytes, static_cast<std::streamsize>(comp_bytes));
+
+      out.write(reinterpret_cast<const char *>(&block_bytes), sizeof(block_bytes));
+      out.write(data.data() + 2 * comp_bytes, static_cast<std::streamsize>(comp_bytes));
+    }
 
     out << "\n  </AppendedData>\n"
         << "</VTKFile>\n";
@@ -227,6 +254,7 @@ private:
   static constexpr std::size_t pvd_stride_ = 10;
 
   const std::string output_dir_, basename_;
+  const bool with_vel_comp_;
 
   bool have_dims_;
   std::size_t nx_, ny_, nz_;

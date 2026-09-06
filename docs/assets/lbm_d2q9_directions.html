@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { margin: 0; background: transparent; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; color: #222; }
+  canvas { cursor: default; }
+  .info { margin-top: 12px; font-size: 13px; color: #555; }
+  .legend { display: flex; gap: 18px; margin-top: 10px; flex-wrap: wrap; justify-content: center; font-size: 12px; }
+  .leg { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .tooltip { position: absolute; pointer-events: none; background: rgba(20,20,20,0.9); color: #fff; font-size: 11px; padding: 4px 7px; border-radius: 4px; display: none; white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="c" width="420" height="420"></canvas>
+<div class="legend">
+  <div class="leg"><div class="dot" style="background:#ffffff;border:1px solid #999"></div> 0: rest (4/9)</div>
+  <div class="leg"><div class="dot" style="background:#4fc3f7"></div> 1-4: axis (1/9)</div>
+  <div class="leg"><div class="dot" style="background:#ffd54f"></div> 5-8: diagonal (1/36)</div>
+</div>
+<div class="info">Passa il mouse su un nodo per i dettagli</div>
+<div class="tooltip" id="tip"></div>
+<script>
+// D2Q9 numbering:
+// ------ +x
+// |7 4 8
+// |3 0 1
+// |6 2 5
+// +y
+const dirx =  [0,  1, 0,-1, 0, 1,-1,-1, 1];
+const diry =  [0,  0, 1, 0,-1, 1, 1,-1,-1];
+const meaning = ['rest','east','north','west','south','north-east','north-west','south-west','south-east'];
+const weightLabel = ['4/9','1/9','1/9','1/9','1/9','1/36','1/36','1/36','1/36'];
+// opp[i] = i + 2 within each group: {1,2,3,4} axis, {5,6,7,8} diagonal
+const opp = [0, 3,4,1,2, 7,8,5,6];
+
+const colors = ['#ffffff','#4fc3f7','#4fc3f7','#4fc3f7','#4fc3f7','#ffd54f','#ffd54f','#ffd54f','#ffd54f'];
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const tip = document.getElementById('tip');
+const W = canvas.width, H = canvas.height;
+const scale = 130;
+const cx = W / 2, cy = H / 2;
+
+function pos(i) {
+  return [cx + dirx[i] * scale, cy + diry[i] * scale];
+}
+
+let hovered = -1;
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // grid lines
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+  ctx.lineWidth = 1;
+  for (const v of [-1, 0, 1]) {
+    ctx.beginPath(); ctx.moveTo(cx + v * scale, cy - scale * 1.4); ctx.lineTo(cx + v * scale, cy + scale * 1.4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - scale * 1.4, cy + v * scale); ctx.lineTo(cx + scale * 1.4, cy + v * scale); ctx.stroke();
+  }
+
+  // axes
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx - scale * 1.3, cy); ctx.lineTo(cx + scale * 1.3, cy); ctx.stroke();
+  ctx.fillStyle = '#ff6b6b';
+  ctx.font = 'bold 13px monospace';
+  ctx.fillText('+x', cx + scale * 1.35, cy + 4);
+
+  ctx.strokeStyle = '#6b9fff';
+  ctx.beginPath(); ctx.moveTo(cx, cy - scale * 1.3); ctx.lineTo(cx, cy + scale * 1.3); ctx.stroke();
+  ctx.fillStyle = '#6b9fff';
+  ctx.fillText('+y', cx - 8, cy + scale * 1.3 + 16);
+
+  // links from center + nodes
+  for (let i = 0; i < 9; i++) {
+    const [px, py] = pos(i);
+    const isRest = i === 0;
+    const isHover = i === hovered;
+
+    if (!isRest) {
+      ctx.strokeStyle = isHover ? colors[i] : colors[i] + '77';
+      ctx.lineWidth = isHover ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(px, py); ctx.stroke();
+    }
+
+    const r = isRest ? 15 : (isHover ? 14 : 12);
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fillStyle = colors[i];
+    ctx.fill();
+    ctx.strokeStyle = isHover ? '#000' : '#333';
+    ctx.lineWidth = isHover ? 2.5 : 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(i, px, py);
+  }
+}
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let found = -1;
+  for (let i = 0; i < 9; i++) {
+    const [px, py] = pos(i);
+    if (Math.hypot(mx - px, my - py) < 15) { found = i; break; }
+  }
+  if (found !== hovered) {
+    hovered = found;
+    draw();
+  }
+  if (found >= 0) {
+    tip.style.display = 'block';
+    tip.style.left = (e.clientX + 12) + 'px';
+    tip.style.top = (e.clientY + 12) + 'px';
+    tip.innerHTML = `i=${found} (${dirx[found]},${diry[found]}) — ${meaning[found]}<br>w=${weightLabel[found]} · opp[${found}]=${opp[found]}`;
+  } else {
+    tip.style.display = 'none';
+  }
+});
+canvas.addEventListener('mouseleave', () => { hovered = -1; tip.style.display = 'none'; draw(); });
+
+draw();
+</script>
+</body>
+</html>
